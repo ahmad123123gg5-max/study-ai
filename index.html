@@ -1,0 +1,95 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartEdge AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    html[dir="rtl"] body {
+      font-family: 'Noto Sans Arabic', 'Inter', sans-serif;
+    }
+    html[dir="ltr"] body {
+      font-family: 'Inter', 'Noto Sans Arabic', sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      transition: background-color 0.3s ease;
+      background-color: #020617; /* Deep slate-950 */
+      color: #ffffff;
+    }
+    img {
+      display: none !important;
+    }
+    img[src^="data:image/"],
+    img[src^="blob:"] {
+      display: block !important;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .dark .glass {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .hero-gradient {
+      background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+    }
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+    .smartedge-locale-root[dir="ltr"] .text-right {
+      text-align: left !important;
+    }
+    .smartedge-locale-root[dir="rtl"] .text-left {
+      text-align: right !important;
+    }
+    .smartedge-locale-root[dir="ltr"] .justify-end {
+      justify-content: flex-start !important;
+    }
+    .smartedge-locale-root[dir="rtl"] .justify-start {
+      justify-content: flex-end !important;
+    }
+    .smartedge-locale-root[dir="ltr"] input:not([dir="rtl"]),
+    .smartedge-locale-root[dir="ltr"] textarea:not([dir="rtl"]) {
+      text-align: left;
+    }
+    .smartedge-locale-root[dir="rtl"] input:not([dir="ltr"]),
+    .smartedge-locale-root[dir="rtl"] textarea:not([dir="ltr"]) {
+      text-align: right;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "rxjs": "https://esm.sh/rxjs@^7.8.2?conditions=es2015",
+    "rxjs/operators": "https://esm.sh/rxjs@^7.8.2/operators?conditions=es2015",
+    "rxjs/ajax": "https://esm.sh/rxjs@^7.8.2/ajax?conditions=es2015",
+    "rxjs/webSocket": "https://esm.sh/rxjs@^7.8.2/webSocket?conditions=es2015",
+    "rxjs/testing": "https://esm.sh/rxjs@^7.8.2/testing?conditions=es2015",
+    "rxjs/fetch": "https://esm.sh/rxjs@^7.8.2/fetch?conditions=es2015",
+    "@angular/compiler": "https://esm.sh/@angular/compiler@^21.1.4?external=rxjs",
+    "@angular/platform-browser": "https://esm.sh/@angular/platform-browser@^21.1.4?external=rxjs",
+    "@angular/core": "https://esm.sh/@angular/core@^21.1.4?external=rxjs",
+    "@angular/common": "https://esm.sh/@angular/common@^21.1.4?external=rxjs"
+  }
+}
+</script>
+</head>
+<body class="text-white transition-colors duration-300">
+  <app-root></app-root>
+</body>
+</html>

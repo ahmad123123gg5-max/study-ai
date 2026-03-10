@@ -1,0 +1,8 @@
+{
+  "name": "SmartEdge AI - Legendary Scheduler",
+  "description": "A premium, AI-driven academic hub with 4K visual fidelity, 3D mascots, and high-end gamification for the ultimate student experience.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

@@ -1,0 +1,388 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.flashcards-shell {
+  background:
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 30%),
+    radial-gradient(circle at 85% 15%, rgba(168, 85, 247, 0.12), transparent 26%),
+    linear-gradient(180deg, #03111f 0%, #020817 48%, #01040d 100%);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+}
+
+.flashcard-stage {
+  perspective: 2200px;
+  min-height: 31rem;
+  position: relative;
+}
+
+.flashcard-stage-preview {
+  min-height: 24rem;
+}
+
+.flashcard-3d {
+  position: relative;
+  min-height: 31rem;
+  transform-style: preserve-3d;
+  transition:
+    transform var(--flashcard-duration, 680ms) cubic-bezier(0.2, 0.7, 0, 1),
+    filter 320ms ease,
+    box-shadow 320ms ease;
+  transform: rotateY(var(--flashcard-rotation, 0deg));
+  filter: drop-shadow(var(--flashcard-depth-shadow, 0 36px 86px rgba(15, 23, 42, 0.35)));
+}
+
+.flashcard-3d-preview {
+  min-height: 24rem;
+}
+
+@media (hover: hover) {
+  .flashcard-stage:hover .flashcard-3d {
+    transform:
+      rotateY(var(--flashcard-rotation, 0deg))
+      rotateX(var(--flashcard-tilt-x, 2deg))
+      rotateZ(calc(var(--flashcard-tilt-y, -2deg) / 2))
+      translateY(-6px)
+      scale(var(--flashcard-hover-scale, 1.012));
+  }
+}
+
+.flashcard-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+  border-width: 1px;
+  transition:
+    border-radius 260ms ease,
+    box-shadow 260ms ease,
+    transform 260ms ease,
+    background 320ms ease,
+    color 320ms ease;
+}
+
+.flashcard-face-front {
+  transform: rotateY(0deg) translateZ(1px);
+}
+
+.flashcard-face-back {
+  transform: rotateY(180deg) translateZ(1px);
+}
+
+.flashcard-face-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.4rem;
+  padding: 1.6rem;
+  transform: translateZ(2px);
+}
+
+.flashcard-content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.flashcard-copy {
+  max-height: 20rem;
+  overflow-y: auto;
+  padding-inline-end: 0.25rem;
+  unicode-bidi: plaintext;
+}
+
+.flashcard-kicker {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--card-muted-color);
+}
+
+.flashcard-label-ar {
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Noto Naskh Arabic', sans-serif;
+}
+
+.flashcard-text {
+  overflow-wrap: break-word;
+  word-break: normal;
+  font-size: clamp(1.25rem, 1.8vw, 2.15rem);
+  font-weight: 900;
+  line-height: 1.75;
+  color: var(--card-text-color);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  transform: translateZ(1px);
+}
+
+.flashcard-copy[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+.flashcard-copy[dir="rtl"] .flashcard-text,
+.flashcard-text-ar {
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: auto;
+  letter-spacing: 0;
+  font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Noto Naskh Arabic', sans-serif;
+  unicode-bidi: plaintext;
+}
+
+.flashcard-copy[dir="rtl"] .flashcard-kicker {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.flashcard-label[dir="rtl"] i {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+.flashcard-text-preview {
+  font-size: clamp(1rem, 1.2vw, 1.4rem);
+}
+
+.flashcard-pattern,
+.flashcard-sheen {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+.flashcard-pattern {
+  opacity: var(--card-pattern-opacity, 0.16);
+}
+
+.flashcard-sheen {
+  background: linear-gradient(120deg, transparent 12%, rgba(255, 255, 255, 0.14) 28%, transparent 46%, transparent 100%);
+  mix-blend-mode: screen;
+  opacity: 0.75;
+  transform: translateX(-28%);
+  transition: transform 700ms ease, opacity 260ms ease;
+}
+
+.flashcard-stage:hover .flashcard-sheen {
+  transform: translateX(6%);
+  opacity: 1;
+}
+
+.pattern-paper {
+  background:
+    linear-gradient(transparent 92%, rgba(255, 255, 255, 0.12) 92%),
+    repeating-linear-gradient(180deg, transparent 0 30px, rgba(255, 255, 255, 0.08) 30px 31px);
+}
+
+.pattern-blossom {
+  background:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.3) 0 3px, transparent 4px),
+    radial-gradient(circle at 78% 28%, rgba(255, 255, 255, 0.22) 0 4px, transparent 5px),
+    radial-gradient(circle at 64% 76%, rgba(255, 255, 255, 0.22) 0 3px, transparent 5px);
+}
+
+.pattern-sparkle {
+  background:
+    radial-gradient(circle at 14% 18%, rgba(255, 255, 255, 0.34) 0 2px, transparent 3px),
+    radial-gradient(circle at 84% 26%, rgba(255, 255, 255, 0.26) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 70%, rgba(255, 255, 255, 0.22) 0 2px, transparent 3px),
+    linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.06) 50%, transparent 100%);
+}
+
+.pattern-rose {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.15) 0 22%, transparent 23%),
+    radial-gradient(circle at 76% 24%, rgba(255, 255, 255, 0.11) 0 18%, transparent 19%),
+    radial-gradient(circle at 56% 78%, rgba(255, 255, 255, 0.09) 0 16%, transparent 17%);
+}
+
+.pattern-grid {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.pattern-confetti {
+  background:
+    radial-gradient(circle at 12% 24%, rgba(250, 204, 21, 0.7) 0 4px, transparent 5px),
+    radial-gradient(circle at 82% 18%, rgba(251, 113, 133, 0.7) 0 4px, transparent 5px),
+    radial-gradient(circle at 22% 76%, rgba(56, 189, 248, 0.7) 0 4px, transparent 5px),
+    radial-gradient(circle at 74% 72%, rgba(255, 255, 255, 0.45) 0 4px, transparent 5px);
+}
+
+.pattern-pixel {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.pattern-gold {
+  background:
+    linear-gradient(115deg, transparent 8%, rgba(255, 255, 255, 0.18) 18%, transparent 28%),
+    linear-gradient(transparent, rgba(255, 255, 255, 0.06));
+}
+
+.pattern-minimal {
+  background: repeating-linear-gradient(135deg, rgba(15, 23, 42, 0.08) 0 2px, transparent 2px 16px);
+}
+
+.pattern-neon {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(34, 211, 238, 0.34) 0 10%, transparent 11%),
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: auto, 36px 36px, 36px 36px;
+}
+
+.flashcard-face[data-shape="rounded_soft"] {
+  border-radius: 2.2rem;
+}
+
+.flashcard-face[data-shape="sharp_modern"] {
+  border-radius: 1.4rem;
+}
+
+.flashcard-face[data-shape="glass"] {
+  border-radius: 2rem;
+  backdrop-filter: blur(16px);
+}
+
+.flashcard-face[data-shape="notebook"] {
+  border-radius: 2rem 1.6rem 1.8rem 2rem;
+  border-inline-start-width: 7px;
+}
+
+.flashcard-face[data-shape="polaroid"] {
+  border-radius: 1.85rem;
+}
+
+.flashcard-face[data-shape="cute_sticker"] {
+  border-radius: 2.6rem 2rem 2.5rem 1.9rem;
+}
+
+.flashcard-face[data-shape="futuristic"] {
+  border-radius: 1.8rem;
+  clip-path: polygon(0 0, 92% 0, 100% 8%, 100% 100%, 8% 100%, 0 92%);
+}
+
+.flashcard-face[data-shape="exam"] {
+  border-radius: 1.5rem;
+}
+
+.flashcard-face[data-shape="kids_fun"] {
+  border-radius: 2.8rem;
+}
+
+.flashcard-face[data-border="solid"] {
+  border-style: solid;
+}
+
+.flashcard-face[data-border="soft"] {
+  border-style: solid;
+}
+
+.flashcard-face[data-border="dashed"] {
+  border-style: dashed;
+}
+
+.flashcard-face[data-border="double"] {
+  border-style: double;
+  border-width: 3px;
+}
+
+.flashcard-face[data-border="glow"] {
+  border-style: solid;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--card-border-solid) 55%, transparent),
+    0 0 32px color-mix(in srgb, var(--card-accent) 22%, transparent),
+    0 22px 70px color-mix(in srgb, var(--card-accent) 18%, transparent);
+}
+
+.flashcard-face[data-theme="anime"],
+.flashcard-face[data-theme="neon_study"] {
+  animation: flashcardGlow 4s ease-in-out infinite;
+}
+
+.flashcard-face[data-shape="polaroid"] .flashcard-face-inner {
+  padding-bottom: 2.4rem;
+}
+
+.flashcard-face[data-shape="kids_fun"] .flashcard-face-inner,
+.flashcard-face[data-shape="cute_sticker"] .flashcard-face-inner {
+  padding: 1.8rem;
+}
+
+.flashcard-face[data-shape="exam"] .flashcard-face-inner {
+  padding: 1.45rem;
+}
+
+@keyframes flashcardGlow {
+  0%, 100% {
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    filter: saturate(1.08) brightness(1.04);
+  }
+}
+
+@keyframes flashcardEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.flashcard-stage,
+.flashcard-stage-preview {
+  animation: flashcardEnter 520ms ease;
+}
+
+@media (max-width: 768px) {
+  .flashcard-stage {
+    min-height: 27rem;
+  }
+
+  .flashcard-3d {
+    min-height: 27rem;
+  }
+
+  .flashcard-copy {
+    max-height: 16rem;
+  }
+
+  .flashcard-face-inner {
+    padding: 1.2rem;
+  }
+}

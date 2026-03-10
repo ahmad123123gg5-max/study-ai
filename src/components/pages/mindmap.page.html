@@ -1,0 +1,468 @@
+<div class="mindmap-shell min-h-screen h-full text-white" [ngStyle]="activeThemeStyle()">
+  <header class="sticky top-0 z-30 border-b border-white/10 bg-slate-950/84 backdrop-blur-2xl">
+    <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-8">
+      <div class="flex min-w-0 items-start gap-3">
+        <button (click)="goBack()" class="mt-1 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 transition hover:border-sky-400/30 hover:bg-sky-500/10">
+          <i class="fa-solid" [class.fa-arrow-right]="ai.currentLanguage() === 'ar'" [class.fa-arrow-left]="ai.currentLanguage() === 'en'"></i>
+        </button>
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.32em] text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'الخريطة الذهنية الذكية' : 'Smart Mind Map' }}</span>
+            <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-slate-300">{{ currentSourceBadge() }}</span>
+          </div>
+          <h1 class="mt-2 text-3xl font-black tracking-tight md:text-4xl">{{ ai.currentLanguage() === 'ar' ? 'الخريطة الذهنية الذكية' : 'Smart Mind Map' }}</h1>
+          <p class="mt-2 max-w-3xl text-sm font-semibold leading-7 text-slate-300">{{ ai.currentLanguage() === 'ar' ? 'حوّل أي شرح أو رسالة أو درس إلى خريطة ذهنية تفاعلية قابلة للتعديل والدراسة والتصدير.' : 'Turn any explanation, lesson, or AI message into an editable interactive mind map for study and export.' }}</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
+          <p class="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'المصدر الحالي' : 'Current Source' }}</p>
+          <p class="mt-1 max-w-[220px] truncate text-sm font-black text-white">{{ currentSourceTitle() }}</p>
+        </div>
+        <button (click)="toggleSavedMaps()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'الخرائط المحفوظة' : 'Saved Maps' }}</button>
+        <button (click)="toggleCustomizationDrawer()" class="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-fuchsia-100 transition hover:bg-fuchsia-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'تخصيص' : 'Customize' }}</button>
+        <button (click)="regenerateMap()" [disabled]="isBusy() || !hasMap()" class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-amber-100 transition hover:bg-amber-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'إعادة التوليد' : 'Regenerate' }}</button>
+        <button (click)="saveCurrentMap()" [disabled]="!currentMap()" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'حفظ' : 'Save' }}</button>
+        <button (click)="expandAllNodes()" [disabled]="!hasMap()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'توسيع كامل' : 'Expand All' }}</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="mx-auto grid w-full max-w-[1800px] flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_25rem]">
+    <section class="overflow-y-auto px-4 py-5 md:px-8">
+      <div class="space-y-5 pb-20">
+        @if (errorMessage()) {
+          <div class="rounded-[1.8rem] border border-rose-500/20 bg-rose-500/10 px-5 py-4 text-sm font-bold text-rose-100">{{ errorMessage() }}</div>
+        }
+
+        @if (!hasMap() && !isBusy()) {
+          <section class="rounded-[2.6rem] border border-dashed border-white/10 bg-slate-950/40 p-6 text-center shadow-[0_30px_80px_rgba(2,6,23,0.26)] md:p-8">
+            <div class="mx-auto max-w-4xl space-y-5">
+              <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 text-3xl text-cyan-100 shadow-[0_20px_60px_rgba(56,189,248,0.16)]">
+                <i class="fa-solid fa-diagram-project"></i>
+              </div>
+              <h2 class="text-3xl font-black tracking-tight md:text-5xl">{{ ai.currentLanguage() === 'ar' ? 'ابدأ من أي شرح أو نص' : 'Start From Any Explanation or Text' }}</h2>
+              <p class="mx-auto max-w-2xl text-sm font-semibold leading-8 text-slate-300 md:text-base">{{ ai.currentLanguage() === 'ar' ? 'إذا لم يصل محتوى تلقائيًا من صفحة أخرى، الصق النص هنا وسيبدأ توليد الخريطة الذهنية مباشرة.' : 'If no content arrived automatically from another page, paste the source here and the map will start generating immediately.' }}</p>
+              <textarea [ngModel]="sourceEditorText()" (ngModelChange)="sourceEditorText.set($event)" rows="12" class="w-full resize-none rounded-[1.8rem] border border-white/10 bg-white/5 px-5 py-4 text-sm font-semibold leading-8 text-white outline-none placeholder:text-slate-600" [attr.dir]="resolveTextDirection(sourceEditorText(), ai.currentLanguage())" [placeholder]="ai.currentLanguage() === 'ar' ? 'ألصق الشرح أو الرسالة أو المحتوى هنا...' : 'Paste the explanation, lesson, or content here...'"></textarea>
+              <div class="flex flex-wrap items-center justify-center gap-3">
+                <button (click)="generateFromEditor()" [disabled]="!canGenerate() || isBusy()" class="rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-300 px-6 py-3 text-sm font-black text-slate-950 transition hover:scale-[1.02] disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'أنشئ الخريطة الآن' : 'Generate Mind Map' }}</button>
+                <button (click)="toggleSavedMaps()" class="rounded-2xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-black text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'افتح الخرائط المحفوظة' : 'Open Saved Maps' }}</button>
+              </div>
+            </div>
+          </section>
+        } @else {
+          <div #mapStage class="mindmap-stage space-y-4" [class.is-fullscreen-fallback]="isFallbackFullscreen()" [class.is-fullscreen-active]="isFullscreenActive()">
+            @if (isFullscreenActive() && hasMap()) {
+              <div class="mindmap-fullscreen-toolbar">
+                <div class="mindmap-fullscreen-toolbar-inner">
+                  <span class="rounded-2xl border border-white/10 bg-slate-950/75 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100">{{ zoomPercent() }}</span>
+                  <button (click)="zoomOut()" [disabled]="scale() <= 0.58" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/75 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تصغير' : 'Zoom Out'"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                  <button (click)="zoomIn()" [disabled]="scale() >= 2.2" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/75 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تكبير' : 'Zoom In'"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                  <button (click)="fitMapToScreen()" class="rounded-2xl border border-white/10 bg-slate-950/75 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'ملاءمة' : 'Fit' }}</button>
+                  <button (click)="toggleFullScreen()" class="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-rose-100 transition hover:bg-rose-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'خروج من الملء' : 'Exit Full Screen' }}</button>
+                </div>
+              </div>
+            }
+
+            <section class="rounded-[2rem] border border-white/10 bg-slate-950/45 p-4 shadow-[0_26px_80px_rgba(2,6,23,0.28)]">
+              <div class="space-y-4">
+                <div class="flex flex-wrap items-center gap-2">
+                  <select [ngModel]="viewMode()" (ngModelChange)="setViewMode($event)" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none">
+                    @for (mode of viewModeOptions(); track mode.id) {
+                      <option [value]="mode.id" class="bg-slate-950 text-white">{{ mode.label }}</option>
+                    }
+                  </select>
+                  @for (preset of [
+                    { id: 'center', labelAr: 'Center', labelEn: 'Center' },
+                    { id: 'top_down', labelAr: 'Top-Down', labelEn: 'Top-Down' },
+                    { id: 'rtl_academic', labelAr: 'RTL Academic', labelEn: 'RTL Academic' },
+                    { id: 'compact_study', labelAr: 'Compact', labelEn: 'Compact' }
+                  ]; track preset.id) {
+                    <button
+                      (click)="applyLayoutPreset($any(preset.id))"
+                      class="rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-[0.24em] transition"
+                      [class.border-cyan-400/30]="layoutPreset() === preset.id"
+                      [class.bg-cyan-500/10]="layoutPreset() === preset.id"
+                      [class.text-cyan-100]="layoutPreset() === preset.id"
+                      [class.border-white/10]="layoutPreset() !== preset.id"
+                      [class.bg-white/5]="layoutPreset() !== preset.id"
+                      [class.text-slate-200]="layoutPreset() !== preset.id">
+                      {{ ai.currentLanguage() === 'ar' ? preset.labelAr : preset.labelEn }}
+                    </button>
+                  }
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                  @for (mode of visualModeOptions(); track mode.id) {
+                    <button
+                      (click)="setVisualMode(mode.id)"
+                      class="rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-[0.22em] transition"
+                      [class.border-fuchsia-400/35]="currentCustomization().visualMode === mode.id"
+                      [class.bg-fuchsia-500/10]="currentCustomization().visualMode === mode.id"
+                      [class.text-fuchsia-100]="currentCustomization().visualMode === mode.id"
+                      [class.border-white/10]="currentCustomization().visualMode !== mode.id"
+                      [class.bg-white/5]="currentCustomization().visualMode !== mode.id"
+                      [class.text-slate-200]="currentCustomization().visualMode !== mode.id">
+                      {{ mode.label }}
+                    </button>
+                  }
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                  <button (click)="simplifyMap()" [disabled]="isBusy() || !hasMap()" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'تبسيط' : 'Simplify' }}</button>
+                  <button (click)="deepenMap()" [disabled]="isBusy() || !hasMap()" class="rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-violet-100 transition hover:bg-violet-500 hover:text-white disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'توسيع' : 'Deepen' }}</button>
+                  <button (click)="reorganizeLayout()" [disabled]="!hasMap()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'إعادة تنظيم' : 'Reorganize' }}</button>
+                  <button (click)="toggleImportantEmphasis()" [disabled]="!hasMap()" class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-amber-100 transition hover:bg-amber-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'إبراز المهم' : 'Highlight Important' }}</button>
+                  <button (click)="hideMapDetails()" [disabled]="!hasMap()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'إخفاء التفاصيل' : 'Hide Details' }}</button>
+                  <button (click)="showMapDetails()" [disabled]="!hasMap()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'إظهار التفاصيل' : 'Show Details' }}</button>
+                  <div class="ml-auto flex flex-wrap items-center gap-2">
+                    <button (click)="zoomOut()" [disabled]="scale() <= 0.58" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تصغير' : 'Zoom Out'"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                    <span class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-200">{{ zoomPercent() }}</span>
+                    <button (click)="zoomIn()" [disabled]="scale() >= 2.2" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تكبير' : 'Zoom In'"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                    <button (click)="fitMapToScreen()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'ملاءمة' : 'Fit Map' }}</button>
+                    <button (click)="centerSelectedNode()" [disabled]="!selectedNodeId()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'تمركز التحديد' : 'Center Selected' }}</button>
+                    <button (click)="centerRoot()" [disabled]="!hasMap()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'تمركز الجذر' : 'Center Root' }}</button>
+                    <button (click)="resetViewport()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'إعادة التموضع' : 'Reset View' }}</button>
+                    <button (click)="toggleFullScreen()" class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">
+                      <i class="fa-solid" [class.fa-expand]="!isFullscreenActive()" [class.fa-compress]="isFullscreenActive()"></i>
+                      <span>{{ isFullscreenActive() ? (ai.currentLanguage() === 'ar' ? 'خروج من الملء' : 'Exit Full Screen') : (ai.currentLanguage() === 'ar' ? 'ملء الشاشة' : 'Full Screen') }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+          @if (viewMode() === 'study' && selectedNode(); as focusNode) {
+            <section class="rounded-[2.3rem] border border-white/10 bg-slate-950/52 p-6 shadow-[0_26px_80px_rgba(2,6,23,0.3)]">
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div class="min-w-0 flex-1">
+                  <p class="text-[10px] font-black uppercase tracking-[0.32em] text-cyan-200">{{ ai.currentLanguage() === 'ar' ? 'Study Mode' : 'Study Mode' }}</p>
+                  <h2 class="mt-3 text-2xl font-black text-white md:text-3xl" [attr.dir]="selectedNodeDirection()">{{ focusNode.title }}</h2>
+                  @if (nodeSummary(focusNode)) {
+                    <p class="mt-3 max-w-3xl text-sm font-semibold leading-8 text-slate-200" [attr.dir]="selectedNodeDirection()">{{ nodeSummary(focusNode) }}</p>
+                  }
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button (click)="goToPreviousStudyNode()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'السابق' : 'Previous' }}</button>
+                  <button (click)="goToNextStudyNode()" class="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 transition hover:bg-cyan-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'التالي' : 'Next' }}</button>
+                </div>
+              </div>
+            </section>
+          }
+
+            @if (hasMap()) {
+              <section class="mindmap-canvas-shell rounded-[2.6rem] border border-white/10 bg-slate-950/45 shadow-[0_34px_100px_rgba(2,6,23,0.32)]" [attr.data-background]="currentCustomization().backgroundMode" [attr.data-layout]="layoutPreset()">
+              <div class="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'الخريطة التفاعلية' : 'Interactive Map' }}</p>
+                  <h2 class="mt-2 text-xl font-black text-white">{{ currentMap()?.name || (ai.currentLanguage() === 'ar' ? 'الخريطة الحالية' : 'Current Map') }}</h2>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button (click)="exportCurrentViewAsPng()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'PNG للمشهد' : 'PNG View' }}</button>
+                  <button (click)="exportAsPng()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'PNG كامل' : 'PNG Full' }}</button>
+                  <button (click)="exportCurrentViewAsPdf()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'PDF للمشهد' : 'PDF View' }}</button>
+                  <button (click)="exportAsPdf()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'PDF كامل' : 'PDF Full' }}</button>
+                  <button (click)="exportAsText()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'نصي' : 'Text' }}</button>
+                  <button (click)="exportAsJson()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">JSON</button>
+                </div>
+              </div>
+
+              <div #mapViewport class="mindmap-canvas-viewport no-scrollbar" (pointerdown)="onCanvasPointerDown($event)" (pointermove)="onCanvasPointerMove($event)" (pointerup)="onCanvasPointerUp($event)" (pointerleave)="onCanvasPointerUp($event)" (wheel)="onCanvasWheel($event)">
+                <div class="mindmap-ambient-glow"></div>
+                <div #mapCanvas class="mindmap-canvas" [class]="canvasClass()" [attr.data-layout]="layoutPreset()" [attr.data-line-style]="currentCustomization().lineStyle" [attr.data-visual-mode]="currentCustomization().visualMode" [attr.data-node-size]="currentCustomization().nodeSize" [style.transform]="canvasTransform()">
+                  @if (currentRoot(); as root) {
+                    <ul class="mind-tree" [class]="treeClass()">
+                      <ng-template #nodeTemplate let-node>
+                        <li class="mind-branch" [attr.data-level]="node.level">
+                          <div class="mind-node-shell" [class]="nodeShellClass(node)" [attr.data-node-id]="node.id" [attr.data-node-type]="node.type">
+                            <article class="mind-node-card" [ngStyle]="nodeStyle(node)" (click)="selectNode(node.id, $event)" (dblclick)="startNodeEdit(node, $event)" [attr.dir]="resolveTextDirection(node.title + ' ' + (node.summary || ''), currentMap()?.language || ai.currentLanguage())" [attr.title]="nodeSummary(node) || node.title">
+                              <div class="mind-node-sheen"></div>
+                              <div class="mind-node-head">
+                                <span class="mind-node-kind">
+                                  @if (shouldShowNodeIcon()) {
+                                    <i class="fa-solid" [class]="nodeTypeIcon(node.type)"></i>
+                                  }
+                                  {{ nodeTypeLabel(node.type) }}
+                                </span>
+                                @if ((node.children?.length || 0) > 0) {
+                                  <button (click)="toggleNodeCollapse(node.id, $event)" class="mind-node-toggle"><i class="fa-solid" [class.fa-plus]="node.collapsed" [class.fa-minus]="!node.collapsed"></i></button>
+                                }
+                              </div>
+                              @if (isEditingNode(node.id)) {
+                                <textarea [(ngModel)]="editingNodeTitle" (keydown.enter)="saveNodeEdit(node.id); $event.preventDefault()" (keyup.escape)="cancelNodeEdit()" (blur)="saveNodeEdit(node.id)" class="mind-node-input" rows="2" [attr.dir]="resolveTextDirection(editingNodeTitle(), currentMap()?.language || ai.currentLanguage())"></textarea>
+                              } @else {
+                                <h3 class="mind-node-title" [attr.dir]="resolveTextDirection(node.title, currentMap()?.language || ai.currentLanguage())">{{ node.title }}</h3>
+                              }
+                              @if (showNodeSummary(node)) {
+                                <p class="mind-node-summary" [attr.dir]="resolveTextDirection(nodeSummary(node), currentMap()?.language || ai.currentLanguage())">{{ nodeSummary(node) }}</p>
+                              }
+                              <div class="mind-node-meta">
+                                @if (node.isKeyPoint || node.type === 'important') { <span class="mind-node-pill mind-node-pill-important">{{ ai.currentLanguage() === 'ar' ? 'مهم' : 'Key Point' }}</span> }
+                                @if (node.reviewState === 'understood') { <span class="mind-node-pill mind-node-pill-understood">{{ ai.currentLanguage() === 'ar' ? 'فهمته' : 'Understood' }}</span> }
+                                @if (node.reviewState === 'review') { <span class="mind-node-pill mind-node-pill-review">{{ ai.currentLanguage() === 'ar' ? 'مراجعة' : 'Review' }}</span> }
+                              </div>
+                            </article>
+
+                            @if (isSelectedNode(node.id)) {
+                              <div class="mind-node-toolbar" (click)="$event.stopPropagation()">
+                                <button (click)="addChildNode(node.id, $event)"><i class="fa-solid fa-plus"></i></button>
+                                @if (node.type !== 'root') { <button (click)="deleteNode(node.id, $event)"><i class="fa-solid fa-trash"></i></button> }
+                                <button (click)="cycleNodeColor(node.id, $event)"><i class="fa-solid fa-palette"></i></button>
+                                <button (click)="toggleNodeImportance(node.id, $event)"><i class="fa-solid fa-star"></i></button>
+                                <button (click)="editNodeNote(node.id, $event)"><i class="fa-solid fa-note-sticky"></i></button>
+                                <button (click)="generateQuestionFromNode(node.id, $event)"><i class="fa-solid fa-circle-question"></i></button>
+                                <button (click)="openNodeAsFlashcards(node.id, $event)"><i class="fa-regular fa-clone"></i></button>
+                                <select class="mind-node-type-select" [value]="node.type" (change)="changeNodeType(node.id, $any($event.target).value)">
+                                  <option value="main">{{ nodeTypeLabel('main') }}</option>
+                                  <option value="sub">{{ nodeTypeLabel('sub') }}</option>
+                                  <option value="detail">{{ nodeTypeLabel('detail') }}</option>
+                                  <option value="example">{{ nodeTypeLabel('example') }}</option>
+                                  <option value="definition">{{ nodeTypeLabel('definition') }}</option>
+                                  <option value="important">{{ nodeTypeLabel('important') }}</option>
+                                  <option value="warning">{{ nodeTypeLabel('warning') }}</option>
+                                </select>
+                              </div>
+                            }
+                          </div>
+
+                          @if (visibleChildren(node).length > 0 && !node.collapsed) {
+                            <ul class="mind-tree-children">
+                              @for (child of visibleChildren(node); track child.id) {
+                                <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: child }"></ng-container>
+                              }
+                            </ul>
+                          }
+                        </li>
+                      </ng-template>
+                      <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: root }"></ng-container>
+                    </ul>
+                  }
+                </div>
+              </div>
+            </section>
+
+            <section class="rounded-[2rem] border border-white/10 bg-slate-950/45 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.26)]">
+              <div class="flex flex-wrap gap-2">
+                <button (click)="generateSummaryFromMap()" [disabled]="isBusy()" class="rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-sky-100 transition hover:bg-sky-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'تحويل إلى ملخص' : 'Summary From Map' }}</button>
+                <button (click)="openMapAsFlashcards()" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'تحويل إلى Flashcards' : 'Turn Into Flashcards' }}</button>
+                <button (click)="openQuizModal()" [disabled]="isBusy()" class="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-fuchsia-100 transition hover:bg-fuchsia-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'تحويل إلى Quiz' : 'Turn Into Quiz' }}</button>
+              </div>
+              </section>
+            }
+          </div>
+        }
+      </div>
+    </section>
+
+    <aside class="border-t border-white/10 bg-slate-950/52 px-4 py-5 backdrop-blur-2xl xl:border-t-0 xl:border-l xl:border-white/10 xl:px-6">
+      <div class="space-y-5">
+        <section class="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+          <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'التقدم' : 'Progress' }}</p>
+          <div class="mt-4 flex items-end justify-between gap-4">
+            <div><p class="text-3xl font-black text-white">{{ progressPercent() }}%</p><p class="mt-1 text-xs font-bold text-slate-400">{{ studyStatusLabel() }}</p></div>
+            <div class="grid grid-cols-2 gap-2 text-center">
+              <div class="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3"><p class="text-lg font-black text-white">{{ progressSummary().totalNodes }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'العقد' : 'Nodes' }}</p></div>
+              <div class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-3"><p class="text-lg font-black text-amber-100">{{ progressSummary().importantNodes }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100">{{ ai.currentLanguage() === 'ar' ? 'المهم' : 'Important' }}</p></div>
+              <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-3"><p class="text-lg font-black text-emerald-100">{{ progressSummary().understoodNodes }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100">{{ ai.currentLanguage() === 'ar' ? 'فهمت' : 'Done' }}</p></div>
+              <div class="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-3"><p class="text-lg font-black text-rose-100">{{ progressSummary().reviewNodes }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-rose-100">{{ ai.currentLanguage() === 'ar' ? 'مراجعة' : 'Review' }}</p></div>
+            </div>
+          </div>
+          <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-900"><div class="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-300 transition-all duration-500" [style.width.%]="progressPercent()"></div></div>
+        </section>
+
+        <section class="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+          <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'العقدة الحالية' : 'Current Node' }}</p>
+          <h2 class="mt-2 text-lg font-black text-white">{{ selectedNode()?.title || (ai.currentLanguage() === 'ar' ? 'لم يتم تحديد عقدة' : 'No node selected') }}</h2>
+          @if (selectedNode(); as inspectorNode) {
+            @if (nodeSummary(inspectorNode)) {
+              <p class="mt-4 text-sm font-semibold leading-7 text-slate-200" [attr.dir]="selectedNodeDirection()">{{ nodeSummary(inspectorNode) }}</p>
+            }
+            @if (inspectorNode.note) {
+              <div class="mt-4 rounded-[1.4rem] border border-amber-400/20 bg-amber-500/10 px-4 py-4 text-sm font-semibold leading-7 text-amber-50" [attr.dir]="selectedNodeDirection()"><span class="font-black">{{ ai.currentLanguage() === 'ar' ? 'ملاحظة:' : 'Note:' }}</span> {{ inspectorNode.note }}</div>
+            }
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button (click)="markNodeReview(inspectorNode.id, 'understood')" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'فهمت' : 'Understood' }}</button>
+              <button (click)="markNodeReview(inspectorNode.id, 'review')" class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-amber-100 transition hover:bg-amber-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'أحتاج مراجعة' : 'Need Review' }}</button>
+              <button (click)="openNodeAsFlashcards(inspectorNode.id)" class="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 transition hover:bg-cyan-500 hover:text-slate-950">Flashcard</button>
+            </div>
+          }
+        </section>
+
+        @if (artifactContent()) {
+          <section class="rounded-[2rem] border border-cyan-400/20 bg-cyan-500/10 p-5 shadow-[0_20px_60px_rgba(34,211,238,0.08)]">
+            <div class="flex items-center justify-between gap-3">
+              <div><p class="text-[10px] font-black uppercase tracking-[0.32em] text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'مخرج إضافي' : 'Study Artifact' }}</p><h3 class="mt-2 text-lg font-black text-white">{{ artifactTitle() }}</h3></div>
+              <button (click)="artifactContent.set(''); artifactTitle.set('')" class="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-100 transition hover:border-rose-400/30 hover:text-rose-100"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="mt-4 max-h-72 overflow-y-auto rounded-[1.4rem] border border-white/10 bg-slate-950/55 px-4 py-4 text-sm font-semibold leading-8 text-slate-100 no-scrollbar" [attr.dir]="resolveTextDirection(artifactContent(), ai.currentLanguage())">{{ artifactContent() }}</div>
+          </section>
+        }
+
+        @if (showSavedMaps()) {
+          <section class="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+            <div class="flex items-center justify-between gap-3">
+              <div><p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'خرائطي المحفوظة' : 'Saved Maps' }}</p><h3 class="mt-2 text-lg font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'مجموعات الخريطة' : 'Saved Collections' }}</h3></div>
+              <button (click)="showSavedMaps.set(false)" class="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-100 transition hover:border-rose-400/30 hover:text-rose-100"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="mt-4 space-y-3 max-h-[26rem] overflow-y-auto pr-1 no-scrollbar">
+              @for (map of savedMapsList(); track map.id) {
+                <button (click)="loadSavedMap(map.id)" class="w-full rounded-[1.5rem] border p-4 text-right transition" [class.border-cyan-400/30]="currentMap()?.id === map.id" [class.bg-cyan-500/10]="currentMap()?.id === map.id" [class.border-white/10]="currentMap()?.id !== map.id" [class.bg-black/20]="currentMap()?.id !== map.id">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1"><p class="truncate text-sm font-black text-white">{{ map.name }}</p><p class="mt-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ formatSavedDate(map.updatedAt) }}</p></div>
+                    <button (click)="deleteSavedMap(map.id, $event)" class="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:border-rose-400/30 hover:text-rose-100"><i class="fa-solid fa-trash"></i></button>
+                  </div>
+                  <p class="mt-3 line-clamp-2 text-xs font-semibold leading-6 text-slate-300">{{ map.sourceTitle || sourceTypeLabel(map.sourceType) }}</p>
+                </button>
+              } @empty {
+                <div class="rounded-[1.5rem] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm font-semibold text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'لا توجد خرائط محفوظة بعد.' : 'No saved maps yet.' }}</div>
+              }
+            </div>
+          </section>
+        }
+      </div>
+    </aside>
+  </div>
+
+  @if (showCustomizationDrawer()) {
+    <div class="fixed inset-0 z-[60] bg-slate-950/76 backdrop-blur-xl" (click)="showCustomizationDrawer.set(false)">
+      <div class="ml-auto h-full w-full max-w-xl overflow-y-auto border-l border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96),_rgba(2,6,23,0.98))] p-4 shadow-2xl md:p-6" (click)="$event.stopPropagation()">
+        <div class="flex items-start justify-between gap-4">
+          <div><p class="text-[10px] font-black uppercase tracking-[0.34em] text-fuchsia-300">{{ ai.currentLanguage() === 'ar' ? 'تخصيص الخريطة' : 'Map Customization' }}</p><h3 class="mt-2 text-2xl font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'خصص الخريطة كما تحب' : 'Customize The Map' }}</h3></div>
+          <button (click)="showCustomizationDrawer.set(false)" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:border-rose-400/30 hover:text-rose-100"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <section class="mt-6 rounded-[2rem] border border-white/10 bg-white/5 p-4">
+          <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'Themes جاهزة' : 'Ready Themes' }}</p>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            @for (theme of themeOptions(); track theme.id) {
+              <button (click)="setTheme(theme.id)" class="rounded-[1.5rem] border p-4 text-right transition" [class.border-cyan-400/40]="currentCustomization().themeId === theme.id" [class.bg-white/10]="currentCustomization().themeId === theme.id" [class.border-white/10]="currentCustomization().themeId !== theme.id" [class.bg-black/20]="currentCustomization().themeId !== theme.id">
+                <div class="h-24 rounded-[1.1rem] border border-white/10" [ngStyle]="headerThemeStyle(theme.id)"></div>
+                <p class="mt-3 text-sm font-black text-white">{{ theme.label }}</p>
+                <p class="mt-1 text-xs font-semibold leading-6 text-slate-400">{{ theme.description }}</p>
+              </button>
+            }
+          </div>
+        </section>
+
+        <section class="mt-6 grid gap-6 md:grid-cols-2">
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'وضع الرسم' : 'Layout Mode' }}</p>
+            <div class="mt-4 grid gap-3">
+              @for (preset of [
+                { id: 'center', labelAr: 'Center Mind Map', labelEn: 'Center Mind Map' },
+                { id: 'top_down', labelAr: 'Top-Down Tree', labelEn: 'Top-Down Tree' },
+                { id: 'rtl_academic', labelAr: 'RTL Academic', labelEn: 'RTL Academic' },
+                { id: 'compact_study', labelAr: 'Compact Study', labelEn: 'Compact Study' }
+              ]; track preset.id) {
+                <button (click)="applyLayoutPreset($any(preset.id))" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-emerald-400/40]="layoutPreset() === preset.id" [class.bg-emerald-500/10]="layoutPreset() === preset.id" [class.border-white/10]="layoutPreset() !== preset.id" [class.bg-black/20]="layoutPreset() !== preset.id">{{ ai.currentLanguage() === 'ar' ? preset.labelAr : preset.labelEn }}</button>
+              }
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'شكل العقد' : 'Node Shape' }}</p>
+            <div class="mt-4 grid gap-3">
+              @for (shape of ['rounded', 'glass', 'pill', 'academic']; track shape) {
+                <button (click)="setNodeShape($any(shape))" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-cyan-400/40]="currentCustomization().nodeShape === shape" [class.bg-cyan-500/10]="currentCustomization().nodeShape === shape" [class.border-white/10]="currentCustomization().nodeShape !== shape" [class.bg-black/20]="currentCustomization().nodeShape !== shape">{{ shape }}</button>
+              }
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'نمط الخطوط' : 'Line Style' }}</p>
+            <div class="mt-4 grid gap-3">
+              @for (style of lineStyleOptions(); track style.id) {
+                <button (click)="setLineStyle(style.id)" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-fuchsia-400/40]="currentCustomization().lineStyle === style.id" [class.bg-fuchsia-500/10]="currentCustomization().lineStyle === style.id" [class.border-white/10]="currentCustomization().lineStyle !== style.id" [class.bg-black/20]="currentCustomization().lineStyle !== style.id">{{ style.label }}</button>
+              }
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'المسافات بين الفروع' : 'Branch Spacing' }}</p>
+            <div class="mt-4 grid gap-3">
+              <button (click)="setSpacing('compact')" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-amber-400/40]="currentCustomization().spacing === 'compact'" [class.bg-amber-500/10]="currentCustomization().spacing === 'compact'" [class.border-white/10]="currentCustomization().spacing !== 'compact'" [class.bg-black/20]="currentCustomization().spacing !== 'compact'">{{ ai.currentLanguage() === 'ar' ? 'مضغوطة' : 'Compact' }}</button>
+              <button (click)="setSpacing('balanced')" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-amber-400/40]="currentCustomization().spacing === 'balanced'" [class.bg-amber-500/10]="currentCustomization().spacing === 'balanced'" [class.border-white/10]="currentCustomization().spacing !== 'balanced'" [class.bg-black/20]="currentCustomization().spacing !== 'balanced'">{{ ai.currentLanguage() === 'ar' ? 'متوازنة' : 'Balanced' }}</button>
+              <button (click)="setSpacing('spacious')" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-amber-400/40]="currentCustomization().spacing === 'spacious'" [class.bg-amber-500/10]="currentCustomization().spacing === 'spacious'" [class.border-white/10]="currentCustomization().spacing !== 'spacious'" [class.bg-black/20]="currentCustomization().spacing !== 'spacious'">{{ ai.currentLanguage() === 'ar' ? 'واسعة' : 'Spacious' }}</button>
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'حجم العقد' : 'Node Size' }}</p>
+            <div class="mt-4 grid gap-3">
+              @for (size of nodeSizeOptions(); track size.id) {
+                <button (click)="setNodeSize(size.id)" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-sky-400/40]="currentCustomization().nodeSize === size.id" [class.bg-sky-500/10]="currentCustomization().nodeSize === size.id" [class.border-white/10]="currentCustomization().nodeSize !== size.id" [class.bg-black/20]="currentCustomization().nodeSize !== size.id">{{ size.label }}</button>
+              }
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'الخلفية' : 'Background' }}</p>
+            <div class="mt-4 grid gap-3">
+              @for (bg of backgroundOptions(); track bg.id) {
+                <button (click)="setBackgroundMode(bg.id)" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-indigo-400/40]="currentCustomization().backgroundMode === bg.id" [class.bg-indigo-500/10]="currentCustomization().backgroundMode === bg.id" [class.border-white/10]="currentCustomization().backgroundMode !== bg.id" [class.bg-black/20]="currentCustomization().backgroundMode !== bg.id">{{ bg.label }}</button>
+              }
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4 md:col-span-2">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'أوضاع الدراسة البصرية' : 'Visual Study Modes' }}</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              @for (mode of visualModeOptions(); track mode.id) {
+                <button (click)="setVisualMode(mode.id)" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-fuchsia-400/40]="currentCustomization().visualMode === mode.id" [class.bg-fuchsia-500/10]="currentCustomization().visualMode === mode.id" [class.border-white/10]="currentCustomization().visualMode !== mode.id" [class.bg-black/20]="currentCustomization().visualMode !== mode.id">{{ mode.label }}</button>
+              }
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4 md:col-span-2">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'تفاصيل إضافية' : 'Extra Details' }}</p>
+            <div class="mt-4 flex flex-wrap gap-3">
+              <button (click)="toggleNodeIcons()" class="rounded-[1.35rem] border px-4 py-3 text-sm font-black transition" [class.border-cyan-400/40]="currentCustomization().showIcons" [class.bg-cyan-500/10]="currentCustomization().showIcons" [class.border-white/10]="!currentCustomization().showIcons" [class.bg-black/20]="!currentCustomization().showIcons">{{ ai.currentLanguage() === 'ar' ? (currentCustomization().showIcons ? 'إخفاء الأيقونات' : 'إظهار الأيقونات') : (currentCustomization().showIcons ? 'Hide Icons' : 'Show Icons') }}</button>
+              <button (click)="hideMapDetails()" class="rounded-[1.35rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-black transition">{{ ai.currentLanguage() === 'ar' ? 'إخفاء التفاصيل الصغيرة' : 'Hide Small Details' }}</button>
+              <button (click)="showMapDetails()" class="rounded-[1.35rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-black transition">{{ ai.currentLanguage() === 'ar' ? 'إظهار التفاصيل الصغيرة' : 'Show Small Details' }}</button>
+            </div>
+          </div>
+        </section>
+
+        <div class="sticky bottom-0 mt-6 flex items-center justify-between gap-3 border-t border-white/10 bg-slate-950/80 pt-4 backdrop-blur-xl">
+          <button (click)="resetCustomization()" class="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-black text-slate-100 transition hover:border-rose-400/30 hover:text-rose-100">{{ ai.currentLanguage() === 'ar' ? 'إعادة الافتراضي' : 'Reset Default' }}</button>
+          <button (click)="showCustomizationDrawer.set(false)" class="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'حفظ وإغلاق' : 'Save & Close' }}</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showQuizModal()) {
+    <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/84 p-4 backdrop-blur-xl" (click)="closeQuizModal()">
+      <div class="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-[2.6rem] border border-white/10 bg-slate-950 shadow-2xl" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between border-b border-white/10 px-6 py-5 md:px-8"><div><p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'اختبار مشتق من الخريطة' : 'Quiz From Mind Map' }}</p><h3 class="mt-2 text-2xl font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'اختبار ذاتي سريع' : 'Quick Self Quiz' }}</h3></div><button (click)="closeQuizModal()" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:border-rose-400/30 hover:text-rose-100"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="max-h-[calc(90vh-96px)] overflow-y-auto px-6 py-6 md:px-8">
+          <div class="space-y-4">
+            @for (question of quizQuestions(); track question.id; let idx = $index) {
+              <div class="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+                <p class="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'السؤال' : 'Question' }} {{ idx + 1 }}</p>
+                <h4 class="mt-3 text-lg font-black leading-8 text-white" [attr.dir]="resolveTextDirection(question.question, ai.currentLanguage())">{{ question.question }}</h4>
+                <div class="mt-4 grid gap-3">@for (option of question.options; track option; let optionIndex = $index) { <div class="rounded-[1.4rem] border px-4 py-3 text-sm font-semibold" [class.border-emerald-400/30]="question.answerIndex === optionIndex" [class.bg-emerald-500/10]="question.answerIndex === optionIndex" [class.text-emerald-100]="question.answerIndex === optionIndex" [class.border-white/10]="question.answerIndex !== optionIndex" [class.bg-black/20]="question.answerIndex !== optionIndex" [class.text-slate-200]="question.answerIndex !== optionIndex"><span class="mr-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ ['A', 'B', 'C', 'D'][optionIndex] }}</span>{{ option }}</div> }</div>
+                @if (question.explanation) { <div class="mt-4 rounded-[1.4rem] border border-cyan-400/20 bg-cyan-500/10 px-4 py-4 text-sm font-semibold leading-7 text-cyan-50"><span class="font-black">{{ ai.currentLanguage() === 'ar' ? 'تفسير:' : 'Explanation:' }}</span> {{ question.explanation }}</div> }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (isBusy()) {
+    <div class="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/78 backdrop-blur-xl">
+      <div class="w-[92%] max-w-xl rounded-[2.6rem] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_35%),linear-gradient(180deg,_rgba(8,47,73,0.76),_rgba(2,6,23,0.95))] px-8 py-10 text-center">
+        <div class="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-500/10"><div class="h-14 w-14 rounded-full border-4 border-cyan-200/25 border-t-cyan-200 animate-spin"></div></div>
+        <p class="mt-6 text-[10px] font-black uppercase tracking-[0.42em] text-cyan-200">{{ busyAction() === 'quiz' ? (ai.currentLanguage() === 'ar' ? 'يتم بناء الاختبار' : 'Building Quiz') : busyAction() === 'artifact' ? (ai.currentLanguage() === 'ar' ? 'يتم إنشاء المخرج' : 'Generating Artifact') : busyAction() === 'export' ? (ai.currentLanguage() === 'ar' ? 'يتم تجهيز التصدير' : 'Preparing Export') : (ai.currentLanguage() === 'ar' ? 'يتم بناء الخريطة' : 'Building Mind Map') }}</p>
+        <h3 class="mt-4 text-2xl font-black md:text-3xl">{{ loadingMessages()[loadingMessageIndex()] }}</h3>
+      </div>
+    </div>
+  }
+
+  @if (showUpgradeModal()) {
+    <app-upgrade-modal [title]="ai.currentLanguage() === 'ar' ? 'تم الوصول للحد اليومي' : 'Daily Limit Reached'" [message]="upgradeMessage()" icon="fa-solid fa-diagram-project" (closeModal)="closeUpgradeModal()" (upgradePlan)="closeUpgradeModal()"></app-upgrade-modal>
+  }
+</div>

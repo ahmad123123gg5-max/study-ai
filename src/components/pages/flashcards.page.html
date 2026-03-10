@@ -1,0 +1,406 @@
+<div class="flashcards-shell min-h-screen h-full text-white">
+  <header class="sticky top-0 z-30 border-b border-white/10 bg-slate-950/80 backdrop-blur-2xl">
+    <div class="mx-auto flex max-w-[1680px] flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-8">
+      <div class="flex items-start gap-3">
+        <button (click)="back.emit(resolveBackTarget())" class="mt-1 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 transition hover:border-sky-400/30 hover:bg-sky-500/10">
+          <i class="fa-solid" [class.fa-arrow-right]="ai.currentLanguage() === 'ar'" [class.fa-arrow-left]="ai.currentLanguage() === 'en'"></i>
+        </button>
+
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.32em] text-sky-200">{{ ai.currentLanguage() === 'ar' ? 'Flashcards الذكية' : 'Smart Flashcards' }}</span>
+            <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-slate-300">{{ currentSourceBadge() }}</span>
+            <span class="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-fuchsia-100">{{ currentThemeLabel() }}</span>
+          </div>
+
+          <h1 class="mt-2 text-3xl font-black tracking-tight md:text-4xl">{{ ai.currentLanguage() === 'ar' ? 'Flashcards الذكية' : 'Smart Flashcards' }}</h1>
+          <p class="mt-2 max-w-3xl text-sm font-semibold leading-7 text-slate-300">
+            {{ ai.currentLanguage() === 'ar'
+              ? 'حوّل أي شرح أو رسالة أو محتوى دراسي إلى بطاقات مراجعة ذكية، ثم خصّص شكلها وثيمها وحركتها لتصبح المذاكرة أجمل وأكثر تفاعلاً.'
+              : 'Turn any explanation, lesson, or AI message into study-ready flashcards, then customize their theme, shape, and motion to make revision more engaging.' }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
+          <p class="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'المصدر الحالي' : 'Current Source' }}</p>
+          <p class="mt-1 max-w-[220px] truncate text-sm font-black text-white">{{ currentSourceTitle() }}</p>
+        </div>
+        <button (click)="openCustomizationPanel()" class="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-fuchsia-100 transition hover:bg-fuchsia-500 hover:text-white">{{ customizationButtonLabel() }}</button>
+        <button (click)="regenerateSet()" [disabled]="isBusy() || !canGenerate()" class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-amber-100 transition hover:bg-amber-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'إعادة التوليد' : 'Regenerate' }}</button>
+        <button (click)="saveCurrentSet()" [disabled]="!currentSet()" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'حفظ' : 'Save' }}</button>
+        <button (click)="notifyExportSoon()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100">{{ ai.currentLanguage() === 'ar' ? 'تصدير لاحقًا' : 'Export Later' }}</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="mx-auto grid w-full max-w-[1680px] flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_24rem]">
+    <section class="overflow-y-auto px-4 py-5 md:px-8">
+      <div class="space-y-6 pb-20">
+        @if (errorMessage()) {
+          <div class="rounded-[1.8rem] border border-rose-500/20 bg-rose-500/10 px-5 py-4 text-sm font-bold text-rose-100">{{ errorMessage() }}</div>
+        }
+
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(14,165,233,0.08)]">
+            <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'التقدم' : 'Progress' }}</p>
+            <div class="mt-4 flex items-end justify-between"><p class="text-3xl font-black">{{ progressPercent() }}%</p><span class="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-2 text-xs font-black text-sky-100">{{ currentIndexLabel() }}</span></div>
+            <div class="mt-3 h-3 overflow-hidden rounded-full bg-slate-900/80"><div class="h-full rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-300 transition-all duration-500" [style.width.%]="progressPercent()"></div></div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(99,102,241,0.08)]">
+            <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'الإحصاءات السريعة' : 'Quick Stats' }}</p>
+            <div class="mt-4 grid grid-cols-4 gap-2 text-center">
+              <div class="rounded-2xl border border-white/10 bg-slate-950/60 px-2 py-3"><p class="text-2xl font-black">{{ totalCardCount() }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'الكل' : 'All' }}</p></div>
+              <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-2 py-3"><p class="text-2xl font-black text-emerald-100">{{ reviewStats().easy }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100">{{ ai.currentLanguage() === 'ar' ? 'سهلة' : 'Easy' }}</p></div>
+              <div class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-2 py-3"><p class="text-2xl font-black text-amber-100">{{ reviewStats().medium }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100">{{ ai.currentLanguage() === 'ar' ? 'متوسطة' : 'Medium' }}</p></div>
+              <div class="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-2 py-3"><p class="text-2xl font-black text-rose-100">{{ reviewStats().hard }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-rose-100">{{ ai.currentLanguage() === 'ar' ? 'صعبة' : 'Hard' }}</p></div>
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(236,72,153,0.08)]">
+            <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'ثيم البطاقة' : 'Card Theme' }}</p>
+            <div class="mt-4 space-y-3">
+              <div class="rounded-[1.4rem] border px-4 py-4" [ngStyle]="themeChipStyle(savedCustomization().themeId)">
+                <p class="text-sm font-black">{{ currentThemeLabel() }}</p>
+                <p class="mt-1 text-xs font-semibold opacity-80">{{ currentShapeLabel() }}</p>
+              </div>
+              <button (click)="openCustomizationPanel()" class="w-full rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-fuchsia-100 transition hover:bg-fuchsia-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'تخصيص البطاقة' : 'Customize Card' }}</button>
+            </div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(34,211,238,0.08)]">
+            <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'الوضع الحالي' : 'Current Mode' }}</p>
+            <div class="mt-4 space-y-3">
+              <div class="rounded-[1.4rem] border border-white/10 bg-black/20 px-4 py-4">
+                <p class="text-lg font-black text-white">{{ currentDisplayLabel() }}</p>
+                <p class="mt-1 text-sm font-semibold text-slate-400">{{ ai.currentLanguage() === 'ar' ? 'حركة قلب 3D وتخصيص محفوظ تلقائيًا.' : '3D flip motion and saved styling are active.' }}</p>
+              </div>
+              <div class="space-y-2">
+                @for (item of difficultyDistribution(); track item.id) {
+                  <div>
+                    <div class="mb-2 flex items-center justify-between text-xs font-black"><span class="text-slate-300">{{ item.label }}</span><span>{{ item.count }}</span></div>
+                    <div class="h-2 overflow-hidden rounded-full bg-slate-900"><div class="h-full rounded-full transition-all duration-500" [class.bg-emerald-400]="item.id === 'easy'" [class.bg-amber-400]="item.id === 'medium'" [class.bg-rose-400]="item.id === 'hard'" [style.width.%]="item.percent"></div></div>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-[2.4rem] border border-white/10 bg-slate-950/45 p-5 shadow-[0_32px_80px_rgba(2,6,23,0.24)]">
+          <div class="grid gap-3 lg:grid-cols-4">
+            <select [ngModel]="displayMode()" (ngModelChange)="setDisplayMode($event)" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none">@for (mode of displayModes(); track mode.id) { <option [value]="mode.id" class="bg-slate-950 text-white">{{ mode.label }}</option> }</select>
+            <select [ngModel]="filterDifficulty()" (ngModelChange)="setFilterDifficulty($event)" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none">@for (option of difficultyFilterOptions(); track option.id) { <option [value]="option.id" class="bg-slate-950 text-white">{{ option.label }}</option> }</select>
+            <select [ngModel]="filterType()" (ngModelChange)="setFilterType($event)" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none">@for (option of typeFilterOptions(); track option.id) { <option [value]="option.id" class="bg-slate-950 text-white">{{ option.label }}</option> }</select>
+            <select [ngModel]="filterTag()" (ngModelChange)="setFilterTag($event)" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white outline-none"><option value="all" class="bg-slate-950 text-white">{{ ai.currentLanguage() === 'ar' ? 'كل الوسوم' : 'All Tags' }}</option>@for (tag of allTags(); track tag) { <option [value]="tag" class="bg-slate-950 text-white">{{ tag }}</option> }</select>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button (click)="generateWithMode('more')" [disabled]="isBusy() || !canGenerate()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'توليد المزيد' : 'Generate More' }}</button>
+            <button (click)="generateWithMode('simplify')" [disabled]="isBusy() || !canGenerate()" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'تبسيط البطاقات' : 'Simplify' }}</button>
+            <button (click)="generateWithMode('strengthen')" [disabled]="isBusy() || !canGenerate()" class="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-rose-100 transition hover:bg-rose-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'تقوية البطاقات' : 'Strengthen' }}</button>
+            <button (click)="openQuiz()" [disabled]="isBusy() || !hasCards()" class="rounded-2xl border border-indigo-400/20 bg-indigo-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-indigo-100 transition hover:bg-indigo-500 hover:text-white disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'تحويل إلى اختبار' : 'Turn Into Quiz' }}</button>
+            <button (click)="buildArtifact('mind_map')" [disabled]="isBusy() || !hasCards()" class="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 transition hover:bg-cyan-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'خريطة ذهنية' : 'Mind Map' }}</button>
+            <button (click)="buildArtifact('summary')" [disabled]="isBusy() || !hasCards()" class="rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-sky-100 transition hover:bg-sky-500 hover:text-slate-950 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'ملخص من البطاقات' : 'Summary' }}</button>
+            <button (click)="speakCurrentCard()" [disabled]="!currentCard()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-40">{{ speakingCardId() === currentCard()?.id ? (ai.currentLanguage() === 'ar' ? 'إيقاف' : 'Stop') : (ai.currentLanguage() === 'ar' ? 'استماع' : 'Listen') }}</button>
+          </div>
+        </div>
+
+        @if (!hasCards() && !isBusy()) {
+          <div class="rounded-[2.6rem] border border-dashed border-white/10 bg-slate-950/45 p-6 text-center md:p-8">
+            <h2 class="text-2xl font-black tracking-tight md:text-4xl">{{ ai.currentLanguage() === 'ar' ? 'ابدأ من أي نص أو شرح' : 'Start From Any Text or Explanation' }}</h2>
+            <p class="mt-3 text-sm font-semibold leading-7 text-slate-400 md:text-base">{{ ai.currentLanguage() === 'ar' ? 'إذا لم يصل محتوى تلقائيًا من صفحة أخرى، الصق النص هنا ليتم تحويله مباشرة إلى بطاقات مراجعة ذكية مع ثيمات وتخصيص تفاعلي.' : 'If no source arrived automatically from another page, paste the content here to generate a strong flashcard deck with rich visual customization.' }}</p>
+            <textarea [ngModel]="sourceEditorText()" (ngModelChange)="sourceEditorText.set($event)" rows="10" class="mt-5 w-full resize-none rounded-[1.8rem] border border-white/10 bg-white/5 px-5 py-4 text-sm font-semibold leading-7 text-white outline-none placeholder:text-slate-600" [attr.dir]="resolveTextDirection(sourceEditorText(), currentSetLanguage())" [placeholder]="ai.currentLanguage() === 'ar' ? 'ألصق الدرس أو الرسالة أو الشرح هنا...' : 'Paste the lesson, message, or explanation here...'"></textarea>
+            <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <button (click)="generateFromEditor()" [disabled]="isBusy() || !sourceEditorText().trim()" class="rounded-2xl bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-300 px-6 py-3 text-sm font-black text-slate-950 transition hover:scale-[1.02] disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'أنشئ البطاقات الآن' : 'Generate Flashcards' }}</button>
+              <button (click)="openCustomizationPanel()" class="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-6 py-3 text-sm font-black text-fuchsia-100 transition hover:bg-fuchsia-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'افتح التخصيص' : 'Open Customization' }}</button>
+            </div>
+          </div>
+        } @else if (currentCard(); as card) {
+          <div class="space-y-6">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em]" [ngStyle]="typeChipStyle(card.type)"><i class="fa-solid mr-2" [class]="cardTypeIcon(card.type)"></i>{{ cardTypeLabel(card.type) }}</span>
+              <span class="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em]" [ngStyle]="difficultyChipStyle(card.difficulty)">{{ difficultyLabel(card.difficulty) }}</span>
+              @if (card.reviewState) { <span class="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em]" [ngStyle]="reviewChipStyle(card.reviewState)">{{ ai.currentLanguage() === 'ar' ? 'تقييمك:' : 'Your Rating:' }} {{ reviewStateLabel(card.reviewState) }}</span> }
+              <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-slate-300">{{ currentThemeLabel() }} · {{ currentShapeLabel() }}</span>
+            </div>
+
+            <section class="rounded-[2.6rem] border border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.55),_rgba(2,6,23,0.78))] p-4 shadow-[0_44px_120px_rgba(2,6,23,0.36)] md:p-7">
+              <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.34em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'بطاقة الدراسة الحالية' : 'Current Study Card' }}</p>
+                  <h2 class="mt-2 text-xl font-black text-white md:text-2xl">{{ cardModeCaption() }}</h2>
+                </div>
+                <button (click)="openCustomizationPanel()" class="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-fuchsia-100 transition hover:bg-fuchsia-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'تخصيص البطاقة' : 'Customize Card' }}</button>
+              </div>
+
+              <div class="flashcard-stage">
+                <div class="flashcard-3d" [ngStyle]="cardSceneStyle(displayMode() === 'classic' && isFlipped())">
+                  <article class="flashcard-face flashcard-face-front" [ngStyle]="cardFaceStyle('front')" [attr.data-theme]="faceAttributeTheme()" [attr.data-shape]="faceAttributeShape()" [attr.data-border]="faceAttributeBorder()" [attr.data-motion]="faceAttributeMotion()">
+                    <div class="flashcard-pattern" [ngClass]="facePatternClass()"></div>
+                    <div class="flashcard-sheen"></div>
+                    <div class="flashcard-face-inner">
+                      <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" [ngStyle]="typeChipStyle(card.type)"><i class="fa-solid mr-2" [class]="cardTypeIcon(card.type)"></i>{{ cardTypeLabel(card.type) }}</span>
+                        <span class="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" style="color: var(--card-text-color)">{{ cardSectionLabel('front') }}</span>
+                      </div>
+
+                      <div class="flashcard-content-area">
+                        <p class="flashcard-kicker" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'">{{ currentDisplayLabel() }}</p>
+                        <div class="flashcard-copy no-scrollbar" [attr.dir]="resolveTextDirection(card.front, currentSetLanguage())">
+                          <h3 class="flashcard-text" [class.flashcard-text-ar]="resolveTextDirection(card.front, currentSetLanguage()) === 'rtl'">{{ card.front }}</h3>
+                        </div>
+                      </div>
+
+                      <div class="flex flex-wrap gap-2">
+                        @for (tag of card.tags || []; track tag) {
+                          <span class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]" style="color: var(--card-text-color)">#{{ tag }}</span>
+                        }
+                      </div>
+                    </div>
+                  </article>
+
+                  <article class="flashcard-face flashcard-face-back" [ngStyle]="cardFaceStyle('back')" [attr.data-theme]="faceAttributeTheme()" [attr.data-shape]="faceAttributeShape()" [attr.data-border]="faceAttributeBorder()" [attr.data-motion]="faceAttributeMotion()">
+                    <div class="flashcard-pattern" [ngClass]="facePatternClass()"></div>
+                    <div class="flashcard-sheen"></div>
+                    <div class="flashcard-face-inner">
+                      <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" [ngStyle]="difficultyChipStyle(card.difficulty)">{{ difficultyLabel(card.difficulty) }}</span>
+                        <span class="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" style="color: var(--card-text-color)">{{ cardSectionLabel('back') }}</span>
+                      </div>
+
+                      <div class="flashcard-content-area">
+                        <p class="flashcard-kicker" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'">{{ ai.currentLanguage() === 'ar' ? 'الإجابة / التوضيح' : 'Answer / Explanation' }}</p>
+                        <div class="flashcard-copy no-scrollbar" [attr.dir]="resolveTextDirection(card.back, currentSetLanguage())">
+                          <h3 class="flashcard-text" [class.flashcard-text-ar]="resolveTextDirection(card.back, currentSetLanguage()) === 'rtl'">{{ card.back }}</h3>
+                          @if (card.sourceSnippet) {
+                            <div class="mt-4 rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3 text-sm font-semibold leading-7" style="color: var(--card-muted-color)">
+                              <span class="font-black" style="color: var(--card-text-color)">{{ ai.currentLanguage() === 'ar' ? 'من المصدر:' : 'From Source:' }}</span> {{ card.sourceSnippet }}
+                            </div>
+                          }
+                        </div>
+                      </div>
+
+                      <div class="flex flex-wrap gap-2">
+                        @for (tag of card.tags || []; track tag) {
+                          <span class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]" style="color: var(--card-text-color)">#{{ tag }}</span>
+                        }
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              @if (displayMode() !== 'classic' && showAnswer()) {
+                <div class="mt-6 rounded-[1.8rem] border border-white/10 bg-black/25 p-5 backdrop-blur-xl">
+                  <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'الجواب الظاهر' : 'Visible Answer' }}</p>
+                  <div class="mt-4 text-base font-semibold leading-8 text-slate-100 md:text-xl" [attr.dir]="resolveTextDirection(card.back, currentSetLanguage())">{{ card.back }}</div>
+                </div>
+              }
+
+              @if (displayMode() === 'self_test' && showHint() && card.hint) {
+                <div class="mt-4 rounded-[1.4rem] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">{{ card.hint }}</div>
+              }
+            </section>
+
+            <div class="rounded-[2.2rem] border border-white/10 bg-white/5 p-4 shadow-[0_24px_80px_rgba(2,6,23,0.18)]">
+              <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div class="flex flex-wrap items-center gap-2">
+                  <button (click)="goToPreviousCard()" [disabled]="!hasPreviousCard()" class="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-200 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-30">{{ ai.currentLanguage() === 'ar' ? 'السابق' : 'Previous' }}</button>
+                  <button (click)="togglePrimaryReveal()" class="rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-[0.24em] transition hover:scale-[1.02]" [ngStyle]="accentButtonStyle()">{{ revealButtonLabel() }}</button>
+                  @if (displayMode() === 'self_test' && card.hint) { <button (click)="toggleHint()" class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-amber-100 transition hover:bg-amber-500 hover:text-slate-950">{{ showHint() ? (ai.currentLanguage() === 'ar' ? 'إخفاء التلميح' : 'Hide Hint') : (ai.currentLanguage() === 'ar' ? 'تلميح' : 'Hint') }}</button> }
+                  <button (click)="goToNextCard()" [disabled]="!hasNextCard()" class="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-200 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-30">{{ ai.currentLanguage() === 'ar' ? 'التالي' : 'Next' }}</button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button (click)="rateCurrentCard('easy')" [disabled]="!currentCard()" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950 disabled:opacity-30">{{ ai.currentLanguage() === 'ar' ? 'سهلة' : 'Easy' }}</button>
+                  <button (click)="rateCurrentCard('medium')" [disabled]="!currentCard()" class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-amber-100 transition hover:bg-amber-500 hover:text-slate-950 disabled:opacity-30">{{ ai.currentLanguage() === 'ar' ? 'متوسطة' : 'Medium' }}</button>
+                  <button (click)="rateCurrentCard('hard')" [disabled]="!currentCard()" class="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-rose-100 transition hover:bg-rose-500 hover:text-slate-950 disabled:opacity-30">{{ ai.currentLanguage() === 'ar' ? 'صعبة' : 'Hard' }}</button>
+                </div>
+              </div>
+            </div>
+
+            @if (artifactContent()) {
+              <div class="rounded-[2.4rem] border border-white/10 bg-slate-950/55 p-5 md:p-6">
+                <div class="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'مخرج إضافي' : 'Generated Artifact' }}</p>
+                    <h3 class="mt-2 text-xl font-black">{{ artifactTitle() }}</h3>
+                  </div>
+                  <div class="flex gap-2">
+                    <button (click)="copyArtifact()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100">{{ ai.currentLanguage() === 'ar' ? 'نسخ' : 'Copy' }}</button>
+                    <button (click)="artifactContent.set(''); artifactTitle.set('')" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-rose-400/30 hover:text-rose-100">{{ ai.currentLanguage() === 'ar' ? 'إغلاق' : 'Close' }}</button>
+                  </div>
+                </div>
+                <div class="rounded-[1.8rem] border border-white/10 bg-black/20 p-5"><div class="whitespace-pre-wrap text-sm font-semibold leading-8 text-slate-200 md:text-base" [attr.dir]="resolveTextDirection(artifactContent(), currentSetLanguage())">{{ artifactContent() }}</div></div>
+              </div>
+            }
+
+            <div class="rounded-[2.4rem] border border-white/10 bg-white/5 p-5 md:p-6">
+              <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'اقتراحات ذكية' : 'Smart Suggestions' }}</p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button (click)="openQuiz()" class="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-4 py-2 text-xs font-black text-indigo-100 transition hover:bg-indigo-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'هل تريد اختبارًا من هذه البطاقات؟' : 'Generate a quiz from these cards?' }}</button>
+                <button (click)="buildArtifact('difficult_points')" class="rounded-full border border-amber-400/20 bg-amber-500/10 px-4 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'شرح مبسط للنقاط الصعبة' : 'Simplify the difficult points' }}</button>
+                <button (click)="buildArtifact('study_plan')" class="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'تحويلها إلى خطة مراجعة' : 'Turn them into a study plan' }}</button>
+                <button (click)="buildArtifact('exam_sprint')" class="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'بطاقات أسرع قبل الامتحان' : 'Create a fast exam sprint' }}</button>
+              </div>
+            </div>
+          </div>
+        } @else if (!isBusy()) {
+          <div class="rounded-[2.2rem] border border-white/10 bg-white/5 p-6 text-center"><p class="text-lg font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'لا توجد بطاقات مطابقة للفلاتر الحالية.' : 'No cards match the current filters.' }}</p></div>
+        }
+      </div>
+    </section>
+
+    <aside class="border-t border-white/10 bg-slate-950/35 px-4 py-5 backdrop-blur-xl lg:overflow-y-auto lg:border-l lg:border-t-0 lg:px-5">
+      <div class="space-y-5 pb-12">
+        <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+          <div class="mb-4 flex items-center justify-between gap-3"><div><p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'النص المصدر' : 'Source Text' }}</p><h3 class="mt-2 text-lg font-black">{{ ai.currentLanguage() === 'ar' ? 'حرّر المحتوى أو ألصقه' : 'Edit or Paste the Content' }}</h3></div><button (click)="clearEditor()" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-300 transition hover:border-rose-400/30 hover:text-rose-100">{{ ai.currentLanguage() === 'ar' ? 'تفريغ' : 'Clear' }}</button></div>
+          <textarea [ngModel]="sourceEditorText()" (ngModelChange)="sourceEditorText.set($event)" rows="10" class="w-full resize-none rounded-[1.5rem] border border-white/10 bg-black/20 px-4 py-4 text-sm font-semibold leading-7 text-white outline-none placeholder:text-slate-600" [attr.dir]="resolveTextDirection(sourceEditorText(), currentSetLanguage())" [placeholder]="ai.currentLanguage() === 'ar' ? 'الصق النص هنا لتوليد أو إعادة توليد البطاقات...' : 'Paste content here to generate or regenerate flashcards...'"></textarea>
+          <div class="mt-4 grid gap-2"><button (click)="generateFromEditor()" [disabled]="isBusy() || !sourceEditorText().trim()" class="rounded-2xl bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:scale-[1.02] disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'توليد البطاقات' : 'Generate Cards' }}</button><button (click)="generateWithMode('more')" [disabled]="isBusy() || !canGenerate()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'بطاقات إضافية أعمق' : 'Generate Deeper Cards' }}</button></div>
+        </div>
+
+        <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+          <div class="mb-4 flex items-center justify-between gap-3"><div><p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'مجموعاتي المحفوظة' : 'Saved Collections' }}</p><h3 class="mt-2 text-lg font-black">{{ ai.currentLanguage() === 'ar' ? 'ارجع للمجموعات في أي وقت' : 'Return to any saved set' }}</h3></div><span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">{{ flashcards.savedSets().length }}</span></div>
+          <div class="space-y-2">
+            @for (set of flashcards.savedSets(); track set.id) {
+              <button (click)="loadSavedSet(set.id)" [class.border-sky-400/30]="currentSet()?.id === set.id" [class.bg-sky-500/10]="currentSet()?.id === set.id" class="group flex w-full items-start justify-between gap-3 rounded-[1.4rem] border border-white/10 bg-black/20 p-4 text-right transition hover:border-sky-400/30 hover:bg-sky-500/10">
+                <div class="min-w-0 flex-1"><p class="truncate text-sm font-black text-white">{{ set.name }}</p><p class="mt-1 truncate text-xs font-semibold text-slate-400">{{ set.sourceTitle || sourceTypeLabel(set.sourceType) }}</p><p class="mt-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{{ set.cards.length }} {{ ai.currentLanguage() === 'ar' ? 'بطاقة' : 'cards' }}</p></div>
+                <button (click)="deleteSavedSet(set.id, $event)" class="rounded-xl px-2 py-1 text-slate-500 opacity-0 transition group-hover:opacity-100 hover:text-rose-300"><i class="fa-solid fa-trash-can"></i></button>
+              </button>
+            } @empty {
+              <div class="rounded-[1.4rem] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm font-bold text-slate-400">{{ ai.currentLanguage() === 'ar' ? 'لا توجد مجموعات محفوظة بعد.' : 'No saved sets yet.' }}</div>
+            }
+          </div>
+        </div>
+
+        <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+          <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'اختصارات سريعة' : 'Quick Shortcuts' }}</p>
+          <div class="mt-4 space-y-2 text-sm font-semibold text-slate-300">
+            <div class="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><span>{{ ai.currentLanguage() === 'ar' ? 'التالي' : 'Next Card' }}</span><kbd class="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs font-black text-white">→</kbd></div>
+            <div class="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><span>{{ ai.currentLanguage() === 'ar' ? 'السابق' : 'Previous Card' }}</span><kbd class="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs font-black text-white">←</kbd></div>
+            <div class="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><span>{{ ai.currentLanguage() === 'ar' ? 'قلب البطاقة / إظهار الجواب' : 'Flip / Reveal' }}</span><kbd class="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs font-black text-white">Space</kbd></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  @if (isBusy()) {
+    <div class="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/78 backdrop-blur-xl">
+      <div class="w-[92%] max-w-xl rounded-[2.6rem] border border-sky-400/15 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_35%),linear-gradient(180deg,_rgba(8,47,73,0.76),_rgba(2,6,23,0.95))] px-8 py-10 text-center">
+        <div class="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-sky-300/20 bg-sky-500/10"><div class="h-14 w-14 rounded-full border-4 border-cyan-200/25 border-t-cyan-200 animate-spin"></div></div>
+        <p class="mt-6 text-[10px] font-black uppercase tracking-[0.42em] text-sky-200">{{ busyActionLabel() }}</p>
+        <h3 class="mt-4 text-2xl font-black md:text-3xl">{{ loadingMessages()[loadingMessageIndex()] }}</h3>
+      </div>
+    </div>
+  }
+
+  @if (showQuizModal()) {
+    <div class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/84 p-4 backdrop-blur-xl" (click)="closeQuizModal()">
+      <div class="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-[2.6rem] border border-white/10 bg-slate-950 shadow-2xl" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between border-b border-white/10 px-6 py-5 md:px-8"><div><p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'اختبار مشتق من البطاقات' : 'Quiz From Flashcards' }}</p><h3 class="mt-2 text-2xl font-black">{{ ai.currentLanguage() === 'ar' ? 'اختبار ذاتي سريع' : 'Quick Self Quiz' }}</h3></div><button (click)="closeQuizModal()" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:border-rose-400/30 hover:text-rose-100"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="max-h-[calc(90vh-96px)] overflow-y-auto px-6 py-6 md:px-8">
+          <div class="space-y-4">
+            @for (question of quizQuestions(); track question.id; let idx = $index) {
+              <div class="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+                <div class="flex items-start justify-between gap-3"><div class="min-w-0 flex-1"><p class="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'السؤال' : 'Question' }} {{ idx + 1 }}</p><h4 class="mt-3 text-lg font-black leading-8 text-white" [attr.dir]="resolveTextDirection(question.question, currentSetLanguage())">{{ question.question }}</h4></div><button (click)="toggleQuizAnswer(question.id)" class="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-200 transition hover:border-sky-400/30 hover:text-sky-100">{{ isQuizAnswerVisible(question.id) ? (ai.currentLanguage() === 'ar' ? 'إخفاء الحل' : 'Hide Answer') : (ai.currentLanguage() === 'ar' ? 'إظهار الحل' : 'Show Answer') }}</button></div>
+                <div class="mt-4 grid gap-3">@for (option of question.options; track option; let optionIndex = $index) { <div class="rounded-[1.4rem] border px-4 py-3 text-sm font-semibold transition" [class.border-emerald-400/30]="isQuizAnswerVisible(question.id) && question.answerIndex === optionIndex" [class.bg-emerald-500/10]="isQuizAnswerVisible(question.id) && question.answerIndex === optionIndex" [class.text-emerald-100]="isQuizAnswerVisible(question.id) && question.answerIndex === optionIndex" [class.border-white/10]="!(isQuizAnswerVisible(question.id) && question.answerIndex === optionIndex)" [class.bg-black/20]="!(isQuizAnswerVisible(question.id) && question.answerIndex === optionIndex)" [class.text-slate-200]="!(isQuizAnswerVisible(question.id) && question.answerIndex === optionIndex)"><span class="mr-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ quizOptionLabel(optionIndex) }}</span>{{ option }}</div> }</div>
+                @if (isQuizAnswerVisible(question.id) && question.explanation) { <div class="mt-4 rounded-[1.4rem] border border-cyan-400/20 bg-cyan-500/10 px-4 py-4 text-sm font-semibold leading-7 text-cyan-50"><span class="font-black">{{ ai.currentLanguage() === 'ar' ? 'تفسير:' : 'Explanation:' }}</span> {{ question.explanation }}</div> }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showCustomizationDrawer()) {
+    <div class="fixed inset-0 z-[60] bg-slate-950/76 backdrop-blur-xl" (click)="closeCustomizationPanel()">
+      <div class="ml-auto h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[linear-gradient(180deg,_rgba(15,23,42,0.96),_rgba(2,6,23,0.98))] p-4 shadow-2xl md:p-6" (click)="$event.stopPropagation()">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.34em] text-fuchsia-300">{{ ai.currentLanguage() === 'ar' ? 'تخصيص البطاقة' : 'Card Customization' }}</p>
+            <h3 class="mt-2 text-2xl font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'خصص البطاقة كما تحب' : 'Make The Card Yours' }}</h3>
+            <p class="mt-2 text-sm leading-7 text-slate-300">{{ ai.currentLanguage() === 'ar' ? 'اختر Theme جاهزًا أو غيّر الشكل واللون والحركة مباشرة مع معاينة فورية.' : 'Pick a ready-made theme or adjust shape, color, and motion with instant live preview.' }}</p>
+          </div>
+          <button (click)="closeCustomizationPanel()" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:border-rose-400/30 hover:text-rose-100"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <section class="mt-6 rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-[0_24px_80px_rgba(168,85,247,0.08)]">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div><p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'معاينة مباشرة' : 'Live Preview' }}</p><h4 class="mt-2 text-lg font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'بطاقة المعاينة' : 'Preview Card' }}</h4></div>
+            <div class="flex gap-2"><button (click)="togglePreviewFlip()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100">{{ ai.currentLanguage() === 'ar' ? 'قلب المعاينة' : 'Flip Preview' }}</button><button (click)="saveCustomization()" class="rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-[0.24em] transition hover:scale-[1.02]" [ngStyle]="accentButtonStyle(true)">{{ ai.currentLanguage() === 'ar' ? 'حفظ التخصيص' : 'Save Customization' }}</button></div>
+          </div>
+
+          <div class="flashcard-stage flashcard-stage-preview">
+            <div class="flashcard-3d flashcard-3d-preview" [ngStyle]="cardSceneStyle(previewFlipped(), true)">
+              <article class="flashcard-face flashcard-face-front" [ngStyle]="cardFaceStyle('front', true)" [attr.data-theme]="faceAttributeTheme(true)" [attr.data-shape]="faceAttributeShape(true)" [attr.data-border]="faceAttributeBorder(true)" [attr.data-motion]="faceAttributeMotion(true)">
+                <div class="flashcard-pattern" [ngClass]="facePatternClass(true)"></div><div class="flashcard-sheen"></div>
+                <div class="flashcard-face-inner">
+                  <div class="flex items-center justify-between gap-2"><span class="rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.22em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" [ngStyle]="typeChipStyle(previewCard().type, true)"><i class="fa-solid mr-2" [class]="cardTypeIcon(previewCard().type)"></i>{{ cardTypeLabel(previewCard().type) }}</span><span class="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.22em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" style="color: var(--card-text-color)">{{ cardSectionLabel('front') }}</span></div>
+                  <div class="flashcard-content-area"><div class="flashcard-copy no-scrollbar" [attr.dir]="resolveTextDirection(previewCard().front, currentSetLanguage())"><h3 class="flashcard-text flashcard-text-preview" [class.flashcard-text-ar]="resolveTextDirection(previewCard().front, currentSetLanguage()) === 'rtl'">{{ previewCard().front }}</h3></div></div>
+                </div>
+              </article>
+
+              <article class="flashcard-face flashcard-face-back" [ngStyle]="cardFaceStyle('back', true)" [attr.data-theme]="faceAttributeTheme(true)" [attr.data-shape]="faceAttributeShape(true)" [attr.data-border]="faceAttributeBorder(true)" [attr.data-motion]="faceAttributeMotion(true)">
+                <div class="flashcard-pattern" [ngClass]="facePatternClass(true)"></div><div class="flashcard-sheen"></div>
+                <div class="flashcard-face-inner">
+                  <div class="flex items-center justify-between gap-2"><span class="rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.22em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" [ngStyle]="difficultyChipStyle(previewCard().difficulty)">{{ difficultyLabel(previewCard().difficulty) }}</span><span class="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.22em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" style="color: var(--card-text-color)">{{ cardSectionLabel('back') }}</span></div>
+                  <div class="flashcard-content-area"><div class="flashcard-copy no-scrollbar" [attr.dir]="resolveTextDirection(previewCard().back, currentSetLanguage())"><h3 class="flashcard-text flashcard-text-preview" [class.flashcard-text-ar]="resolveTextDirection(previewCard().back, currentSetLanguage()) === 'rtl'">{{ previewCard().back }}</h3></div></div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="mt-6 space-y-6">
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'ستايل البطاقة' : 'Card Style' }}</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">@for (preset of stylePresetOptions(); track preset.id) { <button (click)="selectStylePreset(preset.id)" class="rounded-[1.4rem] border px-4 py-4 text-right transition" [class.border-fuchsia-400/40]="draftCustomization().stylePreset === preset.id" [class.bg-fuchsia-500/10]="draftCustomization().stylePreset === preset.id" [class.border-white/10]="draftCustomization().stylePreset !== preset.id" [class.bg-black/20]="draftCustomization().stylePreset !== preset.id"><p class="text-sm font-black text-white">{{ preset.label }}</p><p class="mt-2 text-xs font-semibold leading-6 text-slate-400">{{ preset.description }}</p></button> }</div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'Themes جاهزة' : 'Ready Themes' }}</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">@for (theme of themeOptions(); track theme.id) { <button (click)="selectTheme(theme.id)" class="rounded-[1.5rem] border p-4 text-right transition" [class.border-sky-400/40]="draftCustomization().themeId === theme.id" [class.bg-white/10]="draftCustomization().themeId === theme.id" [class.border-white/10]="draftCustomization().themeId !== theme.id" [class.bg-black/20]="draftCustomization().themeId !== theme.id"><div class="h-20 rounded-[1.1rem] border" [ngStyle]="themeChipStyle(theme.id)"></div><p class="mt-3 text-sm font-black text-white">{{ theme.label }}</p><p class="mt-1 text-xs font-semibold leading-6 text-slate-400">{{ theme.description }}</p></button> }</div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'أشكال البطاقة' : 'Card Shapes' }}</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">@for (shape of shapeOptions(); track shape.id) { <button (click)="selectShape(shape.id)" class="rounded-[1.4rem] border px-4 py-4 text-right transition" [class.border-cyan-400/40]="draftCustomization().shapeId === shape.id" [class.bg-cyan-500/10]="draftCustomization().shapeId === shape.id" [class.border-white/10]="draftCustomization().shapeId !== shape.id" [class.bg-black/20]="draftCustomization().shapeId !== shape.id"><p class="text-sm font-black text-white">{{ shape.label }}</p><p class="mt-2 text-xs font-semibold leading-6 text-slate-400">{{ shape.description }}</p></button> }</div>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'الألوان والتباين' : 'Colors and Contrast' }}</p>
+            <div class="mt-4 space-y-4">
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="rounded-[1.4rem] border border-white/10 bg-black/20 p-4"><div class="mb-3 flex items-center justify-between gap-3"><span class="text-sm font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'لون الواجهة' : 'Front Color' }}</span><input type="color" [value]="draftCustomization().frontColor" (input)="setDraftColor('frontColor', $any($event.target).value)" class="h-10 w-14 cursor-pointer rounded-xl border border-white/10 bg-transparent p-1"></div><div class="flex flex-wrap gap-2">@for (swatch of colorOptions(); track swatch.id) { <button (click)="setDraftColor('frontColor', swatch.hex)" class="h-8 w-8 rounded-full border border-white/10 transition hover:scale-110" [style.background]="swatch.hex"></button> }</div></div>
+                <div class="rounded-[1.4rem] border border-white/10 bg-black/20 p-4"><div class="mb-3 flex items-center justify-between gap-3"><span class="text-sm font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'لون الخلفية الخلفية' : 'Back Color' }}</span><input type="color" [value]="draftCustomization().backColor" (input)="setDraftColor('backColor', $any($event.target).value)" class="h-10 w-14 cursor-pointer rounded-xl border border-white/10 bg-transparent p-1"></div><div class="flex flex-wrap gap-2">@for (swatch of colorOptions(); track swatch.id) { <button (click)="setDraftColor('backColor', swatch.hex)" class="h-8 w-8 rounded-full border border-white/10 transition hover:scale-110" [style.background]="swatch.hex"></button> }</div></div>
+              </div>
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="rounded-[1.4rem] border border-white/10 bg-black/20 p-4"><div class="mb-3 flex items-center justify-between gap-3"><span class="text-sm font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'لون النص' : 'Text Color' }}</span><input type="color" [value]="draftCustomization().textColor" (input)="setDraftColor('textColor', $any($event.target).value)" class="h-10 w-14 cursor-pointer rounded-xl border border-white/10 bg-transparent p-1"></div><div class="flex flex-wrap gap-2">@for (swatch of colorOptions(); track swatch.id) { <button (click)="setDraftColor('textColor', swatch.hex)" class="h-8 w-8 rounded-full border border-white/10 transition hover:scale-110" [style.background]="swatch.hex"></button> }</div></div>
+                <div class="rounded-[1.4rem] border border-white/10 bg-black/20 p-4"><div class="mb-3 flex items-center justify-between gap-3"><span class="text-sm font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'لون الحدود' : 'Border Color' }}</span><input type="color" [value]="draftCustomization().borderColor" (input)="setDraftColor('borderColor', $any($event.target).value)" class="h-10 w-14 cursor-pointer rounded-xl border border-white/10 bg-transparent p-1"></div><div class="flex flex-wrap gap-2">@for (swatch of colorOptions(); track swatch.id) { <button (click)="setDraftColor('borderColor', swatch.hex)" class="h-8 w-8 rounded-full border border-white/10 transition hover:scale-110" [style.background]="swatch.hex"></button> }</div></div>
+              </div>
+              <button (click)="toggleAutoContrast()" class="flex w-full items-center justify-between rounded-[1.4rem] border border-white/10 bg-black/20 px-4 py-4 text-sm font-black text-white transition hover:border-sky-400/30"><span>{{ ai.currentLanguage() === 'ar' ? 'تفعيل Auto Contrast' : 'Enable Auto Contrast' }}</span><span class="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.24em]" [class.bg-emerald-500/15]="draftCustomization().autoContrast" [class.text-emerald-100]="draftCustomization().autoContrast" [class.bg-white/10]="!draftCustomization().autoContrast" [class.text-slate-300]="!draftCustomization().autoContrast">{{ draftCustomization().autoContrast ? (ai.currentLanguage() === 'ar' ? 'مفعل' : 'On') : (ai.currentLanguage() === 'ar' ? 'متوقف' : 'Off') }}</span></button>
+            </div>
+          </div>
+
+          <div class="grid gap-6 md:grid-cols-2">
+            <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4"><p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'شكل الحدود' : 'Border Style' }}</p><div class="mt-4 grid grid-cols-2 gap-3">@for (option of borderOptions(); track option.id) { <button (click)="setBorderStyle(option.id)" class="rounded-[1.3rem] border px-4 py-3 text-sm font-black transition" [class.border-amber-400/40]="draftCustomization().borderStyle === option.id" [class.bg-amber-500/10]="draftCustomization().borderStyle === option.id" [class.border-white/10]="draftCustomization().borderStyle !== option.id" [class.bg-black/20]="draftCustomization().borderStyle !== option.id">{{ option.label }}</button> }</div></div>
+            <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4"><p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'نوع الحركة' : 'Motion Style' }}</p><div class="mt-4 grid grid-cols-3 gap-3">@for (option of motionOptions(); track option.id) { <button (click)="setMotionStyle(option.id)" class="rounded-[1.3rem] border px-4 py-3 text-sm font-black transition" [class.border-emerald-400/40]="draftCustomization().motion === option.id" [class.bg-emerald-500/10]="draftCustomization().motion === option.id" [class.border-white/10]="draftCustomization().motion !== option.id" [class.bg-black/20]="draftCustomization().motion !== option.id">{{ option.label }}</button> }</div></div>
+          </div>
+        </section>
+
+        <div class="sticky bottom-0 mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-slate-950/80 pt-4 backdrop-blur-xl">
+          <button (click)="resetCustomizationDraft()" class="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-black text-slate-100 transition hover:border-rose-400/30 hover:text-rose-100">{{ ai.currentLanguage() === 'ar' ? 'إعادة الافتراضي' : 'Reset Default' }}</button>
+          <button (click)="saveCustomization()" class="rounded-2xl px-5 py-3 text-sm font-black transition hover:scale-[1.02]" [ngStyle]="accentButtonStyle(true)">{{ ai.currentLanguage() === 'ar' ? 'حفظ التخصيص' : 'Save Customization' }}</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showUpgradeModal()) {
+    <app-upgrade-modal [title]="ai.currentLanguage() === 'ar' ? 'تم الوصول للحد اليومي' : 'Daily Limit Reached'" [message]="upgradeMessage()" icon="fa-solid fa-layer-group" (closeModal)="showUpgradeModal.set(false)" (upgradePlan)="closeUpgradeModal()"></app-upgrade-modal>
+  }
+</div>

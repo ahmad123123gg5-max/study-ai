@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "id": "54fc8deb-a41e-4fcd-942d-72f5230e873f",
+      "email": "ahmad123123gg5@gmail.com",
+      "name": "Ahmad Ahmad",
+      "xp": 0,
+      "level": 1,
+      "plan": "pro",
+      "unlockedAchievements": [],
+      "history": [],
+      "preferredLanguage": "ar",
+      "authProvider": "google",
+      "createdAt": "2026-03-04T20:13:49.208Z",
+      "updatedAt": "2026-03-09T17:49:42.999Z"
+    }
+  ]
+}

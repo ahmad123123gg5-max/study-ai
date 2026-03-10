@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": [
+      "node"
+    ],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "strict": false
+  },
+  "include": [
+    "server.ts",
+    "server/**/*.ts"
+  ]
+}

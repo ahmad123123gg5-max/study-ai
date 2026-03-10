@@ -14,6 +14,7 @@
     "server:build": "tsc -p tsconfig.server.json",
     "server": "npm run server:build && node server.js",
     "build": "ng build",
+    "start": "npm run server",
     "lint": "ng lint",
     "i18n:check": "node scripts/check-local-i18n.mjs",
     "preview": "ng serve --configuration=production"

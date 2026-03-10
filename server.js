@@ -12,7 +12,7 @@ import { createOpenAIChatCompletion, transcribeOpenAIAudio } from './server/open
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-const PORT = Number(process.env['PORT'] || 3001);
+const PORT = process.env.PORT || 3000;
 const APP_URL = process.env['APP_URL'] || 'http://localhost:3000';
 const JWT_SECRET = process.env['JWT_SECRET'] || 'change-me-in-env';
 const OPENAI_API_KEY = process.env['OPENAI_API_KEY'];
@@ -1169,8 +1169,8 @@ app.use((err, _req, res, _next) => {
 });
 const start = async () => {
     await ensureDataFile();
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server running on http://localhost:${PORT}`);
+    app.listen(PORT, () => {
+        console.log('Server running on port ' + PORT);
         console.log(`Allowed CORS origins: ${Array.from(allowedOrigins).join(', ')}`);
         if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             console.log(`Google OAuth redirect URI: ${getGoogleRedirectUri()}`);

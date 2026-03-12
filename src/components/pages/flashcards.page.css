@@ -38,29 +38,33 @@
   min-height: 24rem;
 }
 
-.flashcard-3d {
+.flashcard-scene {
+  position: relative;
+  min-height: 31rem;
+  isolation: isolate;
+}
+
+.flashcard-flipper {
   position: relative;
   min-height: 31rem;
   transform-style: preserve-3d;
   transition:
     transform var(--flashcard-duration, 680ms) cubic-bezier(0.2, 0.7, 0, 1),
-    filter 320ms ease,
     box-shadow 320ms ease;
   transform: rotateY(var(--flashcard-rotation, 0deg));
-  filter: drop-shadow(var(--flashcard-depth-shadow, 0 36px 86px rgba(15, 23, 42, 0.35)));
+  will-change: transform;
 }
 
-.flashcard-3d-preview {
+.flashcard-scene-preview,
+.flashcard-flipper-preview {
   min-height: 24rem;
 }
 
 @media (hover: hover) {
-  .flashcard-stage:hover .flashcard-3d {
+  .flashcard-stage:hover .flashcard-flipper {
     transform:
       rotateY(var(--flashcard-rotation, 0deg))
-      rotateX(var(--flashcard-tilt-x, 2deg))
-      rotateZ(calc(var(--flashcard-tilt-y, -2deg) / 2))
-      translateY(-6px)
+      translateY(calc(var(--flashcard-hover-lift, 6px) * -1))
       scale(var(--flashcard-hover-scale, 1.012));
   }
 }
@@ -71,7 +75,7 @@
   overflow: hidden;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  transform-style: preserve-3d;
+  transform-style: flat;
   border-width: 1px;
   transition:
     border-radius 260ms ease,
@@ -82,23 +86,39 @@
 }
 
 .flashcard-face-front {
-  transform: rotateY(0deg) translateZ(1px);
+  transform: rotateY(0deg);
 }
 
 .flashcard-face-back {
-  transform: rotateY(180deg) translateZ(1px);
+  transform: rotateY(180deg);
+}
+
+.flashcard-face-surface {
+  position: relative;
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  color: inherit;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: none;
+  transform-style: flat;
+  contain: paint;
 }
 
 .flashcard-face-inner {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   display: flex;
   height: 100%;
   flex-direction: column;
   justify-content: space-between;
   gap: 1.4rem;
   padding: 1.6rem;
-  transform: translateZ(2px);
+  transform: none;
+  transform-style: flat;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .flashcard-content-area {
@@ -113,6 +133,10 @@
   overflow-y: auto;
   padding-inline-end: 0.25rem;
   unicode-bidi: plaintext;
+  transform: none;
+  transform-style: flat;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .flashcard-kicker {
@@ -121,6 +145,10 @@
   letter-spacing: 0.32em;
   text-transform: uppercase;
   color: var(--card-muted-color);
+  transform: none;
+  transform-style: flat;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .flashcard-label-ar {
@@ -138,7 +166,11 @@
   color: var(--card-text-color);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  transform: translateZ(1px);
+  transform: none;
+  transform-style: flat;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  font-feature-settings: "kern" 1, "liga" 1, "rlig" 1;
 }
 
 .flashcard-copy[dir="rtl"] {
@@ -154,6 +186,7 @@
   letter-spacing: 0;
   font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Noto Naskh Arabic', sans-serif;
   unicode-bidi: plaintext;
+  font-feature-settings: "kern" 1, "liga" 1, "rlig" 1, "calt" 1;
 }
 
 .flashcard-copy[dir="rtl"] .flashcard-kicker {
@@ -374,7 +407,8 @@
     min-height: 27rem;
   }
 
-  .flashcard-3d {
+  .flashcard-scene,
+  .flashcard-flipper {
     min-height: 27rem;
   }
 

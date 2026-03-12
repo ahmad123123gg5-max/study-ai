@@ -1,0 +1,122 @@
+const round = (value) => Math.round(value * 100) / 100;
+const percentile = (values, ratio) => {
+    if (values.length === 0) {
+        return 0;
+    }
+    const sorted = [...values].sort((a, b) => a - b);
+    const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
+    return sorted[index];
+};
+export class HybridPerformanceMonitor {
+    sampleLimit;
+    responseTimes = [];
+    aiLatencies = [];
+    vectorLatencies = [];
+    routeCounts = {
+        logic: 0,
+        cache: 0,
+        rag: 0,
+        ai: 0,
+        rag_ai: 0,
+        job: 0
+    };
+    cacheHits = {
+        l1_memory: 0,
+        l2_redis: 0,
+        l3_database: 0,
+        miss: 0
+    };
+    jobCounts = {
+        queued: 0,
+        running: 0,
+        completed: 0,
+        failed: 0
+    };
+    aiRequestCount = 0;
+    aiPromptTokens = 0;
+    aiCompletionTokens = 0;
+    aiTotalTokens = 0;
+    indexedDocuments = 0;
+    latestIndexAt = null;
+    constructor(sampleLimit) {
+        this.sampleLimit = sampleLimit;
+    }
+    pushSample(bucket, value) {
+        bucket.push(value);
+        if (bucket.length > this.sampleLimit) {
+            bucket.shift();
+        }
+    }
+    recordRequest(route, durationMs, cacheLayer) {
+        this.routeCounts[route] += 1;
+        this.cacheHits[cacheLayer] += 1;
+        this.pushSample(this.responseTimes, durationMs);
+    }
+    recordAiUsage(latencyMs, usage) {
+        this.aiRequestCount += 1;
+        this.pushSample(this.aiLatencies, latencyMs);
+        if (usage?.promptTokens) {
+            this.aiPromptTokens += usage.promptTokens;
+        }
+        if (usage?.completionTokens) {
+            this.aiCompletionTokens += usage.completionTokens;
+        }
+        if (usage?.totalTokens) {
+            this.aiTotalTokens += usage.totalTokens;
+        }
+    }
+    recordVectorSearch(durationMs) {
+        this.pushSample(this.vectorLatencies, durationMs);
+    }
+    recordKnowledgeIndex(count) {
+        this.indexedDocuments = count;
+        this.latestIndexAt = new Date().toISOString();
+    }
+    recordJobStatus(status) {
+        this.jobCounts[status] += 1;
+    }
+    snapshot(system) {
+        const avgResponseMs = this.responseTimes.length === 0
+            ? 0
+            : this.responseTimes.reduce((sum, value) => sum + value, 0) / this.responseTimes.length;
+        const avgAiMs = this.aiLatencies.length === 0
+            ? 0
+            : this.aiLatencies.reduce((sum, value) => sum + value, 0) / this.aiLatencies.length;
+        const avgVectorMs = this.vectorLatencies.length === 0
+            ? 0
+            : this.vectorLatencies.reduce((sum, value) => sum + value, 0) / this.vectorLatencies.length;
+        return {
+            system,
+            requests: {
+                total: Object.values(this.routeCounts).reduce((sum, value) => sum + value, 0),
+                byRoute: { ...this.routeCounts },
+                avgResponseMs: round(avgResponseMs),
+                p95ResponseMs: round(percentile(this.responseTimes, 0.95))
+            },
+            cache: {
+                hits: { ...this.cacheHits },
+                hitRate: round((this.cacheHits.l1_memory + this.cacheHits.l2_redis + this.cacheHits.l3_database) /
+                    Math.max(1, Object.values(this.cacheHits).reduce((sum, value) => sum + value, 0)))
+            },
+            ai: {
+                requests: this.aiRequestCount,
+                avgLatencyMs: round(avgAiMs),
+                p95LatencyMs: round(percentile(this.aiLatencies, 0.95)),
+                usage: {
+                    promptTokens: this.aiPromptTokens,
+                    completionTokens: this.aiCompletionTokens,
+                    totalTokens: this.aiTotalTokens
+                }
+            },
+            vector: {
+                indexedDocuments: this.indexedDocuments,
+                latestIndexAt: this.latestIndexAt,
+                avgSearchMs: round(avgVectorMs),
+                p95SearchMs: round(percentile(this.vectorLatencies, 0.95))
+            },
+            jobs: {
+                ...this.jobCounts
+            }
+        };
+    }
+}

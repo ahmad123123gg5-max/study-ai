@@ -3,6 +3,11 @@ import { Injectable, signal, effect, inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { NotificationService } from './notification.service';
 import {
+  AIChatRequestOptions,
+  AIChatResponsePayload,
+  GroundingMetadata
+} from './grounding.models';
+import {
   DEFAULT_LANGUAGE,
   LanguageCode,
   getLanguageName,
@@ -98,6 +103,17 @@ export interface ClinicalCase {
   questions: { options: string[]; answer: number }[];
 }
 
+export type QuizQuestionType = 'mcq' | 'true_false';
+export type QuizDifficulty = 'easy' | 'medium' | 'hard' | 'legendary';
+
+export interface QuizQuestion {
+  id: string;
+  q: string;
+  o: string[];
+  a: number;
+  e: string;
+}
+
 export type LabScenarioDifficulty = 'easy' | 'medium' | 'hard';
 export type LabScenarioConsequenceLevel = 'positive' | 'warning' | 'critical';
 export type LabScenarioReadingStatus = 'normal' | 'watch' | 'critical';
@@ -110,6 +126,7 @@ export interface LabScenarioReading {
 }
 
 export interface LabScenarioChoice {
+  id: string;
   text: string;
   outcome: string;
   nextStepId: string | null;
@@ -162,13 +179,14 @@ export interface SubjectLevel {
 export interface PerformanceRecord {
   date: string;
   score: number;
-  type: 'simulation' | 'study';
+  type: 'simulation' | 'study' | 'quiz';
   subject?: string;
   grade?: string;
 }
 
 export interface UsageStats {
   aiTeacherQuestions: number;
+  smartTests: number;
   virtualLabSimulations: number;
   academicResearch: number;
   contentLabConversions: number;
@@ -197,10 +215,42 @@ export interface ImprovementPlan {
   nextSteps: string[];
 }
 
+export type KnowledgeDomain =
+  | 'medical'
+  | 'engineering'
+  | 'law'
+  | 'general_science'
+  | 'general_academic';
+
+export type KnowledgeRiskLevel = 'low' | 'moderate' | 'high';
+export type InformationReliabilityLevel = 'high' | 'medium' | 'needs_verification';
+
+export interface KnowledgeValidationReport {
+  score: number;
+  level: InformationReliabilityLevel;
+  domain: KnowledgeDomain;
+  riskLevel: KnowledgeRiskLevel;
+  medicalSafetyApplied: boolean;
+  educationalMode: boolean;
+  summary: string;
+  warnings: string[];
+  checks: string[];
+  sourceFamilies: string[];
+  needsRevision: boolean;
+  blocked: boolean;
+  createdAt: string;
+}
+
 type ChatHistoryEntry = {
   role: string;
   parts: { text?: string; inlineData?: { data: string; mimeType: string } }[];
 };
+
+const normalizeEmail = (email: string): string => email.trim().toLowerCase();
+
+const UNLIMITED_USAGE_EMAILS = new Set<string>([
+  normalizeEmail('ahmad123123gg5@gmail.com')
+]);
 
 @Injectable({ providedIn: 'root' })
 export class AIService {
@@ -218,11 +268,14 @@ export class AIService {
   shareStats = signal<boolean>(localStorage.getItem('smartedge_share_stats') === 'true');
   
   currentSubjects = signal<SubjectLevel[]>([]);
+  quizzesCompleted = signal<number>(0);
   simulationsCompleted = signal<number>(0);
   totalStudyHours = signal<number>(0);
   performanceHistory = signal<PerformanceRecord[]>([]);
 
   currentLanguage = signal<LanguageCode>(normalizeLanguageCode(localStorage.getItem('smartedge_user_lang') || DEFAULT_LANGUAGE));
+  lastGrounding = signal<GroundingMetadata | null>(null);
+  lastKnowledgeValidation = signal<KnowledgeValidationReport | null>(null);
 
   saveProfile() {
     localStorage.setItem('smartedge_user_name', this.userName());
@@ -259,6 +312,7 @@ export class AIService {
   userPlan = signal<UserPlan>('free');
   usageStats = signal<UsageStats>({
     aiTeacherQuestions: 0,
+    smartTests: 0,
     virtualLabSimulations: 0,
     academicResearch: 0,
     contentLabConversions: 0,
@@ -287,6 +341,7 @@ export class AIService {
       if (stats.lastResetDate !== new Date().toDateString()) {
         this.usageStats.set({
           aiTeacherQuestions: 0,
+          smartTests: 0,
           virtualLabSimulations: 0,
           academicResearch: 0,
           contentLabConversions: 0,
@@ -295,6 +350,7 @@ export class AIService {
       } else {
         this.usageStats.set({
           aiTeacherQuestions: Number(stats.aiTeacherQuestions || 0),
+          smartTests: Number(stats.smartTests || 0),
           virtualLabSimulations: Number(stats.virtualLabSimulations || 0),
           academicResearch: Number(stats.academicResearch || 0),
           contentLabConversions: Number(stats.contentLabConversions || 0),
@@ -317,7 +373,8 @@ export class AIService {
     
     const localSubjects = localStorage.getItem('smartedge_subjects');
     if (localSubjects) this.currentSubjects.set(JSON.parse(localSubjects));
-    
+
+    this.quizzesCompleted.set(parseInt(localStorage.getItem('smartedge_quiz_count') || '0'));
     this.simulationsCompleted.set(parseInt(localStorage.getItem('smartedge_sims_count') || '0'));
     this.totalStudyHours.set(parseFloat(localStorage.getItem('smartedge_study_hours') || '0'));
     const localHistory = localStorage.getItem('smartedge_performance_history');
@@ -325,7 +382,7 @@ export class AIService {
       const parsedHistory = JSON.parse(localHistory) as Array<PerformanceRecord | { type?: string }>;
       this.performanceHistory.set(
         parsedHistory.filter((record): record is PerformanceRecord =>
-          record.type === 'simulation' || record.type === 'study'
+          record.type === 'simulation' || record.type === 'study' || record.type === 'quiz'
         )
       );
     }
@@ -375,6 +432,7 @@ export class AIService {
       localStorage.setItem('smartedge_user_lang', normalizeLanguageCode(this.currentLanguage()));
       
       localStorage.setItem('smartedge_subjects', JSON.stringify(this.currentSubjects()));
+      localStorage.setItem('smartedge_quiz_count', this.quizzesCompleted().toString());
       localStorage.setItem('smartedge_sims_count', this.simulationsCompleted().toString());
       localStorage.setItem('smartedge_study_hours', this.totalStudyHours().toString());
       localStorage.setItem('smartedge_performance_history', JSON.stringify(this.performanceHistory()));
@@ -440,7 +498,15 @@ export class AIService {
     this.userXP.set(0);
   }
 
+  hasUnlimitedUsageAccess(): boolean {
+    return UNLIMITED_USAGE_EMAILS.has(normalizeEmail(this.userEmail()));
+  }
+
   getRemainingAttempts(feature: keyof Omit<UsageStats, 'lastResetDate'>): number {
+    if (this.hasUnlimitedUsageAccess()) {
+      return Number.POSITIVE_INFINITY;
+    }
+
     const plan = this.userPlan();
     const stats = this.usageStats();
     const current = stats[feature];
@@ -448,12 +514,14 @@ export class AIService {
     const limits = {
       free: {
         aiTeacherQuestions: 7,
+        smartTests: 1,
         virtualLabSimulations: 1,
         academicResearch: 1,
         contentLabConversions: 1
       },
       pro: {
         aiTeacherQuestions: 30,
+        smartTests: 10,
         virtualLabSimulations: 5,
         academicResearch: 2,
         contentLabConversions: 100
@@ -462,6 +530,15 @@ export class AIService {
 
     const limit = limits[plan][feature];
     return Math.max(0, limit - current);
+  }
+
+  getRemainingAttemptsLabel(feature: keyof Omit<UsageStats, 'lastResetDate'>): string {
+    const remaining = this.getRemainingAttempts(feature);
+    if (Number.isFinite(remaining)) {
+      return String(remaining);
+    }
+
+    return this.currentLanguage() === 'ar' ? 'غير محدود' : 'Unlimited';
   }
 
   // Subscription Logic
@@ -475,6 +552,10 @@ export class AIService {
         message = this.currentLanguage() === 'ar' 
           ? "⚠️ لقد وصلت إلى الحد اليومي للمعلم الذكي. اشترك في Pro لفتح 30 سؤالاً يومياً."
           : "⚠️ You’ve reached today’s AI Teacher limit. Upgrade to Pro and unlock 30 smart questions per day.";
+      } else if (feature === 'smartTests') {
+        message = this.currentLanguage() === 'ar'
+          ? "📝 لقد استهلكت حد الاختبارات الذكية. باقة Pro تمنحك 10 اختبارات يومياً مع تحليل أخطاء."
+          : "📝 You have used your smart test limit. Pro unlocks 10 daily tests with error analysis.";
       } else if (feature === 'virtualLabSimulations') {
         message = this.currentLanguage() === 'ar'
           ? "🔬 لقد أكملت محاكاتك المجانية. يحصل مستخدمو Pro على 5 محاكاة يومياً."
@@ -494,6 +575,10 @@ export class AIService {
   }
 
   incrementUsage(feature: keyof Omit<UsageStats, 'lastResetDate'>) {
+    if (this.hasUnlimitedUsageAccess()) {
+      return;
+    }
+
     this.usageStats.update(stats => ({
       ...stats,
       [feature]: stats[feature] + 1
@@ -561,6 +646,52 @@ export class AIService {
     return undefined;
   }
 
+  registerKnowledgeValidation(value: unknown): KnowledgeValidationReport | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const candidate = value as Record<string, unknown>;
+    const report: KnowledgeValidationReport = {
+      score: typeof candidate['score'] === 'number' && Number.isFinite(candidate['score'])
+        ? Math.max(0, Math.min(100, Math.round(candidate['score'])))
+        : 0,
+      level: candidate['level'] === 'high' || candidate['level'] === 'medium' || candidate['level'] === 'needs_verification'
+        ? candidate['level']
+        : 'needs_verification',
+      domain: candidate['domain'] === 'medical'
+        || candidate['domain'] === 'engineering'
+        || candidate['domain'] === 'law'
+        || candidate['domain'] === 'general_science'
+        || candidate['domain'] === 'general_academic'
+        ? candidate['domain']
+        : 'general_academic',
+      riskLevel: candidate['riskLevel'] === 'low' || candidate['riskLevel'] === 'moderate' || candidate['riskLevel'] === 'high'
+        ? candidate['riskLevel']
+        : 'moderate',
+      medicalSafetyApplied: candidate['medicalSafetyApplied'] === true,
+      educationalMode: candidate['educationalMode'] !== false,
+      summary: typeof candidate['summary'] === 'string' ? candidate['summary'].trim() : '',
+      warnings: Array.isArray(candidate['warnings'])
+        ? candidate['warnings'].map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
+        : [],
+      checks: Array.isArray(candidate['checks'])
+        ? candidate['checks'].map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
+        : [],
+      sourceFamilies: Array.isArray(candidate['sourceFamilies'])
+        ? candidate['sourceFamilies'].map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
+        : [],
+      needsRevision: candidate['needsRevision'] === true,
+      blocked: candidate['blocked'] === true,
+      createdAt: typeof candidate['createdAt'] === 'string' && candidate['createdAt'].trim()
+        ? candidate['createdAt'].trim()
+        : new Date().toISOString()
+    };
+
+    this.lastKnowledgeValidation.set(report);
+    return report;
+  }
+
   private extractJsonPayload(raw: string): string {
     const text = raw.trim();
     const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -587,15 +718,16 @@ export class AIService {
     return JSON.parse(payload) as T;
   }
 
-  private async chatViaSiteAIEndpoint(
+  private async chatViaSiteAIEndpointDetailed(
     message: string,
     systemInstruction: string,
     history: ChatHistoryEntry[] = [],
     jsonMode: boolean = false,
     model?: string,
     files: AIFileAttachment[] = [],
-    maxTokens?: number
-  ): Promise<string> {
+    maxTokens?: number,
+    requestOptions: AIChatRequestOptions = {}
+  ): Promise<AIChatResponsePayload> {
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -606,16 +738,46 @@ export class AIService {
         jsonMode,
         model,
         files,
-        maxTokens
+        maxTokens,
+        featureHint: requestOptions.featureHint,
+        knowledgeMode: requestOptions.knowledgeMode
       })
     });
 
-    const payload = await response.json().catch(() => null) as { text?: string; error?: string } | null;
+    const payload = await response.json().catch(() => null) as (AIChatResponsePayload & { validation?: unknown }) | null;
+    if (payload?.validation) {
+      this.registerKnowledgeValidation(payload.validation);
+    }
+
+    this.lastGrounding.set(payload?.grounding || null);
 
     if (!response.ok || !payload?.text) {
       throw new Error(payload?.error || `AI proxy request failed (${response.status})`);
     }
 
+    return payload;
+  }
+
+  private async chatViaSiteAIEndpoint(
+    message: string,
+    systemInstruction: string,
+    history: ChatHistoryEntry[] = [],
+    jsonMode: boolean = false,
+    model?: string,
+    files: AIFileAttachment[] = [],
+    maxTokens?: number,
+    requestOptions: AIChatRequestOptions = {}
+  ): Promise<string> {
+    const payload = await this.chatViaSiteAIEndpointDetailed(
+      message,
+      systemInstruction,
+      history,
+      jsonMode,
+      model,
+      files,
+      maxTokens,
+      requestOptions
+    );
     return payload.text;
   }
 
@@ -625,13 +787,14 @@ export class AIService {
     model?: string,
     files: AIFileAttachment[] = [],
     maxTokens?: number,
-    humanLanguage?: string | null
+    humanLanguage?: string | null,
+    requestOptions: AIChatRequestOptions = {}
   ): Promise<T> {
     const languageGuard = humanLanguage?.trim()
       ? `\nAll user-facing prose, explanations, summaries, recommendations, labels, scenarios, and question text must be generated directly in ${humanLanguage.trim()} from the start, not translated afterwards.\nKeep JSON keys and any explicitly requested enum/code values exactly as requested.`
       : '';
     const strictInstruction = `${systemInstruction}${languageGuard}\nReturn strictly valid JSON with no markdown fences and no extra text.`;
-    const text = await this.chatViaSiteAIEndpoint(message, strictInstruction, [], true, model, files, maxTokens);
+    const text = await this.chatViaSiteAIEndpoint(message, strictInstruction, [], true, model, files, maxTokens, requestOptions);
     return this.parseJsonResponse<T>(text);
   }
 
@@ -660,7 +823,8 @@ export class AIService {
     systemInstruction: string,
     history: ChatHistoryEntry[] = [],
     model: string = 'gpt-4o-mini',
-    files: AIFileAttachment[] = []
+    files: AIFileAttachment[] = [],
+    requestOptions: AIChatRequestOptions = {}
   ): Promise<string> {
     return this.retry(async () => {
       const enforcedInstruction = `${systemInstruction}. CRITICAL: You MUST respond strictly in ${this.languageName}.`;
@@ -674,7 +838,9 @@ export class AIService {
         history,
         false,
         this.resolveModel(model),
-        files
+        files,
+        undefined,
+        requestOptions
       );
 
       this.ns.show(
@@ -693,10 +859,82 @@ export class AIService {
     systemInstruction: string,
     history: ChatHistoryEntry[] = [],
     model: string = 'gpt-4o-mini',
-    files: AIFileAttachment[] = []
+    files: AIFileAttachment[] = [],
+    requestOptions: AIChatRequestOptions = {}
   ) {
-    const text = await this.chat(message, systemInstruction, history, model, files);
-    yield text;
+    this.lastGrounding.set(null);
+
+    const enforcedInstruction = `${systemInstruction}. CRITICAL: You MUST respond strictly in ${this.languageName}.`;
+    const filesNotice = files.length > 0
+      ? `\n[Attachment count: ${files.length}. Summarize based on user message context.]`
+      : '';
+
+    const response = await fetch('/api/ai/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `${message}${filesNotice}`,
+        systemInstruction: enforcedInstruction,
+        history,
+        jsonMode: false,
+        model: this.resolveModel(model),
+        files,
+        featureHint: requestOptions.featureHint,
+        knowledgeMode: requestOptions.knowledgeMode
+      })
+    });
+
+    if (!response.ok || !response.body) {
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(payload?.error || `AI stream request failed (${response.status})`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) {
+          continue;
+        }
+
+        const payload = JSON.parse(line) as {
+          type?: string;
+          delta?: string;
+          error?: string;
+          validation?: unknown;
+          grounding?: GroundingMetadata | null;
+        };
+
+        if (payload.type === 'error') {
+          throw new Error(payload.error || 'AI stream failed');
+        }
+
+        if (payload.type === 'meta') {
+          this.lastGrounding.set(payload.grounding || null);
+          if (payload.validation) {
+            this.registerKnowledgeValidation(payload.validation);
+          }
+          yield '';
+          continue;
+        }
+
+        if (payload.type === 'chunk' && typeof payload.delta === 'string' && payload.delta.length > 0) {
+          yield payload.delta;
+        }
+      }
+    }
   }
 
   saveConversation(record: TutorConversationRecord) {
@@ -711,7 +949,8 @@ export class AIService {
         undefined,
         [],
         undefined,
-        this.languageName
+        this.languageName,
+        { knowledgeMode: 'off' }
       );
 
       return {
@@ -732,7 +971,8 @@ export class AIService {
         undefined,
         [],
         undefined,
-        this.languageName
+        this.languageName,
+        { featureHint: 'tutor', knowledgeMode: 'strict' }
       );
 
       return {
@@ -741,6 +981,473 @@ export class AIService {
         nextSteps: Array.isArray(plan.nextSteps) ? plan.nextSteps : []
       };
     });
+  }
+
+  async generateQuiz(
+    topic: string,
+    count: number,
+    files: AIFileAttachment[] = [],
+    language: LanguageCode = this.currentLanguage(),
+    type: QuizQuestionType = 'mcq',
+    difficulty: QuizDifficulty = 'medium'
+  ): Promise<QuizQuestion[]> {
+    const normalizedLanguage = normalizeLanguageCode(language);
+    const safeCount = Math.max(1, Math.min(50, Math.round(count || 10)));
+    const humanLanguage = this.getLanguageName(normalizedLanguage);
+
+    try {
+      const payload = await this.retry(async () => this.jsonViaSiteAIEndpoint<{ questions?: unknown[] }>(
+        [
+          `Create a ${type === 'true_false' ? 'true/false' : 'multiple-choice'} test for the topic "${topic}".`,
+          `Generate exactly ${safeCount} questions.`,
+          `Difficulty level: ${difficulty}.`,
+          type === 'true_false'
+            ? 'Each question must be objectively answerable as true or false.'
+            : 'Each question must include exactly 4 distinct options with one correct answer.',
+          'Questions must be faithful to the source/topic and avoid duplicates.',
+          type === 'mcq'
+            ? 'Vary the question stems naturally. Rotate across first action, priority intervention, next best step, most concerning finding, what should be done first, and most appropriate response. Avoid repeating the same opening wording across consecutive questions.'
+            : 'Vary the wording and do not repeat the same statement structure across consecutive questions.',
+          'Explanations must be concise but educational.',
+          files.length > 0
+            ? `Use the attached files as the primary source material. Attachment count: ${files.length}.`
+            : 'If no files are attached, build the test from the topic itself.'
+        ].join(' '),
+        `Return JSON with key questions.
+Each question object must include:
+- id
+- q
+- o
+- a
+- e
+Rules:
+- q = question text
+- o = options array
+- a = zero-based answer index
+- e = brief explanation
+- Do not repeat the same prompt or same option set.
+- For true_false, options must be the localized equivalents of true and false only.
+- For mcq, options length must be exactly 4.
+- Keep user-facing content directly in ${humanLanguage}.`,
+        undefined,
+        files,
+        undefined,
+        humanLanguage,
+        { featureHint: 'quiz', knowledgeMode: 'strict' }
+      ));
+
+      return this.normalizeQuizQuestions(payload?.questions, topic, safeCount, normalizedLanguage, type, difficulty);
+    } catch (error) {
+      console.error('Quiz generation failed, using fallback questions', error);
+      return this.buildFallbackQuizQuestions(topic, safeCount, normalizedLanguage, type, difficulty);
+    }
+  }
+
+  async analyzeQuizErrors(
+    questions: QuizQuestion[],
+    userAnswers: Array<number | null>,
+    topic: string,
+    language: LanguageCode = this.currentLanguage()
+  ): Promise<ImprovementPlan> {
+    const normalizedLanguage = normalizeLanguageCode(language);
+    const missed = questions
+      .map((question, index) => ({
+        question,
+        userAnswerIndex: userAnswers[index] ?? null
+      }))
+      .filter((entry) => entry.userAnswerIndex !== entry.question.a);
+
+    if (missed.length === 0) {
+      return this.buildFallbackQuizImprovementPlan([], topic, normalizedLanguage);
+    }
+
+    try {
+      const humanLanguage = this.getLanguageName(normalizedLanguage);
+      const plan = await this.retry(async () => this.jsonViaSiteAIEndpoint<ImprovementPlan>(
+        `Topic: ${topic}
+Missed quiz questions:
+${missed.map((entry, index) => [
+  `Question ${index + 1}: ${entry.question.q}`,
+  `Options: ${entry.question.o.join(' | ')}`,
+  `User answer: ${typeof entry.userAnswerIndex === 'number' ? entry.question.o[entry.userAnswerIndex] || 'Unknown option' : 'No answer'}`,
+  `Correct answer: ${entry.question.o[entry.question.a] || ''}`,
+  `Explanation: ${entry.question.e}`
+].join('\n')).join('\n\n')}`,
+        `Analyze the student's weaknesses based on the wrong quiz answers.
+Return JSON with keys: weakPoints[], overallAdvice, nextSteps[].
+Each weakPoint may include: topic, page, slide, part, explanation, visualPrompt.
+Do not invent precise page/slide values unless grounded in the prompt.
+Write user-facing content directly in ${humanLanguage}.`,
+        undefined,
+        [],
+        undefined,
+        humanLanguage
+      ));
+
+      return {
+        weakPoints: Array.isArray(plan.weakPoints)
+          ? plan.weakPoints.map((point, index) => ({
+            topic: point.topic || (normalizedLanguage === 'ar' ? `محور ${index + 1}` : `Topic ${index + 1}`),
+            page: Number.isFinite(point.page) ? point.page : undefined,
+            slide: Number.isFinite(point.slide) ? point.slide : undefined,
+            part: typeof point.part === 'string' && point.part.trim() ? point.part.trim() : undefined,
+            explanation: point.explanation || (normalizedLanguage === 'ar' ? 'تحتاج هذه النقطة إلى مراجعة إضافية.' : 'This area needs another review.'),
+            visualPrompt: typeof point.visualPrompt === 'string' && point.visualPrompt.trim() ? point.visualPrompt.trim() : undefined,
+            visualUrl: ''
+          }))
+          : [],
+        overallAdvice: typeof plan.overallAdvice === 'string' && plan.overallAdvice.trim()
+          ? plan.overallAdvice.trim()
+          : this.buildFallbackQuizImprovementPlan(missed, topic, normalizedLanguage).overallAdvice,
+        nextSteps: Array.isArray(plan.nextSteps) && plan.nextSteps.length > 0
+          ? plan.nextSteps.filter((step): step is string => typeof step === 'string').map((step) => step.trim()).filter(Boolean).slice(0, 4)
+          : this.buildFallbackQuizImprovementPlan(missed, topic, normalizedLanguage).nextSteps
+      };
+    } catch (error) {
+      console.error('Quiz analysis failed, using fallback plan', error);
+      return this.buildFallbackQuizImprovementPlan(missed, topic, normalizedLanguage);
+    }
+  }
+
+  private normalizeQuizQuestions(
+    input: unknown,
+    topic: string,
+    requestedCount: number,
+    language: LanguageCode,
+    type: QuizQuestionType,
+    difficulty: QuizDifficulty
+  ): QuizQuestion[] {
+    const rawQuestions = Array.isArray(input) ? input : [];
+    const seenSignatures = new Set<string>();
+    const normalized = Array.from({ length: requestedCount }, (_, index) => {
+      const candidate = rawQuestions[index];
+      const parsed = candidate && typeof candidate === 'object' ? candidate as Record<string, unknown> : {};
+      const fallback = this.buildFallbackQuizQuestion(topic, index, requestedCount, language, type, difficulty);
+      const prompt = this.pickQuizPrompt(parsed, fallback.q);
+      const options = this.normalizeQuizOptions(parsed, fallback.o, language, type);
+      const answerIndex = this.normalizeQuizAnswerIndex(parsed, options, fallback.a, language, type);
+      const explanation = this.pickQuizExplanation(parsed, fallback.e);
+
+      let question: QuizQuestion = {
+        id: typeof parsed.id === 'string' && parsed.id.trim() ? parsed.id.trim() : `quiz_${index + 1}`,
+        q: prompt,
+        o: options.map((option) => `${option}`),
+        a: answerIndex,
+        e: explanation
+      };
+
+      const signature = this.buildQuizQuestionSignature(question);
+      const uniqueOptions = new Set(question.o.map((option) => this.normalizeQuizTextKey(option))).size;
+      if (!question.q.trim() || uniqueOptions < question.o.length || seenSignatures.has(signature)) {
+        question = {
+          ...fallback,
+          id: question.id
+        };
+      }
+
+      seenSignatures.add(this.buildQuizQuestionSignature(question));
+      return question;
+    });
+
+    return normalized.length > 0 ? normalized : this.buildFallbackQuizQuestions(topic, requestedCount, language, type, difficulty);
+  }
+
+  private pickQuizPrompt(candidate: Record<string, unknown>, fallback: string): string {
+    const direct = typeof candidate.q === 'string' && candidate.q.trim()
+      ? candidate.q.trim()
+      : typeof candidate.question === 'string' && candidate.question.trim()
+        ? candidate.question.trim()
+        : typeof candidate.prompt === 'string' && candidate.prompt.trim()
+          ? candidate.prompt.trim()
+          : '';
+    return direct || fallback;
+  }
+
+  private pickQuizExplanation(candidate: Record<string, unknown>, fallback: string): string {
+    const explanation = typeof candidate.e === 'string' && candidate.e.trim()
+      ? candidate.e.trim()
+      : typeof candidate.explanation === 'string' && candidate.explanation.trim()
+        ? candidate.explanation.trim()
+        : '';
+    return explanation || fallback;
+  }
+
+  private normalizeQuizOptions(
+    candidate: Record<string, unknown>,
+    fallback: string[],
+    language: LanguageCode,
+    type: QuizQuestionType
+  ): string[] {
+    if (type === 'true_false') {
+      return [...this.buildTrueFalseOptions(language)];
+    }
+
+    const rawOptions = Array.isArray(candidate.o)
+      ? candidate.o
+      : Array.isArray(candidate.options)
+        ? candidate.options
+        : [];
+    const options = rawOptions
+      .filter((option): option is string => typeof option === 'string')
+      .map((option) => option.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+
+    if (options.length === 4 && new Set(options.map((option) => this.normalizeQuizTextKey(option))).size === 4) {
+      return [...options];
+    }
+
+    return [...fallback];
+  }
+
+  private normalizeQuizAnswerIndex(
+    candidate: Record<string, unknown>,
+    options: string[],
+    fallback: number,
+    language: LanguageCode,
+    type: QuizQuestionType
+  ): number {
+    if (typeof candidate.a === 'number' && Number.isFinite(candidate.a)) {
+      return Math.max(0, Math.min(options.length - 1, Math.floor(candidate.a)));
+    }
+
+    if (typeof candidate.answerIndex === 'number' && Number.isFinite(candidate.answerIndex)) {
+      return Math.max(0, Math.min(options.length - 1, Math.floor(candidate.answerIndex)));
+    }
+
+    const answerText = typeof candidate.answer === 'string' && candidate.answer.trim()
+      ? candidate.answer.trim()
+      : typeof candidate.correctAnswer === 'string' && candidate.correctAnswer.trim()
+        ? candidate.correctAnswer.trim()
+        : '';
+
+    if (answerText) {
+      const normalizedAnswer = this.normalizeQuizTextKey(answerText);
+      const optionIndex = options.findIndex((option) => this.normalizeQuizTextKey(option) === normalizedAnswer);
+      if (optionIndex >= 0) {
+        return optionIndex;
+      }
+
+      if (type === 'true_false') {
+        const trueValues = new Set(
+          [this.buildTrueFalseOptions(language)[0], 'true', 'صح', 'صحيح']
+            .map((value) => this.normalizeQuizTextKey(value))
+        );
+        const falseValues = new Set(
+          [this.buildTrueFalseOptions(language)[1], 'false', 'خطأ', 'غلط']
+            .map((value) => this.normalizeQuizTextKey(value))
+        );
+        if (trueValues.has(normalizedAnswer)) return 0;
+        if (falseValues.has(normalizedAnswer)) return 1;
+      }
+    }
+
+    return Math.max(0, Math.min(options.length - 1, fallback));
+  }
+
+  private buildFallbackQuizQuestions(
+    topic: string,
+    count: number,
+    language: LanguageCode,
+    type: QuizQuestionType,
+    difficulty: QuizDifficulty
+  ): QuizQuestion[] {
+    return Array.from({ length: count }, (_, index) => this.buildFallbackQuizQuestion(topic, index, count, language, type, difficulty));
+  }
+
+  private buildFallbackQuizQuestion(
+    topic: string,
+    index: number,
+    total: number,
+    language: LanguageCode,
+    type: QuizQuestionType,
+    difficulty: QuizDifficulty
+  ): QuizQuestion {
+    const stepLabel = language === 'ar' ? `السؤال ${index + 1}` : `Question ${index + 1}`;
+    const trueFalseOptions = this.buildTrueFalseOptions(language);
+    const difficultyTone = difficulty === 'hard'
+      ? (language === 'ar' ? 'بمستوى ضغط مرتفع' : 'under higher pressure')
+      : difficulty === 'easy'
+        ? (language === 'ar' ? 'بإشارات أوضح' : 'with clearer signals')
+        : (language === 'ar' ? 'بضغط متوازن' : 'under balanced pressure');
+
+    if (type === 'true_false') {
+      const statements = language === 'ar'
+        ? [
+          `يركز ${topic} ${difficultyTone} على فهم المفهوم الأساسي قبل حفظ التفاصيل.`,
+          `يمكن إتقان ${topic} ${difficultyTone} دون مراجعة الأمثلة التطبيقية.`,
+          `ربط السبب بالنتيجة يساعد في تثبيت فهم ${topic} حتى ${difficultyTone}.`,
+          `مراجعة الأخطاء في ${topic} أقل أهمية من قراءة الملخص فقط ${difficultyTone}.`
+        ]
+        : [
+          `${topic} depends on understanding the core idea before memorizing details, even ${difficultyTone}.`,
+          `${topic} can be mastered ${difficultyTone} without reviewing practical examples.`,
+          `Linking causes to results improves understanding of ${topic}, including situations ${difficultyTone}.`,
+          `Reviewing mistakes in ${topic} is less important than reading the summary alone ${difficultyTone}.`
+        ];
+      const statement = statements[index % statements.length];
+      const answerIndex = index % 2 === 0 ? 0 : 1;
+
+      return {
+        id: `quiz_${index + 1}`,
+        q: statement,
+        o: [...trueFalseOptions],
+        a: answerIndex,
+        e: language === 'ar'
+          ? `هذا السؤال يراجع مبدأًا أساسيًا في ${topic} ضمن ${stepLabel} من ${total}.`
+          : `This question reviews a core principle of ${topic} in ${stepLabel} of ${total}.`
+      };
+    }
+
+    const questionPrompt = this.buildFallbackQuizStem(topic, index, total, language, difficulty);
+    const correctOption = language === 'ar'
+      ? `ابدأ بتحديد الخطر أو الأولوية الأعلى في ${topic} ثم اتخذ الخطوة الأكثر أمانًا بناءً على المعطيات.`
+      : `Start by identifying the highest-priority risk in ${topic}, then take the safest evidence-based next move.`;
+    const distractors = language === 'ar'
+      ? this.buildFallbackQuizDistractors(topic, difficulty, true)
+      : this.buildFallbackQuizDistractors(topic, difficulty, false);
+    const answerIndex = index % 4;
+    const options = [...distractors];
+    options.splice(answerIndex, 0, correctOption);
+
+    return {
+      id: `quiz_${index + 1}`,
+      q: questionPrompt,
+      o: options,
+      a: answerIndex,
+      e: language === 'ar'
+        ? `الإجابة الصحيحة في ${stepLabel} تؤكد أن القرار الأقوى يبدأ دائمًا بتحديد الأولوية الأخطر في ${topic} ثم التحرك عليها مباشرة.`
+        : `The correct answer in ${stepLabel} shows that the strongest move in ${topic} starts by identifying the top priority and acting on it directly.`
+    };
+  }
+
+  private buildFallbackQuizStem(
+    topic: string,
+    index: number,
+    total: number,
+    language: LanguageCode,
+    difficulty: QuizDifficulty
+  ): string {
+    const hardTag = difficulty === 'hard'
+      ? (language === 'ar' ? 'في موقف عالي الضغط' : 'in a high-pressure scene')
+      : difficulty === 'easy'
+        ? (language === 'ar' ? 'في موقف واضح المعالم' : 'in a clearer scene')
+        : (language === 'ar' ? 'في موقف واقعي متوازن' : 'in a balanced realistic scene');
+    const stems = language === 'ar'
+      ? [
+        `ما الإجراء الأول الأكثر ملاءمة في ${topic} ${hardTag} ضمن السؤال ${index + 1} من ${total}؟`,
+        `ما التدخل ذو الأولوية في سيناريو متعلق بـ ${topic} ${hardTag}؟`,
+        `ما الخطوة التالية الأفضل عند التعامل مع ${topic} ${hardTag}؟`,
+        `أي مؤشر في ${topic} ${hardTag} يستحق أكبر قدر من الانتباه الآن؟`,
+        `ما الاستجابة الأكثر مناسبة في حالة ترتبط بـ ${topic} ${hardTag}؟`,
+        `ما الذي يجب فعله أولاً للحفاظ على سلامة القرار في ${topic} ${hardTag}؟`
+      ]
+      : [
+        `What is the most appropriate first action in ${topic} ${hardTag} for question ${index + 1} of ${total}?`,
+        `What is the priority intervention in a scenario involving ${topic} ${hardTag}?`,
+        `What is the next best step when managing ${topic} ${hardTag}?`,
+        `Which signal in ${topic} ${hardTag} deserves the most concern right now?`,
+        `What is the most appropriate response in a case related to ${topic} ${hardTag}?`,
+        `What should be done first to preserve sound judgment in ${topic} ${hardTag}?`
+      ];
+
+    return stems[index % stems.length];
+  }
+
+  private buildFallbackQuizDistractors(topic: string, difficulty: QuizDifficulty, arabic: boolean): string[] {
+    if (arabic) {
+      if (difficulty === 'hard') {
+        return [
+          `التحرك مباشرة إلى خطوة جذابة في ${topic} قبل إعادة ترتيب الأولويات الحقيقية.`,
+          `تأجيل القرار في ${topic} حتى تتوافر كل التفاصيل حتى لو ازداد الخطر.`,
+          `اتباع إجراء مألوف في ${topic} من دون التأكد من أنه يناسب السياق الحالي.`
+        ];
+      }
+
+      if (difficulty === 'easy') {
+        return [
+          `الانتظار من دون تقييم الأولويات في ${topic}.`,
+          `اختيار استجابة عامة في ${topic} من غير مراجعة المعطيات الحالية.`,
+          `الاعتماد على التخمين بدل تحليل ما يحدث في ${topic}.`
+        ];
+      }
+
+      return [
+        `التركيز على خطوة ثانوية في ${topic} قبل معالجة الخطر الرئيسي.`,
+        `تأجيل الحسم في ${topic} رغم أن المؤشرات الحالية تكفي لاتخاذ قرار أولي.`,
+        `اختيار تصرف يبدو نشطًا في ${topic} لكنه لا يعالج أصل المشكلة.`
+      ];
+    }
+
+    if (difficulty === 'hard') {
+      return [
+        `Jump straight to an attractive intervention in ${topic} before reordering the true priorities.`,
+        `Delay the decision in ${topic} until every detail is available, even while risk is rising.`,
+        `Apply a familiar move in ${topic} without confirming that it fits the current context.`
+      ];
+    }
+
+    if (difficulty === 'easy') {
+      return [
+        `Wait without assessing the priorities in ${topic}.`,
+        `Choose a generic response in ${topic} without checking the current facts.`,
+        `Rely on guessing instead of analyzing what is happening in ${topic}.`
+      ];
+    }
+
+    return [
+      `Focus on a secondary move in ${topic} before addressing the main threat.`,
+      `Delay committing in ${topic} even though the current signals support an initial decision.`,
+      `Pick an action that looks active in ${topic} but does not address the actual problem.`
+    ];
+  }
+
+  private buildFallbackQuizImprovementPlan(
+    missed: Array<{ question: QuizQuestion; userAnswerIndex: number | null }>,
+    topic: string,
+    language: LanguageCode
+  ): ImprovementPlan {
+    const weakPoints = missed.slice(0, 3).map((entry, index) => ({
+      topic: language === 'ar' ? `مراجعة ${index + 1}` : `Review ${index + 1}`,
+      part: entry.question.q,
+      explanation: language === 'ar'
+        ? `أخطأت في هذا السؤال، لذا تحتاج إلى مراجعة تفسير الإجابة الصحيحة والتركيز على سبب صحة الخيار ${entry.question.o[entry.question.a]}.`
+        : `You missed this question, so review the explanation and focus on why the correct option "${entry.question.o[entry.question.a]}" is right.`,
+      visualPrompt: language === 'ar'
+        ? `مخطط مبسط يوضح فكرة السؤال حول ${topic}`
+        : `A simple visual explaining the idea behind this ${topic} question`,
+      visualUrl: ''
+    }));
+
+    return {
+      weakPoints,
+      overallAdvice: language === 'ar'
+        ? `ركّز في ${topic} على فهم الفكرة قبل اختيار الإجابة، ثم راجع شرح كل سؤال أخطأت فيه بدل الاكتفاء بالنتيجة النهائية.`
+        : `In ${topic}, focus on understanding the idea before selecting an answer, then review each missed explanation instead of relying only on the final score.`,
+      nextSteps: language === 'ar'
+        ? [
+          'أعد قراءة شرح الأسئلة الخاطئة واحدة واحدة.',
+          'حوّل النقاط الضعيفة إلى بطاقات مراجعة قصيرة.',
+          'أعد الاختبار بعد مراجعة الأمثلة والتعاريف الأساسية.'
+        ]
+        : [
+          'Re-read the explanations for the missed questions one by one.',
+          'Turn the weak areas into short revision cards.',
+          'Retake the quiz after reviewing the core examples and definitions.'
+        ]
+    };
+  }
+
+  private buildTrueFalseOptions(language: LanguageCode): [string, string] {
+    return language === 'ar' ? ['صح', 'خطأ'] : ['True', 'False'];
+  }
+
+  private buildQuizQuestionSignature(question: QuizQuestion): string {
+    return `${this.normalizeQuizTextKey(question.q)}::${question.o.map((option) => this.normalizeQuizTextKey(option)).sort().join('|')}`;
+  }
+
+  private normalizeQuizTextKey(value: string): string {
+    return value.replace(/\s+/g, ' ').trim().toLowerCase();
   }
 
   async globalSearch(query: string): Promise<BookMetadata[]> {
@@ -915,7 +1622,10 @@ export class AIService {
         langName
       );
 
-      return this.normalizeLabScenarioSnapshot(result, discipline, subject, language, difficulty);
+      this.logLabDebug('Raw AI lab response', this.buildLabScenarioDebugSummary(result));
+      const normalized = this.normalizeLabScenarioSnapshot(result, discipline, subject, language, difficulty);
+      this.logLabDebug('Normalized lab scenario', this.buildLabScenarioDebugSummary(normalized));
+      return normalized;
     });
   }
 
@@ -937,16 +1647,27 @@ export class AIService {
     const rawSteps = Array.isArray(candidate.steps) ? candidate.steps : [];
     const provisionalSteps = rawSteps.length > 0
       ? rawSteps.map((step, stepIndex) => this.normalizeLabStep(step, stepIndex, rawSteps.length, language))
-      : fallback.steps;
+      : fallback.steps.map((step) => this.cloneLabStep(step));
     const canonicalStepIds = Array.from({ length: Math.max(provisionalSteps.length, fallback.steps.length) }, (_, stepIndex) =>
       this.buildCanonicalLabStepId(stepIndex)
     );
     const stepAliasLookup = this.buildLabStepAliasLookup(provisionalSteps, canonicalStepIds);
     const steps = Array.from({ length: canonicalStepIds.length }, (_, stepIndex) => {
+      const canonicalStepId = canonicalStepIds[stepIndex];
       const step = provisionalSteps[stepIndex] || fallback.steps[stepIndex] || fallback.steps[fallback.steps.length - 1];
+      const fallbackStep = fallback.steps[stepIndex] || fallback.steps[fallback.steps.length - 1];
       const rawStep = rawSteps[stepIndex];
       const fallbackNextStepId = canonicalStepIds[stepIndex + 1] || null;
-      const choices = step.choices.map((choice, choiceIndex) => {
+      const readings = this.normalizeLabReadings(
+        rawStep && typeof rawStep === 'object' ? (rawStep as Record<string, unknown>).readings : null,
+        discipline,
+        subject,
+        language,
+        difficulty,
+        stepIndex
+      );
+      const choiceSource = Array.isArray(step.choices) && step.choices.length > 0 ? step.choices : fallbackStep.choices;
+      const choices = choiceSource.slice(0, 3).map((choice, choiceIndex) => {
         const requestedNext = this.resolveCanonicalLabNextStepId(
           choice.nextStepId,
           stepIndex,
@@ -955,21 +1676,24 @@ export class AIService {
         );
         const nextStepId = requestedNext ?? (choice.consequenceLevel === 'critical' ? null : fallbackNextStepId);
 
-        return {
+        return this.cloneLabChoice(canonicalStepId, {
           ...choice,
           nextStepId,
           scoreImpact: Math.max(-30, Math.min(20, Number.isFinite(choice.scoreImpact) ? choice.scoreImpact : (choiceIndex === 0 ? 12 : -10)))
-        };
+        }, choiceIndex);
       });
 
-      return {
-        ...step,
-        id: canonicalStepIds[stepIndex],
-        readings: this.normalizeLabReadings(rawStep && typeof rawStep === 'object' ? (rawStep as Record<string, unknown>).readings : null, discipline, subject, language, difficulty, stepIndex),
-        choices: choices.slice(0, 3)
-      };
+      return this.cloneLabStep(step, {
+        id: canonicalStepId,
+        readings,
+        choices
+      });
     });
-    const stableSteps = this.ensureLabScenarioVariety(steps, fallback.steps, language);
+    const stableSteps = this.validateNormalizedLabSteps(
+      this.ensureLabScenarioVariety(steps, fallback.steps, language),
+      fallback.steps,
+      language
+    );
 
     const items = this.normalizeLabItems(candidate.items, discipline, subject, language);
     const title = typeof candidate.title === 'string' && candidate.title.trim()
@@ -998,14 +1722,15 @@ export class AIService {
       openingSituation,
       imagePrompt,
       difficulty,
-      steps: stableSteps.length > 0 ? stableSteps : fallback.steps.map((step, index) => ({
-        ...step,
-        id: this.buildCanonicalLabStepId(index),
-        choices: step.choices.map(choice => ({
-          ...choice,
-          nextStepId: choice.nextStepId && canonicalStepIds.includes(choice.nextStepId) ? choice.nextStepId : null
-        }))
-      })),
+      steps: stableSteps.length > 0
+        ? stableSteps.map((step) => this.cloneLabStep(step))
+        : fallback.steps.map((step, index) => this.cloneLabStep(step, {
+          id: this.buildCanonicalLabStepId(index),
+          choices: step.choices.map((choice, choiceIndex) => this.cloneLabChoice(this.buildCanonicalLabStepId(index), {
+            ...choice,
+            nextStepId: choice.nextStepId && canonicalStepIds.includes(choice.nextStepId) ? choice.nextStepId : null
+          }, choiceIndex))
+        })),
       items,
       finalEvaluation: this.normalizeLabEvaluation(candidate.finalEvaluation, discipline, subject, language),
       passingScore
@@ -1014,6 +1739,51 @@ export class AIService {
 
   private buildCanonicalLabStepId(stepIndex: number): string {
     return `step_${stepIndex + 1}`;
+  }
+
+  private buildCanonicalLabChoiceId(stepId: string, choiceIndex: number): string {
+    return `${stepId}_choice_${choiceIndex + 1}`;
+  }
+
+  private cloneLabChoice(stepId: string, choice: LabScenarioChoice, choiceIndex: number): LabScenarioChoice {
+    return {
+      id: this.buildCanonicalLabChoiceId(stepId, choiceIndex),
+      text: String(choice.text || '').trim(),
+      outcome: String(choice.outcome || '').trim(),
+      nextStepId: choice.nextStepId ? String(choice.nextStepId).trim() : null,
+      scoreImpact: Number.isFinite(choice.scoreImpact) ? Math.round(choice.scoreImpact) : 0,
+      consequenceLevel: choice.consequenceLevel
+    };
+  }
+
+  private cloneLabStep(
+    step: LabScenarioStep,
+    overrides: Partial<Omit<LabScenarioStep, 'readings' | 'choices'>> & {
+      readings?: LabScenarioReading[];
+      choices?: LabScenarioChoice[];
+    } = {}
+  ): LabScenarioStep {
+    const nextId = overrides.id ?? step.id;
+    const readings = (overrides.readings ?? step.readings ?? []).map((reading) => ({
+      ...reading,
+      label: String(reading.label || '').trim(),
+      value: String(reading.value || '').trim(),
+      note: typeof reading.note === 'string' && reading.note.trim() ? reading.note.trim() : undefined
+    }));
+    const choices = (overrides.choices ?? step.choices ?? []).map((choice, choiceIndex) =>
+      this.cloneLabChoice(nextId, choice, choiceIndex)
+    );
+
+    return {
+      ...step,
+      ...overrides,
+      id: nextId,
+      title: String((overrides.title ?? step.title) || '').trim(),
+      situation: String((overrides.situation ?? step.situation) || '').trim(),
+      decisionPrompt: String((overrides.decisionPrompt ?? step.decisionPrompt) || '').trim(),
+      readings,
+      choices
+    };
   }
 
   private buildLabStepAliasLookup(
@@ -1093,11 +1863,11 @@ export class AIService {
 
     const choices = rawChoices
       .slice(0, 3)
-      .map((choice, choiceIndex) => this.normalizeLabChoice(choice, fallbackNextStepId, language, choiceIndex))
+      .map((choice, choiceIndex) => this.normalizeLabChoice(choice, stepId, fallbackNextStepId, language, choiceIndex))
       .slice(0, 3);
 
     while (choices.length < 3) {
-      choices.push(this.normalizeLabChoice(null, fallbackNextStepId, language, choices.length));
+      choices.push(this.normalizeLabChoice(null, stepId, fallbackNextStepId, language, choices.length));
     }
 
     return {
@@ -1120,6 +1890,7 @@ export class AIService {
 
   private normalizeLabChoice(
     choice: unknown,
+    stepId: string,
     fallbackNextStepId: string | null,
     language: string,
     choiceIndex: number
@@ -1131,6 +1902,7 @@ export class AIService {
       : `Possible decision ${choiceIndex + 1}`;
 
     return {
+      id: this.buildCanonicalLabChoiceId(stepId, choiceIndex),
       text: typeof candidate.text === 'string' && candidate.text.trim()
         ? candidate.text.trim()
         : fallbackChoiceText,
@@ -1252,23 +2024,23 @@ export class AIService {
       const currentSignature = this.buildLabStepSignature(step);
 
       let nextStep = (seenSignatures.has(currentSignature) || repeatedChoiceSet || (repeatedPrompt && repeatedSituation) || uniqueChoices < 3)
-        ? { ...fallback, id: step.id }
-        : { ...step };
+        ? this.cloneLabStep(fallback, { id: step.id })
+        : this.cloneLabStep(step);
 
       if (this.isGenericLabSituation(nextStep.situation, language)) {
-        nextStep = { ...nextStep, situation: fallback.situation };
+        nextStep = this.cloneLabStep(nextStep, { situation: fallback.situation });
       }
 
       if (this.isGenericLabDecisionPrompt(nextStep.decisionPrompt, language) || repeatedPrompt) {
-        nextStep = { ...nextStep, decisionPrompt: fallback.decisionPrompt };
+        nextStep = this.cloneLabStep(nextStep, { decisionPrompt: fallback.decisionPrompt });
       }
 
       if ((nextStep.readings || []).filter((reading) => /\d/.test(reading.value)).length < 2) {
-        nextStep = { ...nextStep, readings: fallback.readings };
+        nextStep = this.cloneLabStep(nextStep, { readings: fallback.readings });
       }
 
       if (new Set(nextStep.choices.map((choice) => this.normalizeLabTextKey(choice.text))).size < 3) {
-        nextStep = { ...nextStep, choices: fallback.choices };
+        nextStep = this.cloneLabStep(nextStep, { choices: fallback.choices });
       }
 
       stabilized.push(nextStep);
@@ -1296,6 +2068,129 @@ export class AIService {
       this.normalizeLabTextKey(step.decisionPrompt),
       this.buildLabChoiceSetSignature(step.choices)
     ].join('||');
+  }
+
+  private buildLabPromptAndChoiceSignature(step: LabScenarioStep): string {
+    return [
+      this.normalizeLabTextKey(step.decisionPrompt),
+      this.buildLabChoiceSetSignature(step.choices)
+    ].join('||');
+  }
+
+  private validateNormalizedLabSteps(
+    steps: LabScenarioStep[],
+    fallbackSteps: LabScenarioStep[],
+    language: string
+  ): LabScenarioStep[] {
+    const seenPromptAndChoiceSignatures = new Set<string>();
+    const repairedSteps = steps.map((step, stepIndex) => {
+      const fallback = fallbackSteps[stepIndex] || fallbackSteps[fallbackSteps.length - 1];
+      const normalizedStep = this.cloneLabStep(step, {
+        id: this.buildCanonicalLabStepId(stepIndex)
+      });
+      const promptAndChoiceSignature = this.buildLabPromptAndChoiceSignature(normalizedStep);
+      const hasPrompt = !!normalizedStep.decisionPrompt.trim();
+      const hasSituation = !!normalizedStep.situation.trim();
+      const uniqueChoices = new Set(normalizedStep.choices.map((choice) => this.normalizeLabTextKey(choice.text))).size;
+      const duplicateDataDetected = seenPromptAndChoiceSignatures.has(promptAndChoiceSignature);
+
+      if (!hasPrompt || !hasSituation || uniqueChoices < 3 || duplicateDataDetected) {
+        const repaired = this.cloneLabStep(fallback, {
+          id: normalizedStep.id
+        });
+
+        this.warnLabDebug(
+          duplicateDataDetected
+            ? `Duplicate lab step content detected and repaired at step ${stepIndex + 1}`
+            : `Incomplete lab step detected and repaired at step ${stepIndex + 1}`,
+          this.buildLabStepDebugSummary(normalizedStep)
+        );
+
+        seenPromptAndChoiceSignatures.add(this.buildLabPromptAndChoiceSignature(repaired));
+        return repaired;
+      }
+
+      seenPromptAndChoiceSignatures.add(promptAndChoiceSignature);
+      return normalizedStep;
+    });
+
+    return repairedSteps.map((step) => {
+      const duplicateMatches = repairedSteps.filter((candidate) =>
+        this.buildLabPromptAndChoiceSignature(candidate) === this.buildLabPromptAndChoiceSignature(step)
+      ).length;
+
+      if (duplicateMatches > 1) {
+        this.warnLabDebug('Repeated prompt/options survived normalization', this.buildLabStepDebugSummary(step));
+      }
+
+      if (this.isGenericLabDecisionPrompt(step.decisionPrompt, language) || this.isGenericLabSituation(step.situation, language)) {
+        this.warnLabDebug('Generic lab step copy detected after normalization', this.buildLabStepDebugSummary(step));
+      }
+
+      return this.cloneLabStep(step);
+    });
+  }
+
+  private buildLabStepDebugSummary(step: LabScenarioStep) {
+    return {
+      id: step.id,
+      title: step.title,
+      situation: step.situation,
+      decisionPrompt: step.decisionPrompt,
+      choices: step.choices.map((choice) => ({
+        id: choice.id,
+        text: choice.text,
+        nextStepId: choice.nextStepId,
+        consequenceLevel: choice.consequenceLevel
+      }))
+    };
+  }
+
+  private buildLabScenarioDebugSummary(input: unknown) {
+    const candidate = input && typeof input === 'object' ? input as Record<string, unknown> : {};
+    const rawSteps = Array.isArray(candidate.steps) ? candidate.steps : [];
+
+    return {
+      title: typeof candidate.title === 'string' ? candidate.title : '',
+      difficulty: typeof candidate.difficulty === 'string' ? candidate.difficulty : '',
+      stepCount: rawSteps.length,
+      steps: rawSteps.map((rawStep, stepIndex) => {
+        const stepCandidate = rawStep && typeof rawStep === 'object' ? rawStep as Record<string, unknown> : {};
+        const rawChoices = Array.isArray(stepCandidate.choices)
+          ? stepCandidate.choices
+          : Array.isArray(stepCandidate.options)
+            ? stepCandidate.options
+            : [];
+
+        return {
+          index: stepIndex,
+          id: typeof stepCandidate.id === 'string' ? stepCandidate.id : '',
+          title: typeof stepCandidate.title === 'string' ? stepCandidate.title : '',
+          situation: typeof stepCandidate.situation === 'string'
+            ? stepCandidate.situation
+            : typeof stepCandidate.instruction === 'string'
+              ? stepCandidate.instruction
+              : '',
+          decisionPrompt: typeof stepCandidate.decisionPrompt === 'string' ? stepCandidate.decisionPrompt : '',
+          choices: rawChoices.map((choice) => {
+            if (typeof choice === 'string') {
+              return choice;
+            }
+            return choice && typeof choice === 'object' && typeof (choice as Record<string, unknown>).text === 'string'
+              ? (choice as Record<string, unknown>).text
+              : '';
+          })
+        };
+      })
+    };
+  }
+
+  private logLabDebug(message: string, payload: unknown) {
+    console.debug(`[Lab Debug] ${message}`, payload);
+  }
+
+  private warnLabDebug(message: string, payload: unknown) {
+    console.warn(`[Lab Debug] ${message}`, payload);
   }
 
   private isGenericLabSituation(situation: string, language: string): boolean {
@@ -1754,67 +2649,67 @@ export class AIService {
 
     const decisionPrompt = stepIndex === totalSteps - 1
       ? (language === 'ar'
-        ? 'ما الإغلاق المهني الأكثر أمانًا وقابلية للدفاع عنه؟'
-        : 'What is the safest and most defensible professional close-out?')
+        ? `في مرحلة ${phaseTitle}، ومع بقاء ${primary.label} عند ${primary.value} و${secondary.label} عند ${secondary.value}، ما الإغلاق المهني الأكثر أمانًا وقابلية للدفاع عنه؟`
+        : `During ${phaseTitle}, with ${primary.label} at ${primary.value} and ${secondary.label} at ${secondary.value}, what is the safest and most defensible professional close-out?`)
       : difficulty === 'easy'
         ? (language === 'ar'
-          ? 'ما الخطوة الأبسط والأكثر مباشرة اعتمادًا على هذه القراءات؟'
-          : 'What is the simplest and most direct next move based on these readings?')
+          ? `في ${phaseTitle}، وبالاعتماد على ${primary.label} = ${primary.value} و${secondary.label} = ${secondary.value}، ما الخطوة الأبسط والأكثر مباشرة الآن؟`
+          : `In ${phaseTitle}, with ${primary.label} = ${primary.value} and ${secondary.label} = ${secondary.value}, what is the simplest and most direct next move now?`)
         : difficulty === 'hard'
           ? (language === 'ar'
-            ? 'أي قرار يوازن الآن بين المؤشرات المتعارضة ويحمي النتيجة تحت الضغط؟'
-            : 'Which decision best balances the conflicting indicators and protects the outcome under pressure?')
+            ? `في ${phaseTitle}، كيف توازن بين ${primary.label} = ${primary.value} و${tertiary.label} = ${tertiary.value} لحماية النتيجة تحت الضغط؟`
+            : `In ${phaseTitle}, which decision best balances ${primary.label} = ${primary.value} with ${tertiary.label} = ${tertiary.value} to protect the outcome under pressure?`)
           : (language === 'ar'
-            ? 'أي قرار مهني يجب أن يتقدم الآن بناءً على هذه المعطيات؟'
-            : 'Which professional decision should take priority now based on these indicators?');
+            ? `في ${phaseTitle}، أي قرار مهني يجب أن يتقدم الآن مع ${primary.label} = ${primary.value} و${secondary.label} = ${secondary.value}؟`
+            : `In ${phaseTitle}, which professional decision should take priority now with ${primary.label} = ${primary.value} and ${secondary.label} = ${secondary.value}?`);
 
     const positiveText = stepIndex === totalSteps - 1
       ? (language === 'ar'
-        ? `أتحقق من أن ${primary.label} و${secondary.label} في اتجاه آمن، أوثّق ما حدث، ثم أغلق الحالة رسميًا.`
-        : `Verify that ${primary.label} and ${secondary.label} are moving safely, document what happened, and close the case formally.`)
+        ? `أراجع ${primary.label} (${primary.value}) و${secondary.label} (${secondary.value}) مراجعة ختامية، أوثّق ما تغيّر في ${phaseTitle}، ثم أغلق الحالة رسميًا.`
+        : `Perform a final review of ${primary.label} (${primary.value}) and ${secondary.label} (${secondary.value}), document what changed in ${phaseTitle}, and then close the case formally.`)
       : (language === 'ar'
-        ? `أربط قراري مباشرة بأهم مؤشر حرج الآن وهو ${primary.label}، ثم أراقب أثر الإجراء على ${secondary.label}.`
-        : `Tie the decision directly to the most critical indicator right now, ${primary.label}, then monitor the effect on ${secondary.label}.`);
+        ? `أربط قراري في ${phaseTitle} مباشرة بـ ${primary.label} (${primary.value})، وأضع نقطة تحقق سريعة لـ ${secondary.label} (${secondary.value}) قبل الانتقال.`
+        : `Tie the decision in ${phaseTitle} directly to ${primary.label} (${primary.value}) and set an immediate check on ${secondary.label} (${secondary.value}) before moving on.`);
 
     const warningText = stepIndex === totalSteps - 1
       ? (language === 'ar'
-        ? `أكتفي بتحسن جزئي في ${primary.label} وأغلق الحالة دون مراجعة ختامية كافية.`
-        : `Accept only partial improvement in ${primary.label} and close the case without a sufficient final review.`)
+        ? `أغلق الحالة بعد تحسن جزئي فقط في ${primary.label} (${primary.value}) من دون مراجعة كافية لـ ${secondary.label} (${secondary.value}).`
+        : `Close the case after only partial improvement in ${primary.label} (${primary.value}) without a sufficient review of ${secondary.label} (${secondary.value}).`)
       : (language === 'ar'
-        ? `أتعامل مع العرض الأسرع ظهورًا فقط وأؤجل التحقق من ${secondary.label} و${tertiary.label}.`
-        : `Address only the most visible symptom and postpone checking ${secondary.label} and ${tertiary.label}.`);
+        ? `أتعامل في ${phaseTitle} مع المؤشر الأسرع ظهورًا فقط، وأؤجل التحقق من ${secondary.label} (${secondary.value}) و${tertiary.label} (${tertiary.value}).`
+        : `In ${phaseTitle}, address only the most visible indicator and postpone checking ${secondary.label} (${secondary.value}) and ${tertiary.label} (${tertiary.value}).`);
 
     const criticalText = stepIndex === totalSteps - 1
       ? (language === 'ar'
-        ? `أعلن انتهاء المشكلة فورًا من دون التأكد من آخر القراءات أو أثر القرار على من حولي.`
-        : `Declare the issue resolved immediately without verifying the final readings or the downstream impact.`)
+        ? `أعلن انتهاء المشكلة فورًا في ${phaseTitle} من دون التأكد من ${primary.label} (${primary.value}) أو أثر القرار النهائي على من حولي.`
+        : `Declare the issue resolved immediately in ${phaseTitle} without verifying ${primary.label} (${primary.value}) or the downstream effect of the final decision.`)
       : (language === 'ar'
-        ? `أتجاهل ${primary.label} و${secondary.label} وأعتمد على الانطباع العام فقط لاتخاذ القرار.`
-        : `Ignore ${primary.label} and ${secondary.label} and rely only on general impression to choose the next move.`);
+        ? `أتجاهل في ${phaseTitle} قراءات ${primary.label} (${primary.value}) و${secondary.label} (${secondary.value}) وأعتمد على الانطباع العام فقط.`
+        : `In ${phaseTitle}, ignore the current ${primary.label} (${primary.value}) and ${secondary.label} (${secondary.value}) readings and rely only on general impression.`);
 
     const positiveOutcome = stepIndex === totalSteps - 1
       ? (language === 'ar'
-        ? `أغلقت الحالة بعد مراجعة نهائية منضبطة، وأثبتت أن ${primary.label} عند ${primary.value} لم يعد يهدد المسار.`
-        : `You closed the case with disciplined final verification, showing that ${primary.label} at ${primary.value} no longer threatens the outcome.`)
+        ? `أغلقت الحالة بعد مراجعة نهائية منضبطة في ${phaseTitle}، وأثبتت أن ${primary.label} عند ${primary.value} لم يعد يهدد المسار.`
+        : `You closed the case with disciplined final verification in ${phaseTitle}, showing that ${primary.label} at ${primary.value} no longer threatens the outcome.`)
       : (language === 'ar'
-        ? `اعتمدت على المؤشرات الصحيحة، فتم احتواء الخطر المرتبط بـ ${primary.label} مع متابعة مباشرة لـ ${secondary.label}.`
-        : `You acted on the right indicators, containing the risk tied to ${primary.label} while directly monitoring ${secondary.label}.`);
+        ? `اعتمدت في ${phaseTitle} على المؤشرات الصحيحة، فتم احتواء الخطر المرتبط بـ ${primary.label} (${primary.value}) مع متابعة مباشرة لـ ${secondary.label} (${secondary.value}).`
+        : `In ${phaseTitle}, you acted on the right indicators, containing the risk tied to ${primary.label} (${primary.value}) while directly monitoring ${secondary.label} (${secondary.value}).`);
 
     const warningOutcome = stepIndex === totalSteps - 1
       ? (language === 'ar'
-        ? `تم الإغلاق، لكن بقيت ملاحظة مهنية لأن ${primary.label} لم يُراجع بما يكفي قبل إنهاء الحالة.`
-        : `The case was closed, but a professional concern remained because ${primary.label} was not reviewed thoroughly enough before closure.`)
+        ? `تم الإغلاق في ${phaseTitle}، لكن بقيت ملاحظة مهنية لأن ${primary.label} (${primary.value}) لم يُراجع بما يكفي قبل إنهاء الحالة.`
+        : `The case was closed in ${phaseTitle}, but a professional concern remained because ${primary.label} (${primary.value}) was not reviewed thoroughly enough before closure.`)
       : (language === 'ar'
-        ? `خفضت الضغط مؤقتًا، لكن تجاهل ${secondary.label} و${tertiary.label} ترك ثغرة ستعود في المشهد التالي.`
-        : `You reduced pressure temporarily, but ignoring ${secondary.label} and ${tertiary.label} left a gap that will reappear in the next scene.`);
+        ? `خفضت الضغط مؤقتًا في ${phaseTitle}، لكن تأجيل مراجعة ${secondary.label} (${secondary.value}) و${tertiary.label} (${tertiary.value}) ترك ثغرة ستعود لاحقًا.`
+        : `You reduced pressure temporarily in ${phaseTitle}, but postponing ${secondary.label} (${secondary.value}) and ${tertiary.label} (${tertiary.value}) left a gap that will return later.`);
 
     const criticalOutcome = stepIndex === totalSteps - 1
       ? (language === 'ar'
-        ? `أُعلن الإغلاق مبكرًا ثم ظهر أن ${primary.label} و${secondary.label} ما زالا خارج السيطرة، فانتهى السيناريو بنتيجة حرجة.`
-        : `Closure was declared too early, and it became clear that ${primary.label} and ${secondary.label} were still out of control, ending the scenario critically.`)
+        ? `أُعلن الإغلاق مبكرًا في ${phaseTitle} ثم ظهر أن ${primary.label} (${primary.value}) و${secondary.label} (${secondary.value}) ما زالا خارج السيطرة، فانتهى السيناريو بنتيجة حرجة.`
+        : `Closure was declared too early in ${phaseTitle}, and it became clear that ${primary.label} (${primary.value}) and ${secondary.label} (${secondary.value}) were still out of control, ending the scenario critically.`)
       : (language === 'ar'
-        ? `تجاهل ${primary.label} عند ${primary.value} أدى إلى تدهور حرج وسحب السيطرة من المشهد الحالي.`
-        : `Ignoring ${primary.label} at ${primary.value} caused a critical deterioration and removed control from the current scene.`);
+        ? `تجاهل ${primary.label} (${primary.value}) في ${phaseTitle} أدى إلى تدهور حرج وسحب السيطرة من المشهد الحالي.`
+        : `Ignoring ${primary.label} (${primary.value}) in ${phaseTitle} caused a critical deterioration and removed control from the current scene.`);
 
     return {
       id: stepId,
@@ -1824,6 +2719,7 @@ export class AIService {
       readings,
       choices: [
         {
+          id: this.buildCanonicalLabChoiceId(stepId, 0),
           text: positiveText,
           outcome: positiveOutcome,
           nextStepId,
@@ -1831,6 +2727,7 @@ export class AIService {
           consequenceLevel: 'positive'
         },
         {
+          id: this.buildCanonicalLabChoiceId(stepId, 1),
           text: warningText,
           outcome: warningOutcome,
           nextStepId,
@@ -1838,6 +2735,7 @@ export class AIService {
           consequenceLevel: 'warning'
         },
         {
+          id: this.buildCanonicalLabChoiceId(stepId, 2),
           text: criticalText,
           outcome: criticalOutcome,
           nextStepId: null,
@@ -1889,7 +2787,12 @@ export class AIService {
       return this.chatViaSiteAIEndpoint(
         `Book: ${bookTitle}\nPage Content: ${pageContent}\nQuestion: ${query}`,
         `You are an academic tutor. Respond in ${this.languageName}.`,
-        []
+        [],
+        false,
+        undefined,
+        [],
+        undefined,
+        { featureHint: 'knowledge', knowledgeMode: 'strict' }
       );
     });
   }
@@ -1899,7 +2802,12 @@ export class AIService {
       return this.chatViaSiteAIEndpoint(
         `User Name: ${name}. Context/Mood: ${context}.`,
         `Generate a short, powerful motivational quote in ${this.languageName}.`,
-        []
+        [],
+        false,
+        undefined,
+        [],
+        undefined,
+        { knowledgeMode: 'off' }
       );
     });
   }
@@ -2228,8 +3136,11 @@ export class AIService {
         /\.edu$/i,
         /\.gov$/i,
         /doi\.org$/i,
+        /cdc\.gov$/i,
         /ncbi\.nlm\.nih\.gov$/i,
         /pubmed\.ncbi\.nlm\.nih\.gov$/i,
+        /medscape\.com$/i,
+        /uptodate\.com$/i,
         /sciencedirect\.com$/i,
         /springer\.com$/i,
         /nature\.com$/i,
@@ -2241,7 +3152,10 @@ export class AIService {
         /thelancet\.com$/i,
         /nejm\.org$/i,
         /ieee\.org$/i,
+        /standards\.ieee\.org$/i,
         /acm\.org$/i,
+        /iso\.org$/i,
+        /mit\.edu$/i,
         /semanticscholar\.org$/i,
         /arxiv\.org$/i,
         /jstor\.org$/i,
@@ -2251,6 +3165,10 @@ export class AIService {
         /plos\.org$/i,
         /bmj\.com$/i,
         /mdpi\.com$/i,
+        /legislation\.gov\.uk$/i,
+        /eur-lex\.europa\.eu$/i,
+        /congress\.gov$/i,
+        /loc\.gov$/i,
         /worldbank\.org$/i,
         /who\.int$/i,
         /oecd\.org$/i,

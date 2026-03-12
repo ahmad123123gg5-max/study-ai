@@ -7,6 +7,7 @@ import { AIService } from '../../services/ai.service';
 import { FlashcardsService } from '../../services/flashcards.service';
 import {
   DEFAULT_MINDMAP_CUSTOMIZATION,
+  KnowledgeBoardState,
   MindMapBackgroundMode,
   MindMapCustomizationSettings,
   MindMapDirection,
@@ -17,12 +18,18 @@ import {
   MindMapNodeReviewState,
   MindMapNodeShape,
   MindMapNodeType,
+  MindMapQuizAttempt,
   MindMapService,
   MindMapThemeId,
   MindMapVisualMode,
   MindMapViewMode,
-  SavedMindMap
+  MindMapWorkspaceSurface,
+  SavedMindMap,
+  SmartKnowledgeConnection,
+  SmartKnowledgeConnectionKind,
+  SmartKnowledgeNode
 } from '../../services/mindmap.service';
+import { NotificationService } from '../../services/notification.service';
 import { UpgradeModal } from '../shared/upgrade-modal.component';
 import { LanguageCode } from '../../i18n/language-config';
 
@@ -46,10 +53,22 @@ interface MindMapThemeDefinition {
 
 interface MindMapQuizQuestion {
   id: string;
+  nodeId?: string;
   question: string;
   options: string[];
   answerIndex: number;
   explanation?: string;
+}
+
+interface SmartKnowledgeNodeDraft {
+  id: string | null;
+  title: string;
+  explanation: string;
+  bulletsText: string;
+  imageUrl: string;
+  icon: string;
+  sourceLabel: string;
+  accentColor: string;
 }
 
 type MindMapLayoutPreset = 'center' | 'top_down' | 'rtl_academic' | 'compact_study';
@@ -187,6 +206,7 @@ export class MindMapPage {
   readonly ai = inject(AIService);
   readonly mindmaps = inject(MindMapService);
   private readonly flashcards = inject(FlashcardsService);
+  private readonly ns = inject(NotificationService);
   private readonly MIN_SCALE = 0.58;
   private readonly MAX_SCALE = 2.2;
   private readonly ZOOM_STEP = 0.12;
@@ -202,7 +222,7 @@ export class MindMapPage {
   sourceEditorText = signal('');
   errorMessage = signal('');
   isBusy = signal(false);
-  busyAction = signal<'generate' | 'artifact' | 'quiz' | 'export' | null>(null);
+  busyAction = signal<'generate' | 'artifact' | 'quiz' | 'export' | 'knowledge' | null>(null);
   loadingMessageIndex = signal(0);
   viewMode = signal<MindMapViewMode>('mindmap');
   selectedNodeId = signal<string | null>(null);
@@ -216,6 +236,20 @@ export class MindMapPage {
   artifactContent = signal('');
   quizQuestions = signal<MindMapQuizQuestion[]>([]);
   showQuizModal = signal(false);
+  quizSelections = signal<Record<string, number>>({});
+  workspaceSurface = signal<MindMapWorkspaceSurface>('mindmap');
+  selectedKnowledgeNodeId = signal<string | null>(null);
+  editingKnowledgeNodeId = signal<string | null>(null);
+  showKnowledgeEditor = signal(false);
+  knowledgeNodeDraft = signal<SmartKnowledgeNodeDraft>(this.createKnowledgeNodeDraft());
+  connectingKnowledgeNodeId = signal<string | null>(null);
+  showKnowledgeAiPrompt = signal(false);
+  knowledgeAiPrompt = signal('');
+  isKnowledgeStudyMode = signal(false);
+  knowledgeStudyNodeId = signal<string | null>(null);
+  knowledgeRevealStage = signal<0 | 1 | 2>(0);
+  studyShowConnections = signal(true);
+  studyFocusCurrentNode = signal(true);
   scale = signal(1);
   offsetX = signal(0);
   offsetY = signal(0);
@@ -227,6 +261,8 @@ export class MindMapPage {
 
   private loadingTimer: number | null = null;
   private bodyOverflowBeforeFullscreen: string | null = null;
+  private isCompletingQuiz = false;
+  private readonly emptyKnowledgeBoard = this.mindmaps.createEmptyKnowledgeBoard();
   private panState: { active: boolean; startX: number; startY: number; baseX: number; baseY: number } = {
     active: false,
     startX: 0,
@@ -234,6 +270,8 @@ export class MindMapPage {
     baseX: 0,
     baseY: 0
   };
+  private knowledgeDragState: { nodeId: string; startX: number; startY: number; baseX: number; baseY: number } | null = null;
+  private knowledgeResizeState: { nodeId: string; startX: number; startY: number; baseWidth: number; baseHeight: number } | null = null;
 
   readonly loadingMessages = computed(() => this.ai.currentLanguage() === 'ar'
     ? ['يتم تحليل الشرح...', 'يتم استخراج المحاور الرئيسية...', 'يتم بناء الفروع الذهنية...', 'يتم تنظيم الخريطة التفاعلية...']
@@ -288,6 +326,42 @@ export class MindMapPage {
   readonly activeTheme = computed(() => this.resolveTheme(this.currentCustomization().themeId));
   readonly savedMapsList = computed(() => this.mindmaps.savedMaps());
   readonly progressSummary = computed(() => this.currentMap()?.progress || this.mindmaps.createProgress(this.currentRoot(), this.selectedNodeId()));
+  readonly knowledgeBoard = computed(() => this.currentMap()?.knowledgeBoard || this.emptyKnowledgeBoard);
+  readonly knowledgeNodes = computed(() => this.knowledgeBoard().nodes);
+  readonly knowledgeConnections = computed(() => this.knowledgeBoard().connections);
+  readonly isKnowledgeSurface = computed(() => this.workspaceSurface() === 'knowledge');
+  readonly selectedKnowledgeNode = computed(() =>
+    this.findKnowledgeNode(this.selectedKnowledgeNodeId() || this.knowledgeBoard().study.currentNodeId)
+  );
+  readonly knowledgeStudySequence = computed(() => this.buildKnowledgeStudySequence());
+  readonly currentKnowledgeStudyIndex = computed(() =>
+    this.knowledgeStudySequence().findIndex(node => node.id === this.knowledgeStudyNodeId())
+  );
+  readonly currentKnowledgeStudyNode = computed(() =>
+    this.findKnowledgeNode(this.knowledgeStudyNodeId() || this.knowledgeBoard().study.currentNodeId)
+  );
+  readonly highlightedKnowledgeConnectionIds = computed(() => {
+    if (!this.isKnowledgeStudyMode()) {
+      return new Set(this.knowledgeConnections().map(connection => connection.id));
+    }
+
+    const currentNodeId = this.knowledgeStudyNodeId();
+    if (!this.studyShowConnections() || !currentNodeId) {
+      return new Set<string>();
+    }
+
+    return new Set(
+      this.knowledgeConnections()
+        .filter(connection => connection.fromNodeId === currentNodeId || connection.toNodeId === currentNodeId)
+        .map(connection => connection.id)
+    );
+  });
+  readonly knowledgeBoardMetrics = computed(() => ({
+    nodes: this.knowledgeNodes().length,
+    connections: this.knowledgeConnections().length,
+    keyNodes: this.knowledgeNodes().filter(node => node.isKeyNode).length
+  }));
+  readonly knowledgeBoardCanvasStyle = computed(() => this.getKnowledgeBoardCanvasStyle());
   readonly layoutPreset = computed<MindMapLayoutPreset>(() => {
     if (this.viewMode() === 'compact') return 'compact_study';
     if (this.currentCustomization().direction === 'rtl') return 'rtl_academic';
@@ -351,9 +425,12 @@ export class MindMapPage {
       const map = this.currentMap();
       if (!map) return;
       this.viewMode.set(map.viewMode);
-      if (!this.selectedNodeId() && map.progress.currentNodeId) {
-        this.selectedNodeId.set(map.progress.currentNodeId);
-      }
+      this.selectedNodeId.set(map.progress.currentNodeId || map.root?.id || null);
+      this.workspaceSurface.set(map.knowledgeBoard.activeSurface);
+      this.selectedKnowledgeNodeId.set(map.knowledgeBoard.study.currentNodeId || map.knowledgeBoard.nodes[0]?.id || null);
+      this.knowledgeStudyNodeId.set(map.knowledgeBoard.study.currentNodeId || map.knowledgeBoard.nodes[0]?.id || null);
+      this.studyShowConnections.set(map.knowledgeBoard.study.showConnections);
+      this.studyFocusCurrentNode.set(map.knowledgeBoard.study.focusCurrentNode);
     });
   }
 
@@ -363,6 +440,13 @@ export class MindMapPage {
       void this.exitFullScreen();
     }
     this.editingNodeId.set(null);
+    this.editingKnowledgeNodeId.set(null);
+    this.showKnowledgeEditor.set(false);
+    this.showKnowledgeAiPrompt.set(false);
+    this.connectingKnowledgeNodeId.set(null);
+    if (this.isKnowledgeStudyMode()) {
+      this.exitKnowledgeStudyMode();
+    }
     this.showQuizModal.set(false);
     this.showCustomizationDrawer.set(false);
   }
@@ -388,6 +472,10 @@ export class MindMapPage {
   handleArrowRight(event: KeyboardEvent) {
     if (this.shouldIgnoreKeyboard(event)) return;
     event.preventDefault();
+    if (this.isKnowledgeStudyMode()) {
+      this.goToNextKnowledgeStudyNode();
+      return;
+    }
     this.goToNextStudyNode();
   }
 
@@ -395,6 +483,10 @@ export class MindMapPage {
   handleArrowLeft(event: KeyboardEvent) {
     if (this.shouldIgnoreKeyboard(event)) return;
     event.preventDefault();
+    if (this.isKnowledgeStudyMode()) {
+      this.goToPreviousKnowledgeStudyNode();
+      return;
+    }
     this.goToPreviousStudyNode();
   }
 
@@ -405,6 +497,39 @@ export class MindMapPage {
     if (!node) return;
     event.preventDefault();
     this.toggleNodeCollapse(node.id, event);
+  }
+
+  @HostListener('document:pointermove', ['$event'])
+  handleDocumentPointerMove(event: PointerEvent) {
+    if (this.knowledgeDragState) {
+      const nextX = this.knowledgeDragState.baseX + ((event.clientX - this.knowledgeDragState.startX) / this.scale());
+      const nextY = this.knowledgeDragState.baseY + ((event.clientY - this.knowledgeDragState.startY) / this.scale());
+      this.updateKnowledgeNode(this.knowledgeDragState.nodeId, node => ({
+        ...node,
+        x: Math.max(48, Number(nextX.toFixed(1))),
+        y: Math.max(48, Number(nextY.toFixed(1)))
+      }), true);
+      return;
+    }
+
+    if (this.knowledgeResizeState) {
+      const nextWidth = this.knowledgeResizeState.baseWidth + ((event.clientX - this.knowledgeResizeState.startX) / this.scale());
+      const nextHeight = this.knowledgeResizeState.baseHeight + ((event.clientY - this.knowledgeResizeState.startY) / this.scale());
+      this.updateKnowledgeNode(this.knowledgeResizeState.nodeId, node => ({
+        ...node,
+        width: Math.max(250, Math.min(520, Number(nextWidth.toFixed(1)))),
+        height: Math.max(180, Math.min(440, Number(nextHeight.toFixed(1))))
+      }), true);
+    }
+  }
+
+  @HostListener('document:pointerup')
+  handleDocumentPointerUp() {
+    if (this.knowledgeDragState || this.knowledgeResizeState) {
+      this.knowledgeDragState = null;
+      this.knowledgeResizeState = null;
+      this.commitKnowledgeBoard();
+    }
   }
 
   ngOnDestroy() {
@@ -420,6 +545,7 @@ export class MindMapPage {
 
   resolveBackTarget() {
     const sourceType = this.currentMap()?.sourceType || '';
+    if (sourceType === 'flashcards') return 'flashcards';
     if (sourceType === 'tutor') return 'tutor';
     if (sourceType === 'research') return 'research';
     if (sourceType === 'transform') return 'transform';
@@ -435,7 +561,7 @@ export class MindMapPage {
   }
 
   hasMap() {
-    return Boolean(this.currentRoot());
+    return Boolean(this.currentMap());
   }
 
   activeThemeStyle() {
@@ -468,6 +594,14 @@ export class MindMapPage {
   }
 
   canvasClass() {
+    if (this.isKnowledgeSurface()) {
+      return [
+        'knowledge-canvas',
+        this.isKnowledgeStudyMode() ? 'is-knowledge-study' : '',
+        this.isPanning() ? 'is-panning' : ''
+      ].filter(Boolean).join(' ');
+    }
+
     const customization = this.currentCustomization();
     const normalizedLineStyle = this.normalizeLineStyle(customization.lineStyle);
     return [
@@ -818,6 +952,431 @@ Source title: ${this.currentMap()?.sourceTitle || this.currentMap()?.name || 'Mi
     window.requestAnimationFrame(() => this.fitMapToScreen());
   }
 
+  setWorkspaceSurface(surface: MindMapWorkspaceSurface) {
+    const map = this.ensureCurrentMap();
+    const nextBoard: KnowledgeBoardState = {
+      ...this.knowledgeBoard(),
+      activeSurface: surface,
+      study: {
+        ...this.knowledgeBoard().study,
+        currentNodeId: this.knowledgeStudyNodeId() || this.selectedKnowledgeNodeId() || this.knowledgeBoard().study.currentNodeId
+      }
+    };
+
+    this.workspaceSurface.set(surface);
+    this.persistMap({
+      ...map,
+      knowledgeBoard: nextBoard
+    }, true);
+
+    window.requestAnimationFrame(() => this.fitMapToScreen());
+  }
+
+  createSmartKnowledgeNode() {
+    const map = this.ensureCurrentMap();
+    if (!map) return;
+    this.workspaceSurface.set('knowledge');
+    this.showKnowledgeAiPrompt.set(false);
+    this.connectingKnowledgeNodeId.set(null);
+    this.knowledgeNodeDraft.set(this.createKnowledgeNodeDraft());
+    this.editingKnowledgeNodeId.set(null);
+    this.showKnowledgeEditor.set(true);
+    this.persistMap({
+      ...map,
+      knowledgeBoard: {
+        ...this.knowledgeBoard(),
+        activeSurface: 'knowledge'
+      }
+    }, true);
+  }
+
+  openKnowledgeNodeEditor(node?: SmartKnowledgeNode | null, event?: Event) {
+    event?.stopPropagation();
+    if (node) {
+      this.selectedKnowledgeNodeId.set(node.id);
+      this.editingKnowledgeNodeId.set(node.id);
+      this.knowledgeNodeDraft.set({
+        id: node.id,
+        title: node.title,
+        explanation: node.explanation,
+        bulletsText: node.bullets.join('\n'),
+        imageUrl: node.imageUrl || '',
+        icon: node.icon || '',
+        sourceLabel: node.sourceLabel || '',
+        accentColor: node.accentColor || ''
+      });
+    } else {
+      this.editingKnowledgeNodeId.set(null);
+      this.knowledgeNodeDraft.set(this.createKnowledgeNodeDraft());
+    }
+    this.showKnowledgeEditor.set(true);
+  }
+
+  closeKnowledgeNodeEditor() {
+    this.showKnowledgeEditor.set(false);
+    this.editingKnowledgeNodeId.set(null);
+    this.knowledgeNodeDraft.set(this.createKnowledgeNodeDraft());
+  }
+
+  patchKnowledgeNodeDraft(patch: Partial<SmartKnowledgeNodeDraft>) {
+    this.knowledgeNodeDraft.update(current => ({ ...current, ...patch }));
+  }
+
+  saveKnowledgeNodeEdit() {
+    const draft = this.knowledgeNodeDraft();
+    const title = draft.title.trim();
+    if (!title) {
+      return;
+    }
+
+    const bullets = draft.bulletsText
+      .split('\n')
+      .map(line => line.replace(/^[\-\u2022]\s*/, '').trim())
+      .filter(Boolean)
+      .slice(0, 6);
+
+    if (draft.id) {
+      this.updateKnowledgeNode(draft.id, node => ({
+        ...node,
+        title,
+        explanation: draft.explanation.trim(),
+        bullets,
+        imageUrl: draft.imageUrl.trim() || undefined,
+        icon: draft.icon.trim() || undefined,
+        sourceLabel: draft.sourceLabel.trim() || undefined,
+        accentColor: draft.accentColor.trim() || undefined
+      }));
+    } else {
+      const position = this.getSuggestedKnowledgeNodePosition();
+      const nextNode: SmartKnowledgeNode = {
+        id: crypto.randomUUID(),
+        title,
+        explanation: draft.explanation.trim(),
+        bullets,
+        imageUrl: draft.imageUrl.trim() || undefined,
+        icon: draft.icon.trim() || undefined,
+        sourceLabel: draft.sourceLabel.trim() || undefined,
+        accentColor: draft.accentColor.trim() || undefined,
+        x: position.x,
+        y: position.y,
+        width: 320,
+        height: this.estimateKnowledgeNodeHeight({
+          explanation: draft.explanation.trim(),
+          bullets
+        }),
+        order: this.knowledgeNodes().length,
+        parentId: null,
+        isKeyNode: false
+      };
+      this.patchKnowledgeBoard(board => ({
+        ...board,
+        activeSurface: 'knowledge',
+        nodes: [...board.nodes, nextNode],
+        study: {
+          ...board.study,
+          currentNodeId: nextNode.id
+        }
+      }));
+      this.selectedKnowledgeNodeId.set(nextNode.id);
+      this.knowledgeStudyNodeId.set(nextNode.id);
+    }
+
+    this.closeKnowledgeNodeEditor();
+    window.requestAnimationFrame(() => {
+      const nodeId = this.selectedKnowledgeNodeId();
+      if (nodeId) {
+        this.centerOnNode(nodeId);
+      }
+    });
+  }
+
+  selectKnowledgeNode(nodeId: string, event?: Event) {
+    event?.stopPropagation();
+    if (this.connectingKnowledgeNodeId() && this.connectingKnowledgeNodeId() !== nodeId) {
+      this.createKnowledgeConnection(this.connectingKnowledgeNodeId() as string, nodeId, 'related');
+      this.connectingKnowledgeNodeId.set(null);
+      this.selectedKnowledgeNodeId.set(nodeId);
+      return;
+    }
+
+    this.selectedKnowledgeNodeId.set(nodeId);
+    this.knowledgeStudyNodeId.set(nodeId);
+    this.knowledgeRevealStage.set(0);
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      study: {
+        ...board.study,
+        currentNodeId: nodeId
+      }
+    }));
+  }
+
+  duplicateKnowledgeNode(nodeId: string, event?: Event) {
+    event?.stopPropagation();
+    const node = this.findKnowledgeNode(nodeId);
+    if (!node) return;
+
+    const duplicate: SmartKnowledgeNode = {
+      ...this.mindmaps.cloneMap(node),
+      id: crypto.randomUUID(),
+      x: node.x + 56,
+      y: node.y + 56,
+      order: this.knowledgeNodes().length
+    };
+
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      nodes: [...board.nodes, duplicate],
+      study: {
+        ...board.study,
+        currentNodeId: duplicate.id
+      }
+    }));
+    this.selectedKnowledgeNodeId.set(duplicate.id);
+    this.knowledgeStudyNodeId.set(duplicate.id);
+  }
+
+  deleteKnowledgeNode(nodeId: string, event?: Event) {
+    event?.stopPropagation();
+    const nodes = this.knowledgeNodes().filter(node => node.id !== nodeId);
+    const fallbackNodeId = nodes[0]?.id || null;
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      nodes,
+      connections: board.connections.filter(connection => connection.fromNodeId !== nodeId && connection.toNodeId !== nodeId),
+      study: {
+        ...board.study,
+        currentNodeId: fallbackNodeId
+      }
+    }));
+    this.selectedKnowledgeNodeId.set(fallbackNodeId);
+    this.knowledgeStudyNodeId.set(fallbackNodeId);
+  }
+
+  startConnectingKnowledgeNode(nodeId: string, event?: Event) {
+    event?.stopPropagation();
+    this.selectedKnowledgeNodeId.set(nodeId);
+    this.connectingKnowledgeNodeId.set(nodeId);
+  }
+
+  cancelKnowledgeConnectionMode(event?: Event) {
+    event?.stopPropagation();
+    this.connectingKnowledgeNodeId.set(null);
+  }
+
+  addChildKnowledgeNode(parentId: string, event?: Event) {
+    event?.stopPropagation();
+    const parent = this.findKnowledgeNode(parentId);
+    if (!parent) return;
+
+    const child: SmartKnowledgeNode = {
+      id: crypto.randomUUID(),
+      title: this.ai.currentLanguage() === 'ar' ? 'مفهوم فرعي' : 'Child Concept',
+      explanation: '',
+      bullets: [],
+      icon: '•',
+      sourceLabel: parent.title,
+      x: parent.x + 380,
+      y: parent.y + Math.min(240, parent.height + 48),
+      width: 300,
+      height: 200,
+      order: this.knowledgeNodes().length,
+      parentId,
+      isKeyNode: false
+    };
+
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      activeSurface: 'knowledge',
+      nodes: [...board.nodes, child],
+      connections: [
+        ...board.connections,
+        {
+          id: crypto.randomUUID(),
+          fromNodeId: parentId,
+          toNodeId: child.id,
+          kind: 'child'
+        }
+      ],
+      study: {
+        ...board.study,
+        currentNodeId: child.id
+      }
+    }));
+
+    this.selectedKnowledgeNodeId.set(child.id);
+    this.knowledgeStudyNodeId.set(child.id);
+    this.openKnowledgeNodeEditor(child);
+  }
+
+  convertKnowledgeNodeToFlashcard(nodeId: string, event?: Event) {
+    event?.stopPropagation();
+    const node = this.findKnowledgeNode(nodeId);
+    const map = this.currentMap();
+    if (!node || !map) return;
+
+    this.flashcards.openFromSource({
+      sourceText: [node.title, node.explanation, ...node.bullets].filter(Boolean).join('\n'),
+      sourceType: 'mindmap',
+      sourceTitle: node.title,
+      conversationId: map.conversationId,
+      messageId: node.id,
+      language: map.language,
+      groupName: node.title
+    });
+    this.openFlashcards.emit();
+  }
+
+  toggleKnowledgeAiPrompt() {
+    this.showKnowledgeAiPrompt.update(value => !value);
+    if (!this.showKnowledgeAiPrompt()) {
+      this.knowledgeAiPrompt.set('');
+    }
+  }
+
+  async generateKnowledgeNodesWithAI() {
+    const prompt = this.knowledgeAiPrompt().trim();
+    if (!prompt || !this.guardUsage()) return;
+
+    this.startBusy('knowledge');
+    this.errorMessage.set('');
+    try {
+      const generatedBoard = await this.mindmaps.generateKnowledgeBoardFromTopic(prompt, this.currentMap()?.language || this.ai.currentLanguage());
+      const nextBoard = this.mergeKnowledgeBoard(generatedBoard);
+      const map = this.ensureCurrentMap();
+      this.workspaceSurface.set('knowledge');
+      this.persistMap({
+        ...map,
+        knowledgeBoard: nextBoard
+      }, true);
+      this.selectedKnowledgeNodeId.set(nextBoard.study.currentNodeId);
+      this.knowledgeStudyNodeId.set(nextBoard.study.currentNodeId);
+      this.showKnowledgeAiPrompt.set(false);
+      this.knowledgeAiPrompt.set('');
+      this.ai.incrementUsage('aiTeacherQuestions');
+      window.requestAnimationFrame(() => this.fitMapToScreen());
+    } catch (error) {
+      console.error('Knowledge board generation failed', error);
+      this.errorMessage.set(this.ai.currentLanguage() === 'ar'
+        ? 'تعذر إنشاء Smart Knowledge Nodes من هذا الموضوع الآن.'
+        : 'Could not generate smart knowledge nodes from this topic right now.');
+    } finally {
+      this.stopBusy();
+    }
+  }
+
+  startKnowledgeStudyMode() {
+    const firstNodeId = this.knowledgeStudyNodeId() || this.selectedKnowledgeNodeId() || this.knowledgeNodes()[0]?.id || null;
+    if (!firstNodeId) return;
+    this.workspaceSurface.set('knowledge');
+    this.isKnowledgeStudyMode.set(true);
+    this.knowledgeStudyNodeId.set(firstNodeId);
+    this.selectedKnowledgeNodeId.set(firstNodeId);
+    this.knowledgeRevealStage.set(0);
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      activeSurface: 'knowledge',
+      study: {
+        ...board.study,
+        currentNodeId: firstNodeId,
+        showConnections: this.studyShowConnections(),
+        focusCurrentNode: this.studyFocusCurrentNode()
+      }
+    }));
+    this.focusCurrentKnowledgeNode();
+  }
+
+  exitKnowledgeStudyMode() {
+    this.isKnowledgeStudyMode.set(false);
+    this.knowledgeRevealStage.set(0);
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      study: {
+        ...board.study,
+        currentNodeId: this.knowledgeStudyNodeId() || board.study.currentNodeId,
+        showConnections: this.studyShowConnections(),
+        focusCurrentNode: this.studyFocusCurrentNode()
+      }
+    }), true);
+  }
+
+  goToNextKnowledgeStudyNode() {
+    const nodes = this.knowledgeStudySequence();
+    if (!nodes.length) return;
+    const currentIndex = this.currentKnowledgeStudyIndex();
+    const next = nodes[(currentIndex + 1 + nodes.length) % nodes.length] || nodes[0];
+    this.selectKnowledgeStudyNode(next.id);
+  }
+
+  goToPreviousKnowledgeStudyNode() {
+    const nodes = this.knowledgeStudySequence();
+    if (!nodes.length) return;
+    const currentIndex = this.currentKnowledgeStudyIndex();
+    const previous = nodes[(currentIndex - 1 + nodes.length) % nodes.length] || nodes[0];
+    this.selectKnowledgeStudyNode(previous.id);
+  }
+
+  focusCurrentKnowledgeNode() {
+    this.studyFocusCurrentNode.set(true);
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      study: {
+        ...board.study,
+        focusCurrentNode: true
+      }
+    }), true);
+    const currentId = this.knowledgeStudyNodeId();
+    if (!currentId) return;
+    this.setScale(Math.max(this.scale(), 1.05));
+    window.requestAnimationFrame(() => this.centerOnNode(currentId));
+  }
+
+  toggleKnowledgeStudyConnections() {
+    const nextValue = !this.studyShowConnections();
+    this.studyShowConnections.set(nextValue);
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      study: {
+        ...board.study,
+        showConnections: nextValue
+      }
+    }), true);
+  }
+
+  advanceKnowledgeRevealStage() {
+    this.knowledgeRevealStage.update(stage => (stage < 2 ? ((stage + 1) as 0 | 1 | 2) : stage));
+  }
+
+  startKnowledgeNodeDrag(nodeId: string, event: PointerEvent) {
+    event.stopPropagation();
+    if (this.isKnowledgeStudyMode()) return;
+    const node = this.findKnowledgeNode(nodeId);
+    if (!node) return;
+    this.selectKnowledgeNode(nodeId);
+    this.knowledgeDragState = {
+      nodeId,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: node.x,
+      baseY: node.y
+    };
+  }
+
+  startKnowledgeNodeResize(nodeId: string, event: PointerEvent) {
+    event.stopPropagation();
+    if (this.isKnowledgeStudyMode()) return;
+    const node = this.findKnowledgeNode(nodeId);
+    if (!node) return;
+    this.selectKnowledgeNode(nodeId);
+    this.knowledgeResizeState = {
+      nodeId,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseWidth: node.width,
+      baseHeight: node.height
+    };
+  }
+
   setTheme(themeId: MindMapThemeId) {
     this.patchCustomization({ themeId });
   }
@@ -893,7 +1452,7 @@ Source title: ${this.currentMap()?.sourceTitle || this.currentMap()?.name || 'Mi
 
     this.resetViewport();
     window.requestAnimationFrame(() => {
-      const nodeElements = Array.from(canvas.querySelectorAll<HTMLElement>('.mind-node-shell'));
+      const nodeElements = Array.from(canvas.querySelectorAll<HTMLElement>('.mind-node-shell, .knowledge-node-shell'));
       if (!nodeElements.length) return;
 
       const viewportRect = viewport.getBoundingClientRect();
@@ -921,7 +1480,7 @@ Source title: ${this.currentMap()?.sourceTitle || this.currentMap()?.name || 'Mi
       this.scale.set(nextScale);
 
       window.requestAnimationFrame(() => {
-        const refreshedNodes = Array.from(canvas.querySelectorAll<HTMLElement>('.mind-node-shell'));
+        const refreshedNodes = Array.from(canvas.querySelectorAll<HTMLElement>('.mind-node-shell, .knowledge-node-shell'));
         if (!refreshedNodes.length) return;
         const refreshedBounds = refreshedNodes.reduce((acc, node) => {
           const rect = node.getBoundingClientRect();
@@ -957,7 +1516,7 @@ Source title: ${this.currentMap()?.sourceTitle || this.currentMap()?.name || 'Mi
   }
 
   centerSelectedNode() {
-    const nodeId = this.selectedNodeId();
+    const nodeId = this.isKnowledgeSurface() ? this.selectedKnowledgeNodeId() : this.selectedNodeId();
     if (!nodeId) return;
     this.centerOnNode(nodeId);
   }
@@ -1030,14 +1589,21 @@ ${this.mindmaps.toOutlineText(root)}`,
 
     this.startBusy('quiz');
     this.errorMessage.set('');
+    this.isCompletingQuiz = false;
     try {
+      const quizNodes = this.flatNodes();
       const response = await this.requestQuiz(
         `Create a short multiple-choice quiz from this mind map.
 Map title: ${this.currentMap()?.name || 'Mind Map'}
 Outline:
-${this.mindmaps.toOutlineText(root)}`
+${this.mindmaps.toOutlineText(root)}
+
+Study nodes:
+${quizNodes.map(node => `NODE_ID: ${node.id}\nTITLE: ${node.title}\nSUMMARY: ${this.nodeSummary(node) || 'N/A'}`).join('\n\n')}`,
+        quizNodes.map(node => node.id)
       );
       this.quizQuestions.set(response);
+      this.quizSelections.set({});
       this.showQuizModal.set(true);
       this.ai.incrementUsage('aiTeacherQuestions');
     } catch (error) {
@@ -1051,7 +1617,39 @@ ${this.mindmaps.toOutlineText(root)}`
   }
 
   closeQuizModal() {
-    this.showQuizModal.set(false);
+    this.resetQuizState();
+  }
+
+  selectQuizOption(questionId: string, optionIndex: number) {
+    if (this.quizSelectedOption(questionId) !== null || this.isCompletingQuiz) return;
+    let nextSelections: Record<string, number> = {};
+    this.quizSelections.update(current => {
+      nextSelections = { ...current, [questionId]: optionIndex };
+      return nextSelections;
+    });
+
+    if (this.quizQuestions().length > 0 && Object.keys(nextSelections).length >= this.quizQuestions().length) {
+      this.isCompletingQuiz = true;
+      window.setTimeout(() => this.finishMindMapQuizAttempt(), 180);
+    }
+  }
+
+  quizSelectedOption(questionId: string) {
+    const value = this.quizSelections()[questionId];
+    return typeof value === 'number' ? value : null;
+  }
+
+  hasAnsweredQuizQuestion(questionId: string) {
+    return this.quizSelectedOption(questionId) !== null;
+  }
+
+  isCorrectQuizOption(question: MindMapQuizQuestion, optionIndex: number) {
+    return this.hasAnsweredQuizQuestion(question.id) && question.answerIndex === optionIndex;
+  }
+
+  isWrongSelectedQuizOption(question: MindMapQuizQuestion, optionIndex: number) {
+    const selected = this.quizSelectedOption(question.id);
+    return selected !== null && selected === optionIndex && question.answerIndex !== optionIndex;
   }
 
   async exportAsJson() {
@@ -1100,7 +1698,7 @@ ${this.mindmaps.toOutlineText(root)}`
 
   onCanvasPointerDown(event: PointerEvent) {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.mind-node-shell, button, input, select, textarea')) {
+    if (target?.closest('.mind-node-shell, .knowledge-node-shell, button, input, select, textarea')) {
       return;
     }
 
@@ -1200,6 +1798,67 @@ ${this.mindmaps.toOutlineText(root)}`
       this.selectedPathIds().has(node.id) ? 'is-on-path' : '',
       this.selectedSubtreeIds().has(node.id) ? 'is-in-focus-branch' : ''
     ].filter(Boolean).join(' ');
+  }
+
+  knowledgeNodeStyle(node: SmartKnowledgeNode) {
+    const theme = this.activeTheme();
+    const accent = node.accentColor || (node.isKeyNode ? theme.accentColor : theme.secondaryColor);
+    return {
+      width: `${node.width}px`,
+      minHeight: `${node.height}px`,
+      borderColor: node.isKeyNode ? `${accent}66` : 'rgba(255,255,255,0.08)',
+      boxShadow: node.isKeyNode
+        ? `0 24px 64px ${theme.glow}, 0 0 0 1px ${accent}44 inset`
+        : '0 24px 54px rgba(2, 6, 23, 0.3)',
+      background: node.accentColor
+        ? `linear-gradient(180deg, ${node.accentColor}22, rgba(15,23,42,0.94))`
+        : 'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.94))'
+    } as Record<string, string>;
+  }
+
+  knowledgeNodeShellClass(node: SmartKnowledgeNode) {
+    return [
+      this.selectedKnowledgeNodeId() === node.id ? 'is-selected' : '',
+      this.isKnowledgeStudyMode() && this.studyFocusCurrentNode() && this.currentKnowledgeStudyNode()?.id !== node.id ? 'is-dimmed' : '',
+      node.isKeyNode ? 'is-key-node' : ''
+    ].filter(Boolean).join(' ');
+  }
+
+  knowledgeConnectionPath(connection: SmartKnowledgeConnection) {
+    const from = this.findKnowledgeNode(connection.fromNodeId);
+    const to = this.findKnowledgeNode(connection.toNodeId);
+    if (!from || !to) return '';
+
+    const startX = from.x + from.width;
+    const startY = from.y + (from.height / 2);
+    const endX = to.x;
+    const endY = to.y + (to.height / 2);
+    const curve = Math.max(80, Math.abs(endX - startX) * 0.42);
+
+    return `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
+  }
+
+  knowledgeConnectionLabelStyle(connection: SmartKnowledgeConnection) {
+    const from = this.findKnowledgeNode(connection.fromNodeId);
+    const to = this.findKnowledgeNode(connection.toNodeId);
+    if (!from || !to) {
+      return {
+        left: '0px',
+        top: '0px'
+      };
+    }
+
+    const left = ((from.x + from.width) + to.x) / 2;
+    const top = ((from.y + (from.height / 2)) + (to.y + (to.height / 2))) / 2;
+    return {
+      left: `${left}px`,
+      top: `${top}px`
+    };
+  }
+
+  isKnowledgeConnectionVisible(connection: SmartKnowledgeConnection) {
+    if (!this.isKnowledgeStudyMode()) return true;
+    return this.highlightedKnowledgeConnectionIds().has(connection.id);
   }
 
   showNodeSummary(node: MindMapNode) {
@@ -1402,6 +2061,221 @@ ${this.mindmaps.toOutlineText(root)}`
       progress: this.mindmaps.createProgress(map.root, this.selectedNodeId() || map.progress.currentNodeId)
     }, { silent });
     this.currentMap.set(this.mindmaps.cloneMap(saved));
+  }
+
+  private patchKnowledgeBoard(updater: (board: KnowledgeBoardState) => KnowledgeBoardState, silent = true) {
+    const map = this.ensureCurrentMap();
+    const nextBoard = updater(this.mindmaps.cloneMap(this.knowledgeBoard()));
+    this.persistMap({
+      ...map,
+      knowledgeBoard: nextBoard
+    }, silent);
+  }
+
+  private commitKnowledgeBoard() {
+    const map = this.currentMap();
+    if (!map) return;
+    this.persistMap({
+      ...map,
+      knowledgeBoard: {
+        ...this.knowledgeBoard(),
+        study: {
+          ...this.knowledgeBoard().study,
+          currentNodeId: this.knowledgeStudyNodeId() || this.selectedKnowledgeNodeId() || this.knowledgeBoard().study.currentNodeId
+        }
+      }
+    }, true);
+  }
+
+  private updateKnowledgeNode(nodeId: string, updater: (node: SmartKnowledgeNode) => SmartKnowledgeNode, silent = true) {
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      nodes: board.nodes.map(node => {
+        if (node.id !== nodeId) return node;
+        const nextNode = updater(this.mindmaps.cloneMap(node));
+        return {
+          ...nextNode,
+          height: this.estimateKnowledgeNodeHeight(nextNode)
+        };
+      })
+    }), silent);
+  }
+
+  private createKnowledgeConnection(fromNodeId: string, toNodeId: string, kind: SmartKnowledgeConnectionKind, label?: string) {
+    if (fromNodeId === toNodeId) return;
+    const exists = this.knowledgeConnections().some(connection =>
+      connection.fromNodeId === fromNodeId && connection.toNodeId === toNodeId
+    );
+    if (exists) return;
+
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      connections: [
+        ...board.connections,
+        {
+          id: crypto.randomUUID(),
+          fromNodeId,
+          toNodeId,
+          kind,
+          label: label?.trim() || undefined
+        }
+      ]
+    }));
+  }
+
+  private findKnowledgeNode(nodeId: string | null) {
+    if (!nodeId) return null;
+    return this.knowledgeNodes().find(node => node.id === nodeId) || null;
+  }
+
+  private selectKnowledgeStudyNode(nodeId: string) {
+    this.knowledgeStudyNodeId.set(nodeId);
+    this.selectedKnowledgeNodeId.set(nodeId);
+    this.knowledgeRevealStage.set(0);
+    this.patchKnowledgeBoard(board => ({
+      ...board,
+      study: {
+        ...board.study,
+        currentNodeId: nodeId
+      }
+    }), true);
+    window.requestAnimationFrame(() => this.centerOnNode(nodeId));
+  }
+
+  private buildKnowledgeStudySequence() {
+    const nodes = this.knowledgeNodes();
+    if (!nodes.length) return [];
+
+    const connections = this.knowledgeConnections().filter(connection => connection.kind === 'child' || connection.kind === 'sequence');
+    const incoming = new Map<string, number>();
+    const adjacency = new Map<string, string[]>();
+    for (const node of nodes) {
+      incoming.set(node.id, 0);
+      adjacency.set(node.id, []);
+    }
+
+    for (const connection of connections) {
+      incoming.set(connection.toNodeId, (incoming.get(connection.toNodeId) || 0) + 1);
+      adjacency.get(connection.fromNodeId)?.push(connection.toNodeId);
+    }
+
+    const roots = nodes
+      .filter(node => (incoming.get(node.id) || 0) === 0)
+      .sort((left, right) => left.x - right.x || left.y - right.y);
+    const orderedNodes: SmartKnowledgeNode[] = [];
+    const visited = new Set<string>();
+    const queue = [...roots, ...nodes.filter(node => !roots.some(root => root.id === node.id))];
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (!current || visited.has(current.id)) continue;
+      visited.add(current.id);
+      orderedNodes.push(current);
+      const children = (adjacency.get(current.id) || [])
+        .map(childId => this.findKnowledgeNode(childId))
+        .filter((node): node is SmartKnowledgeNode => Boolean(node))
+        .sort((left, right) => left.x - right.x || left.y - right.y);
+      queue.push(...children);
+    }
+
+    return orderedNodes.length
+      ? orderedNodes
+      : [...nodes].sort((left, right) => left.x - right.x || left.y - right.y);
+  }
+
+  private mergeKnowledgeBoard(generatedBoard: KnowledgeBoardState): KnowledgeBoardState {
+    if (!this.knowledgeNodes().length) {
+      return {
+        ...generatedBoard,
+        activeSurface: 'knowledge',
+        study: {
+          ...generatedBoard.study,
+          currentNodeId: generatedBoard.study.currentNodeId || generatedBoard.nodes[0]?.id || null
+        }
+      };
+    }
+
+    const offsetX = Math.max(...this.knowledgeNodes().map(node => node.x + node.width), 0) + 220;
+    const appendedNodes = generatedBoard.nodes.map(node => ({
+      ...node,
+      x: node.x + offsetX,
+      order: this.knowledgeNodes().length + node.order
+    }));
+
+    return {
+      nodes: [...this.knowledgeNodes(), ...appendedNodes],
+      connections: [...this.knowledgeConnections(), ...generatedBoard.connections],
+      activeSurface: 'knowledge',
+      study: {
+        currentNodeId: appendedNodes[0]?.id || this.knowledgeBoard().study.currentNodeId,
+        showConnections: this.studyShowConnections(),
+        focusCurrentNode: this.studyFocusCurrentNode()
+      }
+    };
+  }
+
+  private getSuggestedKnowledgeNodePosition() {
+    const selected = this.selectedKnowledgeNode();
+    if (selected) {
+      return {
+        x: selected.x + 120,
+        y: selected.y + 120
+      };
+    }
+
+    const nodes = this.knowledgeNodes();
+    if (!nodes.length) {
+      return { x: 160, y: 160 };
+    }
+
+    return {
+      x: Math.max(...nodes.map(node => node.x)) + 72,
+      y: Math.max(...nodes.map(node => node.y)) + 40
+    };
+  }
+
+  private estimateKnowledgeNodeHeight(node: Pick<SmartKnowledgeNode, 'explanation' | 'bullets'>) {
+    const explanationLines = Math.max(1, Math.ceil((node.explanation?.length || 0) / 54));
+    const bulletLines = (node.bullets || []).length;
+    return Math.max(190, Math.min(420, 148 + (explanationLines * 22) + (bulletLines * 26)));
+  }
+
+  private createKnowledgeNodeDraft(): SmartKnowledgeNodeDraft {
+    return {
+      id: null,
+      title: '',
+      explanation: '',
+      bulletsText: '',
+      imageUrl: '',
+      icon: '',
+      sourceLabel: '',
+      accentColor: ''
+    };
+  }
+
+  private ensureCurrentMap() {
+    const current = this.currentMap();
+    if (current) return current;
+    const starter = this.mindmaps.createEmptyMap();
+    this.currentMap.set(starter);
+    return starter;
+  }
+
+  private getKnowledgeBoardCanvasStyle() {
+    const nodes = this.knowledgeNodes();
+    if (!nodes.length) {
+      return {
+        width: '1600px',
+        height: '960px'
+      };
+    }
+
+    const width = Math.max(1600, Math.max(...nodes.map(node => node.x + node.width)) + 260);
+    const height = Math.max(960, Math.max(...nodes.map(node => node.y + node.height)) + 260);
+    return {
+      width: `${Math.ceil(width)}px`,
+      height: `${Math.ceil(height)}px`
+    };
   }
 
   private updateNode(nodeId: string, updater: (node: MindMapNode) => MindMapNode) {
@@ -1703,7 +2577,7 @@ ${this.mindmaps.toOutlineText(root)}`
     return true;
   }
 
-  private startBusy(action: 'generate' | 'artifact' | 'quiz' | 'export') {
+  private startBusy(action: 'generate' | 'artifact' | 'quiz' | 'export' | 'knowledge') {
     this.busyAction.set(action);
     this.isBusy.set(true);
     this.loadingMessageIndex.set(0);
@@ -1741,14 +2615,88 @@ Return plain text only.`,
       })
     });
 
-    const payload = await response.json().catch(() => null) as { text?: string; error?: string } | null;
+    const payload = await response.json().catch(() => null) as { text?: string; error?: string; validation?: unknown } | null;
+    if (payload?.validation) {
+      this.ai.registerKnowledgeValidation(payload.validation);
+    }
     if (!response.ok || !payload?.text) {
       throw new Error(payload?.error || fallbackTitle);
     }
     return payload.text.trim();
   }
 
-  private async requestQuiz(message: string): Promise<MindMapQuizQuestion[]> {
+  private finishMindMapQuizAttempt() {
+    const map = this.currentMap();
+    const root = this.currentRoot();
+    const questions = this.quizQuestions();
+    const selections = this.quizSelections();
+
+    if (!map || !root || questions.length === 0) {
+      this.isCompletingQuiz = false;
+      this.resetQuizState();
+      return;
+    }
+
+    const correctAnswers = questions.reduce((count, question) => (
+      selections[question.id] === question.answerIndex ? count + 1 : count
+    ), 0);
+    const score = Math.round((correctAnswers / questions.length) * 100);
+    const wrongNodeIds = Array.from(new Set(
+      questions
+        .filter(question => selections[question.id] !== question.answerIndex)
+        .map(question => question.nodeId || '')
+        .filter(Boolean)
+    ));
+    const wrongNodeSet = new Set(wrongNodeIds);
+    const nextRoot = this.applyToTree(root, node => wrongNodeSet.has(node.id)
+      ? { ...node, reviewState: 'review' }
+      : node);
+    const attempt: MindMapQuizAttempt = {
+      id: crypto.randomUUID(),
+      completedAt: new Date().toISOString(),
+      score,
+      correctAnswers,
+      totalQuestions: questions.length,
+      wrongNodeIds
+    };
+
+    this.persistMap({
+      ...map,
+      root: nextRoot,
+      quizHistory: [attempt, ...(map.quizHistory || [])].slice(0, 20)
+    }, true);
+
+    this.ai.quizzesCompleted.update(count => count + 1);
+    this.ai.addPerformanceRecord({
+      date: attempt.completedAt,
+      score,
+      type: 'quiz',
+      subject: map.name,
+      grade: this.ai.getGrade(score)
+    });
+
+    this.ns.show(
+      this.ai.currentLanguage() === 'ar' ? 'انتهى الاختبار وتم الحفظ' : 'Quiz Completed And Saved',
+      this.ai.currentLanguage() === 'ar'
+        ? `تم حفظ نتيجتك ${score}%${wrongNodeIds.length ? ` ويوجد ${wrongNodeIds.length} عقدة تحتاج مراجعة.` : '.'}`
+        : `Your ${score}% result was saved${wrongNodeIds.length ? ` and ${wrongNodeIds.length} node(s) now need review.` : '.'}`,
+      score >= 60 ? 'success' : 'warning',
+      'fa-diagram-project'
+    );
+
+    this.isCompletingQuiz = false;
+    this.resetQuizState();
+    this.back.emit('overview');
+  }
+
+  private resetQuizState() {
+    this.showQuizModal.set(false);
+    this.quizSelections.set({});
+    this.quizQuestions.set([]);
+    this.isCompletingQuiz = false;
+  }
+
+  private async requestQuiz(message: string, nodeIds: string[]): Promise<MindMapQuizQuestion[]> {
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1758,17 +2706,22 @@ Return plain text only.`,
 Return ONLY JSON with key "questions".
 Each question must contain:
 - id
+- nodeId
 - question
 - options (exactly 4)
 - answerIndex (0 to 3)
 - explanation
+Every question must reference one provided NODE_ID in nodeId.
 Respond strictly in ${this.ai.getLanguageName()}.
 JSON only.`,
         model: 'gpt-4o-mini'
       })
     });
 
-    const payload = await response.json().catch(() => null) as { text?: string; error?: string } | null;
+    const payload = await response.json().catch(() => null) as { text?: string; error?: string; validation?: unknown } | null;
+    if (payload?.validation) {
+      this.ai.registerKnowledgeValidation(payload.validation);
+    }
     if (!response.ok || !payload?.text) {
       throw new Error(payload?.error || 'Quiz generation failed');
     }
@@ -1776,13 +2729,17 @@ JSON only.`,
     const raw = payload.text.trim();
     const normalized = this.extractJsonPayload(raw);
     const parsed = JSON.parse(normalized) as { questions?: MindMapQuizQuestion[] };
-    return (parsed.questions || []).map(question => ({
+    const validNodeIds = new Set(nodeIds);
+    return (parsed.questions || []).map((question, index) => ({
       id: question.id || crypto.randomUUID(),
+      nodeId: validNodeIds.has(String(question.nodeId || '').trim())
+        ? String(question.nodeId || '').trim()
+        : nodeIds[index % Math.max(nodeIds.length, 1)],
       question: question.question || '',
       options: Array.isArray(question.options) ? question.options.slice(0, 4) : [],
       answerIndex: Number.isFinite(question.answerIndex) ? question.answerIndex : 0,
       explanation: question.explanation || ''
-    })).filter(question => question.question && question.options.length === 4);
+    })).filter(question => question.question && question.options.length === 4 && !!question.nodeId);
   }
 
   private extractJsonPayload(raw: string) {

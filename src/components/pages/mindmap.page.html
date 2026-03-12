@@ -1,4 +1,5 @@
 <div class="mindmap-shell min-h-screen h-full text-white" [ngStyle]="activeThemeStyle()">
+  @if (!isKnowledgeStudyMode()) {
   <header class="sticky top-0 z-30 border-b border-white/10 bg-slate-950/84 backdrop-blur-2xl">
     <div class="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-8">
       <div class="flex min-w-0 items-start gap-3">
@@ -16,6 +17,12 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
+        @if (currentMap()) {
+          <div class="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+            <button (click)="setWorkspaceSurface('mindmap')" class="rounded-[1rem] px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] transition" [class.bg-cyan-500/15]="!isKnowledgeSurface()" [class.text-cyan-100]="!isKnowledgeSurface()" [class.text-slate-400]="isKnowledgeSurface()">{{ ai.currentLanguage() === 'ar' ? 'Mind Map' : 'Mind Map' }}</button>
+            <button (click)="setWorkspaceSurface('knowledge')" class="rounded-[1rem] px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] transition" [class.bg-fuchsia-500/15]="isKnowledgeSurface()" [class.text-fuchsia-100]="isKnowledgeSurface()" [class.text-slate-400]="!isKnowledgeSurface()">{{ ai.currentLanguage() === 'ar' ? 'Knowledge Board' : 'Knowledge Board' }}</button>
+          </div>
+        }
         <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
           <p class="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'المصدر الحالي' : 'Current Source' }}</p>
           <p class="mt-1 max-w-[220px] truncate text-sm font-black text-white">{{ currentSourceTitle() }}</p>
@@ -28,9 +35,10 @@
       </div>
     </div>
   </header>
+  }
 
-  <div class="mx-auto grid w-full max-w-[1800px] flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_25rem]">
-    <section class="overflow-y-auto px-4 py-5 md:px-8">
+  <div [class]="isKnowledgeStudyMode() ? 'mx-auto grid w-full max-w-[1800px] flex-1 grid-cols-1 overflow-hidden' : 'mx-auto grid w-full max-w-[1800px] flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_25rem]'">
+    <section [class]="isKnowledgeStudyMode() ? 'overflow-y-auto px-0 py-0' : 'overflow-y-auto px-4 py-5 md:px-8'">
       <div class="space-y-5 pb-20">
         @if (errorMessage()) {
           <div class="rounded-[1.8rem] border border-rose-500/20 bg-rose-500/10 px-5 py-4 text-sm font-bold text-rose-100">{{ errorMessage() }}</div>
@@ -65,6 +73,7 @@
               </div>
             }
 
+            @if (!isKnowledgeSurface() && !isKnowledgeStudyMode()) {
             <section class="rounded-[2rem] border border-white/10 bg-slate-950/45 p-4 shadow-[0_26px_80px_rgba(2,6,23,0.28)]">
               <div class="space-y-4">
                 <div class="flex flex-wrap items-center gap-2">
@@ -150,9 +159,11 @@
               </div>
             </section>
           }
+            }
 
             @if (hasMap()) {
               <section class="mindmap-canvas-shell rounded-[2.6rem] border border-white/10 bg-slate-950/45 shadow-[0_34px_100px_rgba(2,6,23,0.32)]" [attr.data-background]="currentCustomization().backgroundMode" [attr.data-layout]="layoutPreset()">
+              @if (!isKnowledgeSurface()) {
               <div class="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
                 <div>
                   <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'الخريطة التفاعلية' : 'Interactive Map' }}</p>
@@ -167,11 +178,168 @@
                   <button (click)="exportAsJson()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">JSON</button>
                 </div>
               </div>
+              } @else {
+              <div class="knowledge-board-floating-bar">
+                <button (click)="setWorkspaceSurface('mindmap')" class="knowledge-board-pill">
+                  <i class="fa-solid fa-arrow-left-right"></i>
+                  <span>{{ ai.currentLanguage() === 'ar' ? 'Mind Map' : 'Mind Map' }}</span>
+                </button>
+                <button (click)="createSmartKnowledgeNode()" class="knowledge-board-pill knowledge-board-pill-primary">
+                  <i class="fa-solid fa-sparkles"></i>
+                  <span>{{ ai.currentLanguage() === 'ar' ? 'Smart Node' : 'Smart Node' }}</span>
+                </button>
+                <button (click)="toggleKnowledgeAiPrompt()" class="knowledge-board-pill">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  <span>{{ ai.currentLanguage() === 'ar' ? 'AI Generate' : 'AI Generate' }}</span>
+                </button>
+                <button (click)="isKnowledgeStudyMode() ? exitKnowledgeStudyMode() : startKnowledgeStudyMode()" class="knowledge-board-pill" [class.knowledge-board-pill-accent]="!isKnowledgeStudyMode()">
+                  <i class="fa-solid" [class.fa-book-open-reader]="!isKnowledgeStudyMode()" [class.fa-xmark]="isKnowledgeStudyMode()"></i>
+                  <span>{{ isKnowledgeStudyMode() ? (ai.currentLanguage() === 'ar' ? 'Exit Study Mode' : 'Exit Study Mode') : (ai.currentLanguage() === 'ar' ? 'Start Study Mode' : 'Start Study Mode') }}</span>
+                </button>
+                <button (click)="fitMapToScreen()" class="knowledge-board-pill">
+                  <i class="fa-solid fa-expand"></i>
+                  <span>{{ ai.currentLanguage() === 'ar' ? 'Fit' : 'Fit' }}</span>
+                </button>
+              </div>
 
-              <div #mapViewport class="mindmap-canvas-viewport no-scrollbar" (pointerdown)="onCanvasPointerDown($event)" (pointermove)="onCanvasPointerMove($event)" (pointerup)="onCanvasPointerUp($event)" (pointerleave)="onCanvasPointerUp($event)" (wheel)="onCanvasWheel($event)">
+              @if (showKnowledgeAiPrompt()) {
+                <div class="knowledge-floating-panel knowledge-floating-panel-ai">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200">{{ ai.currentLanguage() === 'ar' ? 'AI Knowledge Builder' : 'AI Knowledge Builder' }}</p>
+                      <h3 class="mt-2 text-lg font-black text-white">{{ ai.currentLanguage() === 'ar' ? 'حوّل أي موضوع إلى شبكة مفاهيم' : 'Turn Any Topic Into Linked Concepts' }}</h3>
+                    </div>
+                    <button (click)="toggleKnowledgeAiPrompt()" class="knowledge-mini-icon"><i class="fa-solid fa-xmark"></i></button>
+                  </div>
+                  <textarea [ngModel]="knowledgeAiPrompt()" (ngModelChange)="knowledgeAiPrompt.set($event)" rows="5" class="knowledge-floating-textarea" [attr.placeholder]="ai.currentLanguage() === 'ar' ? 'اكتب عنوان الدرس أو الفكرة أو النص الذي تريد بناء Nodes منه...' : 'Write the lesson title, topic, or source text you want to turn into smart nodes...'"></textarea>
+                  <div class="flex items-center justify-end gap-2">
+                    <button (click)="toggleKnowledgeAiPrompt()" class="knowledge-secondary-button">{{ ai.currentLanguage() === 'ar' ? 'إلغاء' : 'Cancel' }}</button>
+                    <button (click)="generateKnowledgeNodesWithAI()" [disabled]="isBusy() || !knowledgeAiPrompt().trim()" class="knowledge-primary-button">{{ ai.currentLanguage() === 'ar' ? 'إنشاء العقد' : 'Generate Nodes' }}</button>
+                  </div>
+                </div>
+              }
+
+              @if (showKnowledgeEditor()) {
+                <div class="knowledge-floating-panel knowledge-floating-panel-editor">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-[10px] font-black uppercase tracking-[0.28em] text-fuchsia-200">{{ ai.currentLanguage() === 'ar' ? 'Smart Knowledge Node' : 'Smart Knowledge Node' }}</p>
+                      <h3 class="mt-2 text-lg font-black text-white">{{ editingKnowledgeNodeId() ? (ai.currentLanguage() === 'ar' ? 'تعديل العقدة' : 'Edit Node') : (ai.currentLanguage() === 'ar' ? 'إنشاء عقدة جديدة' : 'Create New Node') }}</h3>
+                    </div>
+                    <button (click)="closeKnowledgeNodeEditor()" class="knowledge-mini-icon"><i class="fa-solid fa-xmark"></i></button>
+                  </div>
+                  <div class="mt-4 space-y-3">
+                    <input [ngModel]="knowledgeNodeDraft().title" (ngModelChange)="patchKnowledgeNodeDraft({ title: $event })" class="knowledge-floating-input" [placeholder]="ai.currentLanguage() === 'ar' ? 'Title' : 'Title'">
+                    <textarea [ngModel]="knowledgeNodeDraft().explanation" (ngModelChange)="patchKnowledgeNodeDraft({ explanation: $event })" rows="4" class="knowledge-floating-textarea" [placeholder]="ai.currentLanguage() === 'ar' ? 'Short explanation' : 'Short explanation'"></textarea>
+                    <textarea [ngModel]="knowledgeNodeDraft().bulletsText" (ngModelChange)="patchKnowledgeNodeDraft({ bulletsText: $event })" rows="4" class="knowledge-floating-textarea" [placeholder]="ai.currentLanguage() === 'ar' ? 'Bullet points, one per line' : 'Bullet points, one per line'"></textarea>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                      <input [ngModel]="knowledgeNodeDraft().icon" (ngModelChange)="patchKnowledgeNodeDraft({ icon: $event })" class="knowledge-floating-input" [placeholder]="ai.currentLanguage() === 'ar' ? 'Icon or emoji' : 'Icon or emoji'">
+                      <input [ngModel]="knowledgeNodeDraft().sourceLabel" (ngModelChange)="patchKnowledgeNodeDraft({ sourceLabel: $event })" class="knowledge-floating-input" [placeholder]="ai.currentLanguage() === 'ar' ? 'Source label' : 'Source label'">
+                      <input [ngModel]="knowledgeNodeDraft().imageUrl" (ngModelChange)="patchKnowledgeNodeDraft({ imageUrl: $event })" class="knowledge-floating-input sm:col-span-2" [placeholder]="ai.currentLanguage() === 'ar' ? 'Optional image URL' : 'Optional image URL'">
+                      <input [ngModel]="knowledgeNodeDraft().accentColor" (ngModelChange)="patchKnowledgeNodeDraft({ accentColor: $event })" class="knowledge-floating-input sm:col-span-2" [placeholder]="ai.currentLanguage() === 'ar' ? 'Optional accent color (#38bdf8)' : 'Optional accent color (#38bdf8)'">
+                    </div>
+                  </div>
+                  <div class="mt-4 flex items-center justify-end gap-2">
+                    <button (click)="closeKnowledgeNodeEditor()" class="knowledge-secondary-button">{{ ai.currentLanguage() === 'ar' ? 'إغلاق' : 'Close' }}</button>
+                    <button (click)="saveKnowledgeNodeEdit()" class="knowledge-primary-button">{{ ai.currentLanguage() === 'ar' ? 'حفظ العقدة' : 'Save Node' }}</button>
+                  </div>
+                </div>
+              }
+              }
+
+              <div #mapViewport class="mindmap-canvas-viewport no-scrollbar" [class.knowledge-viewport]="isKnowledgeSurface()" (pointerdown)="onCanvasPointerDown($event)" (pointermove)="onCanvasPointerMove($event)" (pointerup)="onCanvasPointerUp($event)" (pointerleave)="onCanvasPointerUp($event)" (wheel)="onCanvasWheel($event)">
                 <div class="mindmap-ambient-glow"></div>
-                <div #mapCanvas class="mindmap-canvas" [class]="canvasClass()" [attr.data-layout]="layoutPreset()" [attr.data-line-style]="currentCustomization().lineStyle" [attr.data-visual-mode]="currentCustomization().visualMode" [attr.data-node-size]="currentCustomization().nodeSize" [style.transform]="canvasTransform()">
-                  @if (currentRoot(); as root) {
+                <div #mapCanvas class="mindmap-canvas" [class]="canvasClass()" [attr.data-layout]="layoutPreset()" [attr.data-line-style]="currentCustomization().lineStyle" [attr.data-visual-mode]="currentCustomization().visualMode" [attr.data-node-size]="currentCustomization().nodeSize" [style.transform]="canvasTransform()" [ngStyle]="isKnowledgeSurface() ? knowledgeBoardCanvasStyle() : null">
+                  @if (isKnowledgeSurface()) {
+                    <div class="knowledge-board-surface" [ngStyle]="knowledgeBoardCanvasStyle()">
+                      <svg class="knowledge-board-connections" [attr.viewBox]="'0 0 ' + knowledgeBoardCanvasStyle().width.replace('px', '') + ' ' + knowledgeBoardCanvasStyle().height.replace('px', '')" preserveAspectRatio="none">
+                        <defs>
+                          <marker id="knowledge-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">
+                            <path d="M 0 0 L 12 6 L 0 12 z" fill="rgba(148,163,184,0.88)"></path>
+                          </marker>
+                        </defs>
+                        @for (connection of knowledgeConnections(); track connection.id) {
+                          @if (isKnowledgeConnectionVisible(connection)) {
+                            <path [attr.d]="knowledgeConnectionPath(connection)" [attr.data-kind]="connection.kind" class="knowledge-connection-path" marker-end="url(#knowledge-arrow)"></path>
+                          }
+                        }
+                      </svg>
+
+                      @for (connection of knowledgeConnections(); track connection.id) {
+                        @if (connection.label && isKnowledgeConnectionVisible(connection)) {
+                          <span class="knowledge-connection-label" [ngStyle]="knowledgeConnectionLabelStyle(connection)">{{ connection.label }}</span>
+                        }
+                      }
+
+                      @for (node of knowledgeNodes(); track node.id) {
+                        <article class="knowledge-node-shell" [class]="knowledgeNodeShellClass(node)" [style.transform]="'translate(' + node.x + 'px, ' + node.y + 'px)'" [attr.data-node-id]="node.id">
+                          <div class="knowledge-node-card" [ngStyle]="knowledgeNodeStyle(node)" (click)="selectKnowledgeNode(node.id, $event)">
+                            <div class="knowledge-node-card-top">
+                              <button class="knowledge-node-grip" (pointerdown)="startKnowledgeNodeDrag(node.id, $event)">
+                                <i class="fa-solid fa-grip"></i>
+                              </button>
+                              <div class="knowledge-node-badges">
+                                @if (node.icon) {
+                                  <span class="knowledge-node-icon">{{ node.icon }}</span>
+                                }
+                                @if (node.sourceLabel) {
+                                  <span class="knowledge-node-source">{{ node.sourceLabel }}</span>
+                                }
+                                @if (node.isKeyNode) {
+                                  <span class="knowledge-node-source knowledge-node-source-key">{{ ai.currentLanguage() === 'ar' ? 'مهم' : 'Key' }}</span>
+                                }
+                              </div>
+                            </div>
+
+                            @if (node.imageUrl) {
+                              <img [src]="node.imageUrl" alt="" class="knowledge-node-image">
+                            }
+
+                            <h3 class="knowledge-node-title" [attr.dir]="resolveTextDirection(node.title + ' ' + node.explanation, currentMap()?.language || ai.currentLanguage())">{{ node.title }}</h3>
+
+                            @if (node.explanation) {
+                              <p class="knowledge-node-explanation" [attr.dir]="resolveTextDirection(node.explanation, currentMap()?.language || ai.currentLanguage())">{{ node.explanation }}</p>
+                            }
+
+                            @if (node.bullets.length) {
+                              <ul class="knowledge-node-bullets">
+                                @for (bullet of node.bullets; track bullet) {
+                                  <li [attr.dir]="resolveTextDirection(bullet, currentMap()?.language || ai.currentLanguage())">{{ bullet }}</li>
+                                }
+                              </ul>
+                            }
+
+                            @if (selectedKnowledgeNodeId() === node.id && !isKnowledgeStudyMode()) {
+                              <div class="knowledge-node-toolbar" (click)="$event.stopPropagation()">
+                                <button (click)="openKnowledgeNodeEditor(node, $event)">{{ ai.currentLanguage() === 'ar' ? 'Edit' : 'Edit' }}</button>
+                                <button (click)="duplicateKnowledgeNode(node.id, $event)">{{ ai.currentLanguage() === 'ar' ? 'Duplicate' : 'Duplicate' }}</button>
+                                <button (click)="deleteKnowledgeNode(node.id, $event)">{{ ai.currentLanguage() === 'ar' ? 'Delete' : 'Delete' }}</button>
+                                <button (click)="startConnectingKnowledgeNode(node.id, $event)">{{ connectingKnowledgeNodeId() === node.id ? (ai.currentLanguage() === 'ar' ? 'Connecting...' : 'Connecting...') : (ai.currentLanguage() === 'ar' ? 'Connect' : 'Connect') }}</button>
+                                <button (click)="convertKnowledgeNodeToFlashcard(node.id, $event)">{{ ai.currentLanguage() === 'ar' ? 'Flashcard' : 'Flashcard' }}</button>
+                                <button (click)="addChildKnowledgeNode(node.id, $event)">{{ ai.currentLanguage() === 'ar' ? 'Add Child' : 'Add Child' }}</button>
+                              </div>
+                            }
+
+                            @if (!isKnowledgeStudyMode()) {
+                              <button class="knowledge-node-resize" (pointerdown)="startKnowledgeNodeResize(node.id, $event)">
+                                <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+                              </button>
+                            }
+                          </div>
+                        </article>
+                      } @empty {
+                        <div class="knowledge-empty-state">
+                          <div class="knowledge-empty-icon"><i class="fa-solid fa-diagram-project"></i></div>
+                          <h3>{{ ai.currentLanguage() === 'ar' ? 'ابدأ أول Smart Knowledge Node' : 'Start Your First Smart Knowledge Node' }}</h3>
+                          <p>{{ ai.currentLanguage() === 'ar' ? 'أنشئ عقدة جديدة يدويًا أو اطلب من AI أن يبني لك شبكة مفاهيم مترابطة.' : 'Create a node manually or let AI build a linked study network for you.' }}</p>
+                          <div class="flex flex-wrap items-center justify-center gap-3">
+                            <button (click)="createSmartKnowledgeNode()" class="knowledge-primary-button">{{ ai.currentLanguage() === 'ar' ? 'Create Smart Node' : 'Create Smart Node' }}</button>
+                            <button (click)="toggleKnowledgeAiPrompt()" class="knowledge-secondary-button">{{ ai.currentLanguage() === 'ar' ? 'Generate With AI' : 'Generate With AI' }}</button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  } @else if (currentRoot(); as root) {
                     <ul class="mind-tree" [class]="treeClass()">
                       <ng-template #nodeTemplate let-node>
                         <li class="mind-branch" [attr.data-level]="node.level">
@@ -239,9 +407,40 @@
                     </ul>
                   }
                 </div>
+
+                @if (isKnowledgeStudyMode() && currentKnowledgeStudyNode(); as studyNode) {
+                  <div class="knowledge-study-overlay">
+                    <div class="knowledge-study-toolbar">
+                      <button (click)="goToPreviousKnowledgeStudyNode()" class="knowledge-board-pill"><i class="fa-solid fa-arrow-left"></i><span>{{ ai.currentLanguage() === 'ar' ? 'Previous' : 'Previous' }}</span></button>
+                      <button (click)="goToNextKnowledgeStudyNode()" class="knowledge-board-pill knowledge-board-pill-primary"><i class="fa-solid fa-arrow-right"></i><span>{{ ai.currentLanguage() === 'ar' ? 'Next' : 'Next' }}</span></button>
+                      <button (click)="focusCurrentKnowledgeNode()" class="knowledge-board-pill"><i class="fa-solid fa-bullseye"></i><span>{{ ai.currentLanguage() === 'ar' ? 'Focus Current Node' : 'Focus Current Node' }}</span></button>
+                      <button (click)="toggleKnowledgeStudyConnections()" class="knowledge-board-pill"><i class="fa-solid fa-share-nodes"></i><span>{{ ai.currentLanguage() === 'ar' ? 'Show Connections' : 'Show Connections' }}</span></button>
+                      <button (click)="exitKnowledgeStudyMode()" class="knowledge-board-pill"><i class="fa-solid fa-xmark"></i><span>{{ ai.currentLanguage() === 'ar' ? 'Exit Study Mode' : 'Exit Study Mode' }}</span></button>
+                    </div>
+
+                    <div class="knowledge-study-panel">
+                      <p class="knowledge-study-kicker">{{ ai.currentLanguage() === 'ar' ? 'Study Mode' : 'Study Mode' }} • {{ currentKnowledgeStudyIndex() + 1 }}/{{ knowledgeStudySequence().length }}</p>
+                      <h3 class="knowledge-study-title" [attr.dir]="resolveTextDirection(studyNode.title + ' ' + studyNode.explanation, currentMap()?.language || ai.currentLanguage())">{{ studyNode.title }}</h3>
+                      @if (knowledgeRevealStage() >= 1 && studyNode.explanation) {
+                        <p class="knowledge-study-explanation" [attr.dir]="resolveTextDirection(studyNode.explanation, currentMap()?.language || ai.currentLanguage())">{{ studyNode.explanation }}</p>
+                      }
+                      @if (knowledgeRevealStage() >= 2 && studyNode.bullets.length) {
+                        <ul class="knowledge-study-bullets">
+                          @for (bullet of studyNode.bullets; track bullet) {
+                            <li [attr.dir]="resolveTextDirection(bullet, currentMap()?.language || ai.currentLanguage())">{{ bullet }}</li>
+                          }
+                        </ul>
+                      }
+                      @if (knowledgeRevealStage() < 2 && (studyNode.explanation || studyNode.bullets.length)) {
+                        <button (click)="advanceKnowledgeRevealStage()" class="knowledge-primary-button">{{ ai.currentLanguage() === 'ar' ? 'Reveal Next Layer' : 'Reveal Next Layer' }}</button>
+                      }
+                    </div>
+                  </div>
+                }
               </div>
             </section>
 
+            @if (!isKnowledgeSurface() && !isKnowledgeStudyMode()) {
             <section class="rounded-[2rem] border border-white/10 bg-slate-950/45 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.26)]">
               <div class="flex flex-wrap gap-2">
                 <button (click)="generateSummaryFromMap()" [disabled]="isBusy()" class="rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-sky-100 transition hover:bg-sky-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'تحويل إلى ملخص' : 'Summary From Map' }}</button>
@@ -250,14 +449,24 @@
               </div>
               </section>
             }
+            }
           </div>
         }
       </div>
     </section>
 
+    @if (!isKnowledgeStudyMode()) {
     <aside class="border-t border-white/10 bg-slate-950/52 px-4 py-5 backdrop-blur-2xl xl:border-t-0 xl:border-l xl:border-white/10 xl:px-6">
       <div class="space-y-5">
         <section class="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+          @if (isKnowledgeSurface()) {
+            <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'Knowledge Board' : 'Knowledge Board' }}</p>
+            <div class="mt-4 grid grid-cols-3 gap-2 text-center">
+              <div class="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3"><p class="text-lg font-black text-white">{{ knowledgeBoardMetrics().nodes }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'Nodes' : 'Nodes' }}</p></div>
+              <div class="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-3"><p class="text-lg font-black text-cyan-100">{{ knowledgeBoardMetrics().connections }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'Links' : 'Links' }}</p></div>
+              <div class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-3"><p class="text-lg font-black text-amber-100">{{ knowledgeBoardMetrics().keyNodes }}</p><p class="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100">{{ ai.currentLanguage() === 'ar' ? 'Key' : 'Key' }}</p></div>
+            </div>
+          } @else {
           <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'التقدم' : 'Progress' }}</p>
           <div class="mt-4 flex items-end justify-between gap-4">
             <div><p class="text-3xl font-black text-white">{{ progressPercent() }}%</p><p class="mt-1 text-xs font-bold text-slate-400">{{ studyStatusLabel() }}</p></div>
@@ -269,9 +478,31 @@
             </div>
           </div>
           <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-900"><div class="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-300 transition-all duration-500" [style.width.%]="progressPercent()"></div></div>
+          }
         </section>
 
         <section class="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+          @if (isKnowledgeSurface()) {
+          <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'Selected Smart Node' : 'Selected Smart Node' }}</p>
+          <h2 class="mt-2 text-lg font-black text-white">{{ selectedKnowledgeNode()?.title || (ai.currentLanguage() === 'ar' ? 'لم يتم تحديد عقدة' : 'No node selected') }}</h2>
+          @if (selectedKnowledgeNode(); as knowledgeNode) {
+            @if (knowledgeNode.explanation) {
+              <p class="mt-4 text-sm font-semibold leading-7 text-slate-200" [attr.dir]="resolveTextDirection(knowledgeNode.explanation, currentMap()?.language || ai.currentLanguage())">{{ knowledgeNode.explanation }}</p>
+            }
+            @if (knowledgeNode.bullets.length) {
+              <ul class="mt-4 space-y-2 text-sm font-semibold leading-7 text-slate-300">
+                @for (bullet of knowledgeNode.bullets; track bullet) {
+                  <li [attr.dir]="resolveTextDirection(bullet, currentMap()?.language || ai.currentLanguage())">• {{ bullet }}</li>
+                }
+              </ul>
+            }
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button (click)="openKnowledgeNodeEditor(knowledgeNode)" class="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 transition hover:bg-cyan-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'Edit' : 'Edit' }}</button>
+              <button (click)="convertKnowledgeNodeToFlashcard(knowledgeNode.id)" class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100 transition hover:bg-emerald-500 hover:text-slate-950">Flashcard</button>
+              <button (click)="startConnectingKnowledgeNode(knowledgeNode.id)" class="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-fuchsia-100 transition hover:bg-fuchsia-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'Connect' : 'Connect' }}</button>
+            </div>
+          }
+          } @else {
           <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'العقدة الحالية' : 'Current Node' }}</p>
           <h2 class="mt-2 text-lg font-black text-white">{{ selectedNode()?.title || (ai.currentLanguage() === 'ar' ? 'لم يتم تحديد عقدة' : 'No node selected') }}</h2>
           @if (selectedNode(); as inspectorNode) {
@@ -286,6 +517,7 @@
               <button (click)="markNodeReview(inspectorNode.id, 'review')" class="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-amber-100 transition hover:bg-amber-500 hover:text-slate-950">{{ ai.currentLanguage() === 'ar' ? 'أحتاج مراجعة' : 'Need Review' }}</button>
               <button (click)="openNodeAsFlashcards(inspectorNode.id)" class="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-cyan-100 transition hover:bg-cyan-500 hover:text-slate-950">Flashcard</button>
             </div>
+          }
           }
         </section>
 
@@ -322,6 +554,7 @@
         }
       </div>
     </aside>
+    }
   </div>
 
   @if (showCustomizationDrawer()) {
@@ -442,8 +675,8 @@
               <div class="rounded-[2rem] border border-white/10 bg-white/5 p-5">
                 <p class="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'السؤال' : 'Question' }} {{ idx + 1 }}</p>
                 <h4 class="mt-3 text-lg font-black leading-8 text-white" [attr.dir]="resolveTextDirection(question.question, ai.currentLanguage())">{{ question.question }}</h4>
-                <div class="mt-4 grid gap-3">@for (option of question.options; track option; let optionIndex = $index) { <div class="rounded-[1.4rem] border px-4 py-3 text-sm font-semibold" [class.border-emerald-400/30]="question.answerIndex === optionIndex" [class.bg-emerald-500/10]="question.answerIndex === optionIndex" [class.text-emerald-100]="question.answerIndex === optionIndex" [class.border-white/10]="question.answerIndex !== optionIndex" [class.bg-black/20]="question.answerIndex !== optionIndex" [class.text-slate-200]="question.answerIndex !== optionIndex"><span class="mr-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ ['A', 'B', 'C', 'D'][optionIndex] }}</span>{{ option }}</div> }</div>
-                @if (question.explanation) { <div class="mt-4 rounded-[1.4rem] border border-cyan-400/20 bg-cyan-500/10 px-4 py-4 text-sm font-semibold leading-7 text-cyan-50"><span class="font-black">{{ ai.currentLanguage() === 'ar' ? 'تفسير:' : 'Explanation:' }}</span> {{ question.explanation }}</div> }
+                <div class="mt-4 grid gap-3">@for (option of question.options; track option; let optionIndex = $index) { <button type="button" (click)="selectQuizOption(question.id, optionIndex)" [disabled]="hasAnsweredQuizQuestion(question.id)" class="rounded-[1.4rem] border px-4 py-3 text-start text-sm font-semibold transition hover:border-white/20 hover:bg-white/10 disabled:cursor-default disabled:opacity-100" [class.cursor-pointer]="!hasAnsweredQuizQuestion(question.id)" [class.border-emerald-400/30]="isCorrectQuizOption(question, optionIndex)" [class.bg-emerald-500/10]="isCorrectQuizOption(question, optionIndex)" [class.text-emerald-100]="isCorrectQuizOption(question, optionIndex)" [class.border-rose-400/30]="isWrongSelectedQuizOption(question, optionIndex)" [class.bg-rose-500/10]="isWrongSelectedQuizOption(question, optionIndex)" [class.text-rose-100]="isWrongSelectedQuizOption(question, optionIndex)" [class.border-white/10]="!isCorrectQuizOption(question, optionIndex) && !isWrongSelectedQuizOption(question, optionIndex)" [class.bg-black/20]="!isCorrectQuizOption(question, optionIndex) && !isWrongSelectedQuizOption(question, optionIndex)" [class.text-slate-200]="!isCorrectQuizOption(question, optionIndex) && !isWrongSelectedQuizOption(question, optionIndex)"><span class="mr-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ ['A', 'B', 'C', 'D'][optionIndex] }}</span>{{ option }}</button> }</div>
+                @if (hasAnsweredQuizQuestion(question.id) && question.explanation) { <div class="mt-4 rounded-[1.4rem] border border-cyan-400/20 bg-cyan-500/10 px-4 py-4 text-sm font-semibold leading-7 text-cyan-50"><span class="font-black">{{ ai.currentLanguage() === 'ar' ? 'تفسير:' : 'Explanation:' }}</span> {{ question.explanation }}</div> }
               </div>
             }
           </div>
@@ -456,7 +689,7 @@
     <div class="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/78 backdrop-blur-xl">
       <div class="w-[92%] max-w-xl rounded-[2.6rem] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_35%),linear-gradient(180deg,_rgba(8,47,73,0.76),_rgba(2,6,23,0.95))] px-8 py-10 text-center">
         <div class="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-500/10"><div class="h-14 w-14 rounded-full border-4 border-cyan-200/25 border-t-cyan-200 animate-spin"></div></div>
-        <p class="mt-6 text-[10px] font-black uppercase tracking-[0.42em] text-cyan-200">{{ busyAction() === 'quiz' ? (ai.currentLanguage() === 'ar' ? 'يتم بناء الاختبار' : 'Building Quiz') : busyAction() === 'artifact' ? (ai.currentLanguage() === 'ar' ? 'يتم إنشاء المخرج' : 'Generating Artifact') : busyAction() === 'export' ? (ai.currentLanguage() === 'ar' ? 'يتم تجهيز التصدير' : 'Preparing Export') : (ai.currentLanguage() === 'ar' ? 'يتم بناء الخريطة' : 'Building Mind Map') }}</p>
+        <p class="mt-6 text-[10px] font-black uppercase tracking-[0.42em] text-cyan-200">{{ busyAction() === 'quiz' ? (ai.currentLanguage() === 'ar' ? 'يتم بناء الاختبار' : 'Building Quiz') : busyAction() === 'artifact' ? (ai.currentLanguage() === 'ar' ? 'يتم إنشاء المخرج' : 'Generating Artifact') : busyAction() === 'export' ? (ai.currentLanguage() === 'ar' ? 'يتم تجهيز التصدير' : 'Preparing Export') : busyAction() === 'knowledge' ? (ai.currentLanguage() === 'ar' ? 'يتم بناء شبكة المعرفة' : 'Building Knowledge Board') : (ai.currentLanguage() === 'ar' ? 'يتم بناء الخريطة' : 'Building Mind Map') }}</p>
         <h3 class="mt-4 text-2xl font-black md:text-3xl">{{ loadingMessages()[loadingMessageIndex()] }}</h3>
       </div>
     </div>

@@ -52,15 +52,6 @@ export class AuthService {
   }
 
   private resolveApiBase(): string {
-    if (typeof window === 'undefined') {
-      return '/api';
-    }
-
-    const host = window.location.hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:3001/api';
-    }
-
     return '/api';
   }
 

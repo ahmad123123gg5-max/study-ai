@@ -1,7 +1,9 @@
+import 'dotenv/config';
 import { execSync } from 'node:child_process';
 import os from 'node:os';
 
-const TARGET_PORTS = [3000, 3001];
+const apiPort = Number(process.env.PORT || 3001);
+const TARGET_PORTS = [...new Set([3000, Number.isInteger(apiPort) && apiPort > 0 ? apiPort : 3001])];
 
 const run = (command) => {
   try {

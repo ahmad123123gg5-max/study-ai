@@ -8,6 +8,7 @@ import { AIService, UsageStats } from './services/ai.service';
 import { ChatService } from './services/chat.service';
 import { AuthService } from './services/auth.service';
 import { LocalizationService } from './services/localization.service';
+import { NavigationHistoryService } from './services/navigation-history.service';
 import { LanguageCode } from './i18n/language-config';
 
 // Page Components
@@ -21,15 +22,16 @@ import { SettingsPage } from './components/pages/settings.page';
 import { NotificationsPage } from './components/pages/notifications.page';
 import { MarketplacePage } from './components/pages/marketplace.page';
 import { ContentTransformPage } from './components/pages/content-transform.page';
-import { LabPage } from './components/pages/lab.page';
 import { PlannerPage } from './components/pages/planner.page';
 import { LevelsPage } from './components/pages/levels.page';
 import { TimerPage } from './components/pages/timer.page';
-import { DocumentWorkspacePage } from './components/pages/document-workspace/document-workspace.page';
 import { FlashcardsPage } from './components/pages/flashcards.page';
 import { MindMapPage } from './components/pages/mindmap.page';
+import { QuizPage } from './components/pages/quiz.page';
 import { AuroraBgComponent } from './components/shared/aurora-bg.component';
 import { AchievementNotificationComponent } from './components/layout/achievement-notification.component';
+import { VirtualLabPage } from './components/pages/virtual-lab/virtual-lab.page';
+import { KnowledgeReliabilityBannerComponent } from './components/shared/knowledge-reliability-banner.component';
 
 export type AppView = 'landing' | 'auth' | 'dashboard';
 export type DashboardPage = 
@@ -37,7 +39,7 @@ export type DashboardPage =
   'levels' |
   'subscription' | 'profile' | 'admin' | 'teacher' | 'settings' | 
   'notifications' | 'marketplace' | 
-  'transform' | 'lab' | 'planner' | 'timer' | 'document-workspace' | 'flashcards' | 'mindmap';
+  'transform' | 'lab' | 'planner' | 'timer' | 'flashcards' | 'mindmap' | 'quiz';
 
 @Component({
   selector: 'app-root',
@@ -48,8 +50,9 @@ export type DashboardPage =
     SubscriptionPage, ProfilePage, LevelsPage,
     AdminPage, TeacherPage, SettingsPage, NotificationsPage, 
     MarketplacePage,
-    ContentTransformPage, LabPage,
-    PlannerPage, TimerPage, DocumentWorkspacePage, FlashcardsPage, MindMapPage, AuroraBgComponent, AchievementNotificationComponent
+    ContentTransformPage, VirtualLabPage,
+    PlannerPage, TimerPage, FlashcardsPage, MindMapPage, QuizPage, AuroraBgComponent, AchievementNotificationComponent,
+    KnowledgeReliabilityBannerComponent
   ],
   template: `
     <div
@@ -57,15 +60,14 @@ export type DashboardPage =
       [dir]="localization.direction()"
       [attr.lang]="language()"
       class="smartedge-locale-root relative min-h-screen transition-colors duration-500"
-      [class.text-white]="!isDocumentWorkspaceRoute()"
-      [class.bg-slate-50]="isDocumentWorkspaceRoute()"
+      [class.text-white]="true"
     >
-      @if (!isDocumentWorkspaceRoute()) {
-        <app-aurora-bg></app-aurora-bg>
-        <app-achievement-notification></app-achievement-notification>
-        
-        <!-- Global Switchers -->
-        <div class="fixed bottom-6 right-6 z-[200] flex gap-4">
+      <app-aurora-bg></app-aurora-bg>
+      <app-achievement-notification></app-achievement-notification>
+      <app-knowledge-reliability-banner></app-knowledge-reliability-banner>
+      
+      <!-- Global Switchers -->
+      <div class="fixed bottom-6 right-6 z-[200] flex gap-4">
           <div class="relative">
             <button (click)="languageMenuOpen.update(v => !v)" class="min-w-[12rem] rounded-2xl glass shadow-3xl flex items-center justify-between gap-3 px-4 py-3 font-black text-indigo-200 hover:scale-[1.02] active:scale-95 transition border border-white/5">
               <i class="fa-solid fa-language text-indigo-400"></i>
@@ -104,8 +106,7 @@ export type DashboardPage =
           <button (click)="toggleTheme()" class="w-14 h-14 rounded-2xl glass shadow-3xl flex items-center justify-center text-amber-500 hover:scale-110 active:scale-90 transition border border-white/5">
             <i class="fa-solid text-xl" [class.fa-moon]="!isDarkMode()" [class.fa-sun]="isDarkMode()"></i>
           </button>
-        </div>
-      }
+      </div>
 
       <!-- Main Router Emulator -->
       @if (view() === 'landing') {
@@ -113,11 +114,6 @@ export type DashboardPage =
       } @else if (view() === 'auth') {
         <app-auth (authSuccess)="setView('dashboard')"></app-auth>
       } @else if (view() === 'dashboard') {
-        @if (isDocumentWorkspaceRoute()) {
-          <div class="min-h-screen bg-slate-50">
-            <app-document-workspace-page (back)="activePage.set('overview')" />
-          </div>
-        } @else {
         <div class="flex h-screen overflow-hidden">
           <!-- Sidebar Backdrop for Mobile -->
           @if (!sidebarCollapsed()) {
@@ -131,7 +127,7 @@ export type DashboardPage =
                        (logout)="handleLogout()"></app-sidebar>
           
           <main class="flex-1 overflow-y-auto no-scrollbar relative">
-            @if (activePage() !== 'tutor' && activePage() !== 'flashcards' && activePage() !== 'mindmap') {
+            @if (activePage() !== 'tutor' && activePage() !== 'flashcards' && activePage() !== 'mindmap' && activePage() !== 'lab') {
               <header class="sticky top-0 z-40 h-20 md:h-24 glass border-b border-white/5 flex items-center justify-between px-6 md:px-12 backdrop-blur-3xl transition-all shadow-2xl">
                 <div class="flex items-center gap-3 md:gap-6">
                    <!-- Sidebar Toggle -->
@@ -141,7 +137,7 @@ export type DashboardPage =
                    </button>
 
                    @if (activePage() !== 'overview') {
-                      <button (click)="activePage.set('overview')" 
+                      <button (click)="goBackFromHeader()" 
                            class="group w-10 h-10 md:w-12 md:h-12 rounded-xl bg-white/5 hover:bg-indigo-600 transition-all duration-300 flex items-center justify-center text-white shadow-lg border border-white/10 active:scale-90">
                         <i class="fa-solid transition-transform duration-300" 
                            [class.group-hover:-translate-x-1]="!isRtl()"
@@ -160,7 +156,7 @@ export type DashboardPage =
                       <i class="fa-solid fa-bolt-lightning text-xs"></i>
                       <span class="text-[10px] font-black uppercase tracking-widest">
                         {{ t('Attempts Left:') }}
-                        {{ ai.getRemainingAttempts(getFeatureKey(activePage())) }}
+                        {{ ai.getRemainingAttemptsLabel(getFeatureKey(activePage())) }}
                       </span>
                     </div>
                   }
@@ -190,7 +186,7 @@ export type DashboardPage =
               </header>
             }
 
-            <div [class]="activePage() === 'tutor' || activePage() === 'flashcards' || activePage() === 'mindmap' ? 'h-screen' : 'h-[calc(100vh-5rem)] md:h-[calc(100vh-6rem)]'"
+            <div [class]="activePage() === 'tutor' || activePage() === 'flashcards' || activePage() === 'mindmap' || activePage() === 'lab' ? 'h-screen' : 'h-[calc(100vh-5rem)] md:h-[calc(100vh-6rem)]'"
                  class="relative overflow-x-hidden">
               <div class="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full">
                 @switch (activePage()) {
@@ -236,29 +232,28 @@ export type DashboardPage =
                       </div>
                     </div>
                   }
-                  @case ('tutor') { <app-tutor-page (back)="activePage.set('overview')" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" /> }
-                  @case ('research') { <div class="p-6 md:p-12"><app-research-page (back)="activePage.set('overview')" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" /></div> }
+                  @case ('tutor') { <app-tutor-page (back)="goBackFromPage()" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" /> }
+                  @case ('research') { <div class="p-6 md:p-12"><app-research-page (back)="goBackFromPage()" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" /></div> }
                   @case ('levels') { <div class="p-6 md:p-12"><app-levels-page /></div> }
-                  @case ('subscription') { <div class="p-6 md:p-12"><app-subscription-page (back)="activePage.set('overview')" /></div> }
+                  @case ('subscription') { <div class="p-6 md:p-12"><app-subscription-page /></div> }
                   @case ('profile') { <div class="p-6 md:p-12"><app-profile-page /></div> }
                   @case ('admin') { <div class="p-6 md:p-12"><app-admin-page /></div> }
                   @case ('teacher') { <div class="p-6 md:p-12"><app-teacher-page /></div> }
                   @case ('settings') { <div class="p-6 md:p-12"><app-settings-page /></div> }
                   @case ('notifications') { <div class="p-6 md:p-12"><app-notifications-page /></div> }
                   @case ('marketplace') { <div class="p-6 md:p-12"><app-marketplace-page /></div> }
-                  @case ('transform') { <div class="p-6 md:p-12"><app-content-transform-page (back)="activePage.set('overview')" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" (openTutor)="activePage.set('tutor')" /></div> }
-                  @case ('lab') { <div class="p-6 md:p-12"><app-lab-page (back)="activePage.set('overview')" /></div> }
+                  @case ('transform') { <div class="p-6 md:p-12"><app-content-transform-page (back)="goBackFromPage()" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" (openTutor)="activePage.set('tutor')" /></div> }
+                  @case ('lab') { <app-virtual-lab-page (back)="goBackFromPage()" /> }
                   @case ('planner') { <app-planner-page (pageChange)="setActivePage($event)" /> }
                   @case ('timer') { <div class="p-6 md:p-12"><app-timer-page /></div> }
-                  @case ('document-workspace') { <app-document-workspace-page (back)="activePage.set('overview')" /> }
-                  @case ('flashcards') { <app-flashcards-page (back)="setActivePage($event)" /> }
-                  @case ('mindmap') { <app-mindmap-page (back)="setActivePage($event)" (openFlashcards)="activePage.set('flashcards')" /> }
+                  @case ('flashcards') { <app-flashcards-page (back)="goBackFromPage($event)" /> }
+                  @case ('mindmap') { <app-mindmap-page (back)="goBackFromPage($event)" (openFlashcards)="activePage.set('flashcards')" /> }
+                  @case ('quiz') { <div class="p-6 md:p-12"><app-quiz-page /></div> }
                 }
               </div>
             </div>
           </main>
         </div>
-        }
       }
     </div>
   `,
@@ -270,6 +265,7 @@ export class AppComponent {
   public chatService = inject(ChatService);
   private auth = inject(AuthService);
   public localization = inject(LocalizationService);
+  private readonly navigationHistory = inject(NavigationHistoryService);
   private readonly handleHashChange = () => {
     const page = this.resolvePageFromHash(window.location.hash);
     if (page) {
@@ -285,9 +281,6 @@ export class AppComponent {
   isRtl = computed(() => this.localization.direction() === 'rtl');
   currentLanguageMeta = computed(() => this.localization.currentLanguageMeta());
   languageMenuOpen = signal(false);
-  isDocumentWorkspaceRoute = computed(
-    () => this.view() === 'dashboard' && this.activePage() === 'document-workspace'
-  );
   readonly t = (text: string) => this.localization.phrase(text);
 
   private readonly navItemBlueprints: Array<{ id: DashboardPage; label: string; icon: string; color: string; desc: string }> = [
@@ -295,7 +288,7 @@ export class AppComponent {
     { id: 'levels', label: 'Student Level', icon: 'fa-chart-simple', color: 'bg-amber-500', desc: 'Command Center: Review your true level and academic progress.' },
     { id: 'planner', label: 'Study Planner', icon: 'fa-map-location-dot', color: 'bg-blue-500', desc: 'Command Center: An intelligent roadmap to manage your time and resources.' },
     { id: 'timer', label: 'Smart Timer', icon: 'fa-stopwatch', color: 'bg-rose-500', desc: 'Command Center: Advanced focus tools to improve the efficiency of your study sessions.' },
-    { id: 'document-workspace', label: 'AI Document Study Workspace', icon: 'fa-file-lines', color: 'bg-emerald-500', desc: 'Command Center: A smart study environment for reading files, contextual explanations, translation, note-taking, and annotation.' },
+    { id: 'quiz', label: 'AI Exam', icon: 'fa-clipboard-question', color: 'bg-fuchsia-500', desc: 'Command Center: Build smart exams from your topic or uploaded files with review and error analysis.' },
     { id: 'research', label: 'Academic Research', icon: 'fa-microscope', color: 'bg-purple-500', desc: 'Command Center: Your gateway to global knowledge and trusted sources.' },
     { id: 'transform', label: 'Content Transform', icon: 'fa-wand-magic-sparkles', color: 'bg-orange-500', desc: 'Command Center: Transform your raw material into summaries and mind maps.' },
     { id: 'lab', label: 'Virtual Lab', icon: 'fa-flask', color: 'bg-teal-500', desc: 'Command Center: A realistic professional simulation with sequential decisions inside authentic work environments.' },
@@ -345,6 +338,7 @@ export class AppComponent {
         this.view.set('dashboard');
       }
       if (!user && this.view() === 'dashboard') {
+        this.navigationHistory.clear();
         this.view.set('landing');
       }
     });
@@ -358,7 +352,22 @@ export class AppComponent {
         return;
       }
 
+      this.navigationHistory.recordVisit(this.activePage());
+    });
+
+    effect(() => {
+      if (this.view() !== 'dashboard') {
+        return;
+      }
+
       const nextHash = this.pageToHash(this.activePage());
+      if (this.activePage() === 'lab') {
+        const currentHash = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+        if (currentHash === 'dashboard/lab' || currentHash.startsWith('dashboard/lab/')) {
+          return;
+        }
+      }
+
       if (window.location.hash !== nextHash) {
         window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}${nextHash}`);
       }
@@ -384,8 +393,23 @@ export class AppComponent {
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
+      this.navigationHistory.clear();
       this.activePage.set('overview');
       this.setView('landing');
+    }
+  }
+
+  goBackFromHeader() {
+    this.goBackFromPage();
+  }
+
+  goBackFromPage(fallbackPage?: DashboardPage | string | null) {
+    const currentPage = this.activePage();
+    const explicitFallback = this.isDashboardPage(fallbackPage || null) ? fallbackPage : null;
+    const fallback = explicitFallback || this.defaultFallbackFor(currentPage);
+    const target = this.navigationHistory.back(currentPage, fallback);
+    if (this.isDashboardPage(target)) {
+      this.activePage.set(target);
     }
   }
 
@@ -406,9 +430,9 @@ export class AppComponent {
       lab: 'Virtual Lab',
       planner: 'Study Planner',
       timer: 'Smart Timer',
-      'document-workspace': 'AI Document Study Workspace',
       'flashcards': 'Smart Flashcards',
-      'mindmap': 'Smart Mind Map'
+      'mindmap': 'Smart Mind Map',
+      quiz: 'AI Exam'
     };
     return this.t(titles[page]);
   }
@@ -419,6 +443,7 @@ export class AppComponent {
       research: 'academicResearch',
       transform: 'contentLabConversions',
       lab: 'virtualLabSimulations',
+      quiz: 'smartTests',
       'flashcards': 'aiTeacherQuestions',
       'mindmap': 'aiTeacherQuestions'
     };
@@ -441,9 +466,20 @@ export class AppComponent {
       value === 'lab' ||
       value === 'planner' ||
       value === 'timer' ||
-      value === 'document-workspace' ||
       value === 'flashcards' ||
-      value === 'mindmap';
+      value === 'mindmap' ||
+      value === 'quiz';
+  }
+
+  private defaultFallbackFor(page: DashboardPage): DashboardPage {
+    switch (page) {
+      case 'flashcards':
+        return 'overview';
+      case 'mindmap':
+        return 'overview';
+      default:
+        return 'overview';
+    }
   }
 
   private pageToHash(page: DashboardPage): string {
@@ -456,7 +492,7 @@ export class AppComponent {
       return null;
     }
 
-    const route = normalized.slice('dashboard/'.length);
+    const route = normalized.slice('dashboard/'.length).split('/')[0];
     return this.isDashboardPage(route) ? route : null;
   }
 }

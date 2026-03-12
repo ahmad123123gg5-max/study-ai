@@ -101,13 +101,13 @@ export class SidebarComponent {
     ]},
     { label: 'Learning Tools', items: [
       { id: 'tutor', label: 'AI Tutor', icon: 'fa-solid fa-brain' },
-      { id: 'document-workspace', label: 'Document Workspace', icon: 'fa-solid fa-file-lines' },
+      { id: 'quiz', label: 'AI Exam', icon: 'fa-solid fa-clipboard-question' },
       { id: 'timer', label: 'Smart Timer', icon: 'fa-solid fa-stopwatch' },
       { id: 'planner', label: 'Study Planner', icon: 'fa-solid fa-calendar-check' },
       { id: 'research', label: 'Research Lab', icon: 'fa-solid fa-microscope' },
     ]},
     { label: 'Advanced Labs', items: [
-      { id: 'lab', label: 'Virtual Simulator', icon: 'fa-solid fa-flask-vial' },
+      { id: 'lab', label: 'Virtual Lab', icon: 'fa-solid fa-flask-vial' },
       { id: 'transform', label: 'Content Lab', icon: 'fa-solid fa-wand-magic-sparkles' },
     ]},
     { label: 'Settings & Administration', items: [

@@ -8,6 +8,7 @@ import {
   FlashcardGenerationMode,
   FlashcardItem,
   FlashcardLaunchContext,
+  FlashcardQuizAttempt,
   FlashcardQuizQuestion,
   FlashcardReviewState,
   FlashcardType,
@@ -326,6 +327,8 @@ const DEFAULT_CUSTOMIZATION: FlashcardCustomizationSettings = {
   motion: DEFAULT_THEME.defaultMotion
 };
 
+const ARABIC_SCRIPT_PATTERN = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
 function clampColor(value: number) { return Math.max(0, Math.min(255, Math.round(value))); }
 
 function normalizeHex(input: string, fallback = '#0f172a') {
@@ -364,6 +367,10 @@ function mixHex(first: string, second: string, weight = 0.5) {
   return `#${[blend(a.r, b.r), blend(a.g, b.g), blend(a.b, b.b)].map(value => value.toString(16).padStart(2, '0')).join('')}`;
 }
 
+function containsArabicScript(text: string) {
+  return ARABIC_SCRIPT_PATTERN.test(text);
+}
+
 function luminance(hex: string) {
   const rgb = hexToRgb(hex) || hexToRgb('#0f172a')!;
   const channel = (value: number) => {
@@ -392,6 +399,7 @@ export class FlashcardsPage {
   back = output<string>();
 
   currentSet = signal<SavedFlashcardSet | null>(null);
+  activeCardId = signal<string | null>(null);
   sourceEditorText = signal('');
   displayMode = signal<FlashcardDisplayMode>('classic');
   filterDifficulty = signal<FlashcardFilterDifficulty>('all');
@@ -408,7 +416,7 @@ export class FlashcardsPage {
   artifactContent = signal('');
   quizQuestions = signal<FlashcardQuizQuestion[]>([]);
   showQuizModal = signal(false);
-  quizAnswerVisibility = signal<Record<string, boolean>>({});
+  quizSelections = signal<Record<string, number>>({});
   speakingCardId = signal<string | null>(null);
   upgradeMessage = signal('');
   showUpgradeModal = signal(false);
@@ -419,6 +427,7 @@ export class FlashcardsPage {
   draftCustomization = signal<FlashcardCustomizationSettings>(this.cloneCustomization(this.initialCustomization));
   private loadingTimer: number | null = null;
   private readonly voices = signal<SpeechSynthesisVoice[]>([]);
+  private isCompletingQuiz = false;
 
   readonly displayModes = computed(() => {
     const isAr = this.ai.currentLanguage() === 'ar';
@@ -489,7 +498,7 @@ export class FlashcardsPage {
     if (!set) return null;
     const queue = this.filteredQueueIds();
     if (queue.length === 0) return null;
-    const preferredId = set.progress.currentCardId;
+    const preferredId = this.activeCardId() || set.progress.currentCardId;
     const resolvedId = preferredId && queue.includes(preferredId) ? preferredId : queue[0];
     return set.cards.find(card => card.id === resolvedId) || null;
   });
@@ -621,6 +630,15 @@ export class FlashcardsPage {
     this.bootstrapPage();
 
     effect(() => {
+      const queue = this.filteredQueueIds();
+      const preferredId = this.activeCardId() || this.currentSet()?.progress.currentCardId || null;
+      const nextId = preferredId && queue.includes(preferredId) ? preferredId : queue[0] || null;
+      if (this.activeCardId() !== nextId) {
+        this.activeCardId.set(nextId);
+      }
+    });
+
+    effect(() => {
       const cardId = this.currentCard()?.id;
       this.isFlipped.set(false);
       this.showAnswer.set(false);
@@ -735,6 +753,7 @@ export class FlashcardsPage {
 
   resolveBackTarget() {
     const sourceType = this.currentSet()?.sourceType || '';
+    if (sourceType === 'mindmap') return 'mindmap';
     if (sourceType === 'tutor') return 'tutor';
     if (sourceType === 'research') return 'research';
     if (sourceType === 'transform') return 'transform';
@@ -904,14 +923,12 @@ export class FlashcardsPage {
     const motion = settings.motion;
     const duration = motion === 'soft' ? '820ms' : motion === 'dynamic' ? '560ms' : '680ms';
     const scale = motion === 'soft' ? '1.01' : motion === 'dynamic' ? '1.02' : '1.014';
-    const tiltX = motion === 'soft' ? '1.25deg' : motion === 'dynamic' ? '3.2deg' : '2deg';
-    const tiltY = motion === 'soft' ? '-1deg' : motion === 'dynamic' ? '-3deg' : '-1.75deg';
+    const lift = motion === 'soft' ? '4px' : motion === 'dynamic' ? '8px' : '6px';
     return {
       '--flashcard-rotation': flipped ? '180deg' : '0deg',
       '--flashcard-duration': duration,
       '--flashcard-hover-scale': scale,
-      '--flashcard-tilt-x': tiltX,
-      '--flashcard-tilt-y': tiltY,
+      '--flashcard-hover-lift': lift,
       '--flashcard-depth-shadow': `0 42px 90px ${rgbString(theme.accentColor, 0.26)}`,
       '--flashcard-sheen': rgbString(theme.secondaryColor, 0.34)
     } as Record<string, string>;
@@ -1172,10 +1189,11 @@ export class FlashcardsPage {
     if (!set || set.cards.length === 0 || !this.guardUsage()) return;
 
     this.errorMessage.set('');
+    this.isCompletingQuiz = false;
     this.startBusy('quiz');
     try {
       this.quizQuestions.set(await this.flashcards.generateQuiz(set.cards, set.name));
-      this.quizAnswerVisibility.set({});
+      this.quizSelections.set({});
       this.showQuizModal.set(true);
       this.ai.incrementUsage('aiTeacherQuestions');
     } catch (error) {
@@ -1189,15 +1207,39 @@ export class FlashcardsPage {
   }
 
   closeQuizModal() {
-    this.showQuizModal.set(false);
+    this.resetQuizState();
   }
 
-  toggleQuizAnswer(questionId: string) {
-    this.quizAnswerVisibility.update(current => ({ ...current, [questionId]: !current[questionId] }));
+  selectQuizOption(questionId: string, optionIndex: number) {
+    if (this.quizSelectedOption(questionId) !== null || this.isCompletingQuiz) return;
+    let nextSelections: Record<string, number> = {};
+    this.quizSelections.update(current => {
+      nextSelections = { ...current, [questionId]: optionIndex };
+      return nextSelections;
+    });
+
+    if (this.quizQuestions().length > 0 && Object.keys(nextSelections).length >= this.quizQuestions().length) {
+      this.isCompletingQuiz = true;
+      window.setTimeout(() => this.finishQuizAttempt(), 180);
+    }
   }
 
-  isQuizAnswerVisible(questionId: string) {
-    return Boolean(this.quizAnswerVisibility()[questionId]);
+  quizSelectedOption(questionId: string) {
+    const value = this.quizSelections()[questionId];
+    return typeof value === 'number' ? value : null;
+  }
+
+  hasAnsweredQuizQuestion(questionId: string) {
+    return this.quizSelectedOption(questionId) !== null;
+  }
+
+  isCorrectQuizOption(question: FlashcardQuizQuestion, optionIndex: number) {
+    return this.hasAnsweredQuizQuestion(question.id) && question.answerIndex === optionIndex;
+  }
+
+  isWrongSelectedQuizOption(question: FlashcardQuizQuestion, optionIndex: number) {
+    const selected = this.quizSelectedOption(question.id);
+    return selected !== null && selected === optionIndex && question.answerIndex !== optionIndex;
   }
 
   async buildArtifact(kind: FlashcardArtifactKind) {
@@ -1320,7 +1362,11 @@ export class FlashcardsPage {
   }
 
   resolveTextDirection(text: string, fallbackLanguage: LanguageCode) {
-    return /[\u0600-\u06FF]/.test(text) || fallbackLanguage === 'ar' ? 'rtl' : 'ltr';
+    return containsArabicScript(text) || fallbackLanguage === 'ar' ? 'rtl' : 'ltr';
+  }
+
+  resolveTextLanguage(text: string, fallbackLanguage: LanguageCode) {
+    return containsArabicScript(text) ? 'ar' : fallbackLanguage;
   }
 
   quizOptionLabel(index: number) {
@@ -1441,6 +1487,7 @@ export class FlashcardsPage {
   private setCurrentCardId(cardId: string) {
     const set = this.currentSet();
     if (!set) return;
+    this.activeCardId.set(cardId);
     this.patchCurrentSet({
       progress: {
         ...set.progress,
@@ -1457,6 +1504,75 @@ export class FlashcardsPage {
       return false;
     }
     return true;
+  }
+
+  private finishQuizAttempt() {
+    const set = this.currentSet();
+    const questions = this.quizQuestions();
+    const selections = this.quizSelections();
+
+    if (!set || questions.length === 0) {
+      this.isCompletingQuiz = false;
+      this.resetQuizState();
+      return;
+    }
+
+    const correctAnswers = questions.reduce((count, question) => (
+      selections[question.id] === question.answerIndex ? count + 1 : count
+    ), 0);
+    const score = Math.round((correctAnswers / questions.length) * 100);
+    const wrongCardIds = Array.from(new Set(
+      questions
+        .filter(question => selections[question.id] !== question.answerIndex)
+        .map(question => question.cardId || '')
+        .filter(Boolean)
+    ));
+
+    const cards = set.cards.map(card => wrongCardIds.includes(card.id)
+      ? { ...card, reviewState: 'hard' as FlashcardReviewState, mastered: false }
+      : card);
+    const attempt: FlashcardQuizAttempt = {
+      id: crypto.randomUUID(),
+      completedAt: new Date().toISOString(),
+      score,
+      correctAnswers,
+      totalQuestions: questions.length,
+      wrongCardIds
+    };
+
+    this.patchCurrentSet({
+      cards,
+      quizHistory: [attempt, ...(set.quizHistory || [])].slice(0, 20)
+    }, true);
+
+    this.ai.quizzesCompleted.update(count => count + 1);
+    this.ai.addPerformanceRecord({
+      date: attempt.completedAt,
+      score,
+      type: 'quiz',
+      subject: set.name,
+      grade: this.ai.getGrade(score)
+    });
+
+    this.ns.show(
+      this.ai.currentLanguage() === 'ar' ? 'انتهى الاختبار وتم الحفظ' : 'Quiz Completed And Saved',
+      this.ai.currentLanguage() === 'ar'
+        ? `تم حفظ نتيجتك ${score}%${wrongCardIds.length ? ` ويوجد ${wrongCardIds.length} بطاقة لازم تحفظها.` : '.'}`
+        : `Your ${score}% result was saved${wrongCardIds.length ? ` and ${wrongCardIds.length} card(s) now need review.` : '.'}`,
+      score >= 60 ? 'success' : 'warning',
+      'fa-clipboard-question'
+    );
+
+    this.isCompletingQuiz = false;
+    this.resetQuizState();
+    this.back.emit('overview');
+  }
+
+  private resetQuizState() {
+    this.showQuizModal.set(false);
+    this.quizSelections.set({});
+    this.quizQuestions.set([]);
+    this.isCompletingQuiz = false;
   }
 
   private patchCurrentSet(patch: Partial<SavedFlashcardSet>, silent = true) {

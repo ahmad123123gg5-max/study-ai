@@ -1,6 +1,7 @@
 
 import { Injectable, signal, effect, inject } from '@angular/core';
 import { LocalizationService } from './localization.service';
+import { GroundingMetadata } from './grounding.models';
 import { SUPPORTED_LANGUAGES } from '../i18n/language-config';
 
 export type ConversationMode = 'text';
@@ -10,6 +11,7 @@ export interface Message {
   text: string;
   files?: { data: string, mimeType: string, name: string }[];
   createdAt?: number;
+  grounding?: GroundingMetadata | null;
 }
 
 export interface ConversationContext {

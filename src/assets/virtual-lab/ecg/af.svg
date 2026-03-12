@@ -1,0 +1,28 @@
+<svg width="1200" height="320" viewBox="0 0 1200 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="320" fill="#06111F"/>
+  <g opacity="0.15" stroke="#22C55E">
+    <path d="M0 40H1200"/>
+    <path d="M0 80H1200"/>
+    <path d="M0 120H1200"/>
+    <path d="M0 160H1200"/>
+    <path d="M0 200H1200"/>
+    <path d="M0 240H1200"/>
+    <path d="M0 280H1200"/>
+    <path d="M80 0V320"/>
+    <path d="M160 0V320"/>
+    <path d="M240 0V320"/>
+    <path d="M320 0V320"/>
+    <path d="M400 0V320"/>
+    <path d="M480 0V320"/>
+    <path d="M560 0V320"/>
+    <path d="M640 0V320"/>
+    <path d="M720 0V320"/>
+    <path d="M800 0V320"/>
+    <path d="M880 0V320"/>
+    <path d="M960 0V320"/>
+    <path d="M1040 0V320"/>
+    <path d="M1120 0V320"/>
+  </g>
+  <path d="M0 164L48 156L92 168L132 154L178 172L214 160L244 96L258 234L280 164L330 176L370 150L420 174L458 164L492 84L510 236L530 164L584 176L630 152L674 168L714 154L750 90L768 236L786 164L840 176L888 150L934 170L974 156L1008 92L1026 236L1048 164L1092 176L1146 150L1200 164" stroke="#38BDF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="48" y="54" fill="#7DD3FC" font-family="monospace" font-size="28">ATRIAL FIBRILLATION</text>
+</svg>

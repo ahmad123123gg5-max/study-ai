@@ -1,0 +1,28 @@
+<svg width="1200" height="320" viewBox="0 0 1200 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="320" fill="#06111F"/>
+  <g opacity="0.15" stroke="#22C55E">
+    <path d="M0 40H1200"/>
+    <path d="M0 80H1200"/>
+    <path d="M0 120H1200"/>
+    <path d="M0 160H1200"/>
+    <path d="M0 200H1200"/>
+    <path d="M0 240H1200"/>
+    <path d="M0 280H1200"/>
+    <path d="M80 0V320"/>
+    <path d="M160 0V320"/>
+    <path d="M240 0V320"/>
+    <path d="M320 0V320"/>
+    <path d="M400 0V320"/>
+    <path d="M480 0V320"/>
+    <path d="M560 0V320"/>
+    <path d="M640 0V320"/>
+    <path d="M720 0V320"/>
+    <path d="M800 0V320"/>
+    <path d="M880 0V320"/>
+    <path d="M960 0V320"/>
+    <path d="M1040 0V320"/>
+    <path d="M1120 0V320"/>
+  </g>
+  <path d="M0 164H120L150 160L176 170L194 160L214 164L228 104L242 236L260 160L300 160L344 160L396 160L432 142L452 180L470 150L490 150H566L620 150L660 138L686 140L716 140L746 146L772 152L798 156H910L948 142L972 176L992 150L1016 150L1040 154H1200" stroke="#F87171" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="48" y="54" fill="#FCA5A5" font-family="monospace" font-size="28">STEMI PATTERN</text>
+</svg>

@@ -422,6 +422,7 @@ export class ProfilePage {
     switch (type) {
       case 'simulation': return 'fa-flask-vial';
       case 'study': return 'fa-book-open';
+      case 'quiz': return 'fa-clipboard-question';
       default: return 'fa-star';
     }
   }
@@ -430,6 +431,7 @@ export class ProfilePage {
     switch (type) {
       case 'simulation': return 'bg-emerald-600';
       case 'study': return 'bg-amber-600';
+      case 'quiz': return 'bg-indigo-600';
       default: return 'bg-slate-600';
     }
   }
@@ -438,6 +440,7 @@ export class ProfilePage {
     switch (type) {
       case 'simulation': return 'محاكاة عملية';
       case 'study': return 'جلسة دراسة';
+      case 'quiz': return 'اختبار ذكي';
       default: return 'نشاط';
     }
   }

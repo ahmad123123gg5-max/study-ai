@@ -10,7 +10,6 @@ import { FlashcardsService } from '../../services/flashcards.service';
 import { LocalizationService } from '../../services/localization.service';
 import { MindMapService } from '../../services/mindmap.service';
 import { NotificationService } from '../../services/notification.service';
-import { DocumentWorkspacePdfService } from './document-workspace/services/document-workspace-pdf.service';
 import { UpgradeModal } from '../shared/upgrade-modal.component';
 
 interface TransformHistory {
@@ -213,7 +212,6 @@ export class ContentTransformPage {
   private readonly localization = inject(LocalizationService);
   private readonly mindMapService = inject(MindMapService);
   private readonly notificationService = inject(NotificationService);
-  private readonly pdfService = inject(DocumentWorkspacePdfService);
 
   @ViewChild('resultCapture') resultCapture?: ElementRef<HTMLElement>;
   @ViewChild('resultShell') resultShell?: ElementRef<HTMLElement>;
@@ -530,12 +528,7 @@ export class ContentTransformPage {
         case 'audio':
           return this.normalizeText(await this.ai.transcribeAudio(await this.blobToBase64(file), file.type || 'audio/webm'));
         case 'pdf': {
-          const resource = await this.pdfService.loadFile(file, 'pdf');
-          try {
-            return this.normalizeText(resource.pages.map((page) => page.text).join('\n\n'));
-          } finally {
-            await this.pdfService.disposeResource(resource);
-          }
+          return this.normalizeText(await this.extractPdfText(file));
         }
         case 'docx':
           return this.normalizeText((await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value);
@@ -562,6 +555,35 @@ export class ContentTransformPage {
     if (type === 'application/msword' || ext === 'doc') return 'doc';
     if (type.startsWith('text/') || ['txt', 'md'].includes(ext)) return 'text';
     return 'unknown';
+  }
+
+  private async extractPdfText(file: File): Promise<string> {
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = 'assets/pdfjs/build/pdf.worker.min.mjs';
+
+    const task = pdfjs.getDocument({
+      data: new Uint8Array(await file.arrayBuffer()),
+      cMapUrl: 'assets/pdfjs/cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: 'assets/pdfjs/standard_fonts/'
+    });
+
+    const document = await task.promise;
+    try {
+      const pages: string[] = [];
+      for (let index = 1; index <= document.numPages; index += 1) {
+        const page = await document.getPage(index);
+        const content = await page.getTextContent();
+        const text = content.items
+          .map((item) => ('str' in item ? item.str : ''))
+          .filter(Boolean)
+          .join(' ');
+        pages.push(text);
+      }
+      return pages.join('\n\n');
+    } finally {
+      await document.destroy();
+    }
   }
 
   private buildSourceTitle() {

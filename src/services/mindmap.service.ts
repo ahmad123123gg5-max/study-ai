@@ -15,6 +15,7 @@ export type MindMapNodeType =
 
 export type MindMapViewMode = 'mindmap' | 'tree' | 'study' | 'compact';
 export type MindMapGenerationMode = 'standard' | 'simplify' | 'expand';
+export type MindMapWorkspaceSurface = 'mindmap' | 'knowledge';
 export type MindMapThemeId =
   | 'classic_academic'
   | 'dark_study'
@@ -31,6 +32,7 @@ export type MindMapNodeSize = 'compact' | 'balanced' | 'large';
 export type MindMapBackgroundMode = 'minimal' | 'academic_grid';
 export type MindMapVisualMode = 'default' | 'focus' | 'branch' | 'exam' | 'presentation';
 export type MindMapNodeReviewState = 'understood' | 'review' | null;
+export type SmartKnowledgeConnectionKind = 'child' | 'related' | 'sequence';
 
 export interface MindMapNode {
   id: string;
@@ -82,6 +84,54 @@ export interface MindMapProgress {
   reviewNodeIds: string[];
 }
 
+export interface SmartKnowledgeNode {
+  id: string;
+  title: string;
+  explanation: string;
+  bullets: string[];
+  imageUrl?: string;
+  icon?: string;
+  sourceLabel?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  order: number;
+  parentId?: string | null;
+  isKeyNode?: boolean;
+  accentColor?: string;
+}
+
+export interface SmartKnowledgeConnection {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  label?: string;
+  kind: SmartKnowledgeConnectionKind;
+}
+
+export interface KnowledgeBoardStudyPreferences {
+  currentNodeId: string | null;
+  showConnections: boolean;
+  focusCurrentNode: boolean;
+}
+
+export interface KnowledgeBoardState {
+  nodes: SmartKnowledgeNode[];
+  connections: SmartKnowledgeConnection[];
+  activeSurface: MindMapWorkspaceSurface;
+  study: KnowledgeBoardStudyPreferences;
+}
+
+export interface MindMapQuizAttempt {
+  id: string;
+  completedAt: string;
+  score: number;
+  correctAnswers: number;
+  totalQuestions: number;
+  wrongNodeIds: string[];
+}
+
 export interface SavedMindMap {
   id: string;
   name: string;
@@ -97,11 +147,20 @@ export interface SavedMindMap {
   viewMode: MindMapViewMode;
   customization: MindMapCustomizationSettings;
   progress: MindMapProgress;
+  knowledgeBoard: KnowledgeBoardState;
+  quizHistory: MindMapQuizAttempt[];
 }
 
 interface GeneratedMindMapPayload {
   mapTitle?: string;
   root?: Partial<MindMapNode>;
+}
+
+interface GeneratedKnowledgeBoardPayload {
+  nodes?: Array<Partial<SmartKnowledgeNode> & {
+    parentId?: string | null;
+  }>;
+  connections?: Array<Partial<SmartKnowledgeConnection>>;
 }
 
 export const DEFAULT_MINDMAP_CUSTOMIZATION: MindMapCustomizationSettings = {
@@ -226,8 +285,23 @@ export class MindMapService {
       root: null,
       viewMode: 'mindmap',
       customization: { ...DEFAULT_MINDMAP_CUSTOMIZATION },
-      progress: this.createProgress(null)
+      progress: this.createProgress(null),
+      knowledgeBoard: this.createEmptyKnowledgeBoard(),
+      quizHistory: []
     });
+  }
+
+  createEmptyKnowledgeBoard(): KnowledgeBoardState {
+    return {
+      nodes: [],
+      connections: [],
+      activeSurface: 'mindmap',
+      study: {
+        currentNodeId: null,
+        showConnections: true,
+        focusCurrentNode: true
+      }
+    };
   }
 
   createProgress(root: MindMapNode | null, currentNodeId?: string | null): MindMapProgress {
@@ -298,6 +372,40 @@ NODE RULES:
       sourceText,
       root
     };
+  }
+
+  async generateKnowledgeBoardFromTopic(topic: string, language: LanguageCode = this.ai.currentLanguage()): Promise<KnowledgeBoardState> {
+    const payload = await this.chatJson<GeneratedKnowledgeBoardPayload>(
+      `TOPIC OR SOURCE:
+${topic.trim()}`,
+      `You are an elite study-board designer that converts educational content into a visual concept network.
+Return ONLY a JSON object with keys: nodes, connections.
+
+NODE RULES:
+- Create 4 to 8 smart knowledge nodes.
+- Each node must contain: id, title, explanation, bullets, icon, sourceLabel, parentId, isKeyNode.
+- title must be concise.
+- explanation must be 1 or 2 clear educational sentences.
+- bullets must be an array with 0 to 4 short bullet points.
+- icon can be a short emoji or empty.
+- sourceLabel can be a very short label or empty.
+- parentId can be null for root ideas.
+- Do not include x, y, width, or height.
+- Keep the structure faithful to the topic and useful for studying.
+
+CONNECTION RULES:
+- connections must describe how nodes are linked.
+- Each connection must contain: fromNodeId, toNodeId, label, kind.
+- kind must be one of: child, related, sequence.
+- Use child for hierarchy, related for concept links, sequence for step/order flows.
+- Keep labels short.
+
+LANGUAGE:
+- Respond strictly in ${this.ai.getLanguageName(language)}.
+- JSON only.`
+    );
+
+    return this.normalizeKnowledgeBoard(this.buildGeneratedKnowledgeBoard(payload));
   }
 
   toOutlineText(root: MindMapNode | null) {
@@ -463,6 +571,8 @@ Return plain text only.`
       root,
       viewMode: this.normalizeViewMode(map.viewMode),
       customization: this.normalizeCustomization(map.customization),
+      knowledgeBoard: this.normalizeKnowledgeBoard(map.knowledgeBoard),
+      quizHistory: this.normalizeQuizHistory(map.quizHistory),
       progress: {
         ...progress,
         currentNodeId: progress.currentNodeId
@@ -524,6 +634,172 @@ Return plain text only.`
       || value === 'engineering_grid';
   }
 
+  private buildGeneratedKnowledgeBoard(payload: GeneratedKnowledgeBoardPayload): KnowledgeBoardState {
+    const rawNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+    const normalizedNodes = rawNodes.map((node, index) => this.normalizeKnowledgeNode(node, index));
+    const nodeIds = new Set(normalizedNodes.map(node => node.id));
+
+    const rawConnections = Array.isArray(payload.connections) ? payload.connections : [];
+    const derivedConnections = normalizedNodes
+      .filter(node => node.parentId && nodeIds.has(node.parentId))
+      .map(node => ({
+        id: crypto.randomUUID(),
+        fromNodeId: node.parentId as string,
+        toNodeId: node.id,
+        kind: 'child' as const
+      }));
+
+    const connections = [...rawConnections, ...derivedConnections]
+      .map((connection, index) => this.normalizeKnowledgeConnection(connection, index))
+      .filter(connection => connection.fromNodeId !== connection.toNodeId)
+      .filter(connection => nodeIds.has(connection.fromNodeId) && nodeIds.has(connection.toNodeId))
+      .filter((connection, index, list) => list.findIndex(candidate =>
+        candidate.fromNodeId === connection.fromNodeId
+        && candidate.toNodeId === connection.toNodeId
+        && candidate.kind === connection.kind
+      ) === index);
+
+    const nodes = this.layoutKnowledgeNodes(normalizedNodes, connections);
+
+    return {
+      nodes,
+      connections,
+      activeSurface: 'knowledge',
+      study: {
+        currentNodeId: nodes[0]?.id || null,
+        showConnections: true,
+        focusCurrentNode: true
+      }
+    };
+  }
+
+  private normalizeKnowledgeBoard(board: KnowledgeBoardState | null | undefined): KnowledgeBoardState {
+    const fallback = this.createEmptyKnowledgeBoard();
+    const nodes = Array.isArray(board?.nodes)
+      ? board.nodes.map((node, index) => this.normalizeKnowledgeNode(node, index))
+      : [];
+    const nodeIds = new Set(nodes.map(node => node.id));
+    const connections = Array.isArray(board?.connections)
+      ? board.connections
+          .map((connection, index) => this.normalizeKnowledgeConnection(connection, index))
+          .filter(connection => connection.fromNodeId !== connection.toNodeId)
+          .filter(connection => nodeIds.has(connection.fromNodeId) && nodeIds.has(connection.toNodeId))
+      : [];
+    const currentNodeId = board?.study?.currentNodeId && nodeIds.has(board.study.currentNodeId)
+      ? board.study.currentNodeId
+      : nodes[0]?.id || null;
+
+    return {
+      nodes,
+      connections,
+      activeSurface: board?.activeSurface === 'knowledge' ? 'knowledge' : fallback.activeSurface,
+      study: {
+        currentNodeId,
+        showConnections: board?.study?.showConnections !== false,
+        focusCurrentNode: board?.study?.focusCurrentNode !== false
+      }
+    };
+  }
+
+  private normalizeKnowledgeNode(node: Partial<SmartKnowledgeNode>, order: number): SmartKnowledgeNode {
+    return {
+      id: String(node.id || crypto.randomUUID()),
+      title: String(node.title || '').trim() || (this.ai.currentLanguage() === 'ar' ? `عقدة ${order + 1}` : `Node ${order + 1}`),
+      explanation: String(node.explanation || '').trim(),
+      bullets: Array.isArray(node.bullets)
+        ? node.bullets.map(item => String(item || '').trim()).filter(Boolean).slice(0, 6)
+        : [],
+      imageUrl: String(node.imageUrl || '').trim() || undefined,
+      icon: String(node.icon || '').trim() || undefined,
+      sourceLabel: String(node.sourceLabel || '').trim() || undefined,
+      x: Number.isFinite(node.x) ? Number(node.x) : 120 + ((order % 3) * 360),
+      y: Number.isFinite(node.y) ? Number(node.y) : 120 + (Math.floor(order / 3) * 230),
+      width: Math.max(240, Math.min(420, Number.isFinite(node.width) ? Number(node.width) : 320)),
+      height: Math.max(180, Math.min(420, Number.isFinite(node.height) ? Number(node.height) : 220)),
+      order: Number.isFinite(node.order) ? Number(node.order) : order,
+      parentId: node.parentId ? String(node.parentId) : null,
+      isKeyNode: Boolean(node.isKeyNode),
+      accentColor: String(node.accentColor || '').trim() || undefined
+    };
+  }
+
+  private normalizeKnowledgeConnection(connection: Partial<SmartKnowledgeConnection>, index: number): SmartKnowledgeConnection {
+    return {
+      id: String(connection.id || crypto.randomUUID() || `connection-${index}`),
+      fromNodeId: String(connection.fromNodeId || '').trim(),
+      toNodeId: String(connection.toNodeId || '').trim(),
+      label: String(connection.label || '').trim() || undefined,
+      kind: connection.kind === 'related' || connection.kind === 'sequence' ? connection.kind : 'child'
+    };
+  }
+
+  private layoutKnowledgeNodes(
+    nodes: SmartKnowledgeNode[],
+    connections: SmartKnowledgeConnection[]
+  ): SmartKnowledgeNode[] {
+    if (!nodes.length) return [];
+
+    const incomingCounts = new Map<string, number>();
+    const adjacency = new Map<string, string[]>();
+    for (const node of nodes) {
+      incomingCounts.set(node.id, 0);
+      adjacency.set(node.id, []);
+    }
+
+    for (const connection of connections) {
+      incomingCounts.set(connection.toNodeId, (incomingCounts.get(connection.toNodeId) || 0) + 1);
+      adjacency.get(connection.fromNodeId)?.push(connection.toNodeId);
+    }
+
+    const roots = nodes.filter(node => (incomingCounts.get(node.id) || 0) === 0);
+    const orderedRoots = roots.length ? roots : [nodes[0]];
+    const levels = new Map<string, number>();
+    const queue = orderedRoots.map(node => ({ id: node.id, level: 0 }));
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (!current || levels.has(current.id)) continue;
+      levels.set(current.id, current.level);
+      for (const childId of adjacency.get(current.id) || []) {
+        if (!levels.has(childId)) {
+          queue.push({ id: childId, level: current.level + 1 });
+        }
+      }
+    }
+
+    for (const node of nodes) {
+      if (!levels.has(node.id)) {
+        levels.set(node.id, Math.max(0, orderedRoots.length - 1));
+      }
+    }
+
+    const groups = new Map<number, SmartKnowledgeNode[]>();
+    for (const node of nodes) {
+      const level = levels.get(node.id) || 0;
+      const bucket = groups.get(level) || [];
+      bucket.push(node);
+      groups.set(level, bucket);
+    }
+
+    const sortedLevels = [...groups.keys()].sort((a, b) => a - b);
+    return sortedLevels.flatMap(level => {
+      const bucket = (groups.get(level) || []).sort((left, right) => left.order - right.order);
+      const totalHeight = bucket.reduce((sum, node) => sum + node.height, 0) + Math.max(0, bucket.length - 1) * 56;
+      const startY = Math.max(96, 360 - (totalHeight / 2));
+      let cursorY = startY;
+      return bucket.map((node, index) => {
+        const nextNode = {
+          ...node,
+          x: 120 + (level * 380),
+          y: cursorY,
+          order: index + (level * 100)
+        };
+        cursorY += node.height + 56;
+        return nextNode;
+      });
+    });
+  }
+
   private async chatText(message: string, systemInstruction: string): Promise<string> {
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
@@ -535,7 +811,10 @@ Return plain text only.`
       })
     });
 
-    const payload = await response.json().catch(() => null) as { text?: string; error?: string } | null;
+    const payload = await response.json().catch(() => null) as { text?: string; error?: string; validation?: unknown } | null;
+    if (payload?.validation) {
+      this.ai.registerKnowledgeValidation(payload.validation);
+    }
     if (!response.ok || !payload?.text) {
       throw new Error(payload?.error || `Mind map AI request failed (${response.status})`);
     }
@@ -589,5 +868,25 @@ Return plain text only.`
       return 'tutor';
     }
     return normalized || 'manual';
+  }
+
+  private normalizeQuizHistory(value: unknown): MindMapQuizAttempt[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.map((attempt) => {
+      const raw = attempt as Partial<MindMapQuizAttempt>;
+      return {
+        id: String(raw.id || crypto.randomUUID()),
+        completedAt: String(raw.completedAt || new Date().toISOString()),
+        score: Math.max(0, Math.min(100, Math.round(Number(raw.score) || 0))),
+        correctAnswers: Math.max(0, Math.round(Number(raw.correctAnswers) || 0)),
+        totalQuestions: Math.max(0, Math.round(Number(raw.totalQuestions) || 0)),
+        wrongNodeIds: Array.isArray(raw.wrongNodeIds)
+          ? raw.wrongNodeIds.map((nodeId) => String(nodeId || '').trim()).filter(Boolean)
+          : []
+      } satisfies MindMapQuizAttempt;
+    }).slice(0, 20);
   }
 }

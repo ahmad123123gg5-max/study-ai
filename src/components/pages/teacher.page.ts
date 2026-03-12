@@ -64,8 +64,7 @@ export class TeacherPage {
   readonly t = (text: string) => this.localization.phrase(text);
 
   goHome() {
-    // This is a hacky way to access parent component, but works for this demo
-    ((window as unknown as Record<string, unknown>)['appComponent'] as { activePage: { set: (page: string) => void } })?.activePage.set('overview');
+    ((window as unknown as Record<string, unknown>)['appComponent'] as { goBackFromPage?: () => void })?.goBackFromPage?.();
   }
 
   private readonly statBlueprints = [

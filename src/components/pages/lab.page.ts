@@ -8,6 +8,7 @@ import {
   LabScenarioChoice,
   LabScenarioConsequenceLevel,
   LabScenarioReading,
+  LabScenarioStep,
 } from '../../services/ai.service';
 import { NotificationService } from '../../services/notification.service';
 import { UpgradeModal } from '../shared/upgrade-modal.component';
@@ -32,8 +33,13 @@ interface ScenarioDecisionRecord {
 }
 
 interface RandomizedChoiceView {
-  originalIndex: number;
+  id: string;
   text: string;
+}
+
+interface ActiveStepRenderView {
+  renderKey: string;
+  step: LabScenarioStep;
 }
 
 @Component({
@@ -328,8 +334,9 @@ interface RandomizedChoiceView {
                   <h4 class="text-xl font-black text-white">{{ selectedLang() === 'ar' ? 'الموقف الحالي' : 'Current Situation' }}</h4>
                 </div>
 
-                @if (activeStep(); as step) {
-                  <div class="space-y-6 text-right">
+                @for (stepView of activeStepViews(); track stepView.renderKey) {
+                  <div class="space-y-6 text-right" [attr.data-step-key]="stepView.renderKey">
+                    @if (stepView.step; as step) {
                     <div class="rounded-[2.2rem] border border-white/10 bg-slate-950/70 p-6">
                       <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{{ step.title }}</p>
                       <p class="mt-4 text-2xl font-bold leading-relaxed text-slate-100">{{ step.situation }}</p>
@@ -413,9 +420,9 @@ interface RandomizedChoiceView {
                     }
 
                     <div class="grid grid-cols-1 gap-4 pt-2">
-                      @for (choice of randomizedOptions(); track choice.originalIndex; let choiceNumber = $index) {
+                      @for (choice of randomizedOptions(); track choice.id; let choiceNumber = $index) {
                         <button
-                          (click)="handleChoice(choice.originalIndex)"
+                          (click)="handleChoice(choice.id)"
                           [disabled]="isFailed() || isComplete() || isResolvingChoice()"
                           class="group flex w-full items-center justify-between rounded-2xl border-2 border-slate-800 p-6 text-right font-bold transition-all hover:border-emerald-500 hover:bg-emerald-500/5 disabled:opacity-40"
                         >
@@ -426,6 +433,7 @@ interface RandomizedChoiceView {
                         </button>
                       }
                     </div>
+                    }
                   </div>
                 }
               </div>
@@ -553,7 +561,7 @@ export class LabPage {
   isBusy = signal(false);
   currentScenario = signal<LabScenario | null>(null);
   labImage = signal('');
-  currentStepId = signal<string | null>(null);
+  currentStepIndex = signal(0);
   isFailed = signal(false);
   isComplete = signal(false);
   selectedLang = signal<LanguageCode>(this.localization.currentLanguage());
@@ -573,19 +581,24 @@ export class LabPage {
   showUpgradeModal = signal(false);
   upgradeMessage = signal('');
   private pendingStepTransitionTimeout: number | null = null;
+  private lastLoggedStepRenderKey: string | null = null;
 
   readonly activeStep = computed(() => {
     const scenario = this.currentScenario();
-    if (!scenario) return null;
-    const currentStepId = this.currentStepId();
-    return scenario.steps.find(step => step.id === currentStepId) || scenario.steps[0] || null;
+    if (!scenario || scenario.steps.length === 0) return null;
+    const clampedIndex = Math.max(0, Math.min(this.currentStepIndex(), scenario.steps.length - 1));
+    return scenario.steps[clampedIndex] || null;
   });
 
-  readonly currentStepIndex = computed(() => {
+  readonly activeStepViews = computed<ActiveStepRenderView[]>(() => {
     const scenario = this.currentScenario();
     const step = this.activeStep();
-    if (!scenario || !step) return 0;
-    return Math.max(0, scenario.steps.findIndex(candidate => candidate.id === step.id));
+    if (!scenario || !step) return [];
+    const activeIndex = Math.max(0, Math.min(this.currentStepIndex(), scenario.steps.length - 1));
+    return [{
+      renderKey: `${scenario.title}:${activeIndex}:${step.id}`,
+      step
+    }];
   });
 
   readonly recentDecisions = computed(() => this.decisionTrail().slice(-4).reverse());
@@ -691,6 +704,45 @@ export class LabPage {
       const currentLanguage = normalizeLanguageCode(this.localization.currentLanguage());
       if (this.selectedLang() !== currentLanguage) {
         this.selectedLang.set(currentLanguage);
+      }
+    });
+
+    effect(() => {
+      const scenario = this.currentScenario();
+      const step = this.activeStep();
+      if (!scenario || !step) {
+        this.lastLoggedStepRenderKey = null;
+        return;
+      }
+
+      const currentIndex = Math.max(0, Math.min(this.currentStepIndex(), scenario.steps.length - 1));
+
+      const renderKey = `${scenario.title}:${currentIndex}:${step.id}`;
+      if (this.lastLoggedStepRenderKey === renderKey) {
+        return;
+      }
+
+      this.lastLoggedStepRenderKey = renderKey;
+
+      console.debug('[Lab Debug] Active step selected', {
+        scenario: scenario.title,
+        currentIndex,
+        stepId: step.id,
+        decisionPrompt: step.decisionPrompt,
+        options: step.choices.map((choice) => ({
+          id: choice.id,
+          text: choice.text,
+          nextStepId: choice.nextStepId
+        }))
+      });
+
+      if (this.countDuplicatePromptAndOptions(step, scenario.steps) > 1) {
+        console.warn('[Lab Debug] Duplicate prompt/options detected before render', {
+          currentIndex,
+          stepId: step.id,
+          decisionPrompt: step.decisionPrompt,
+          options: step.choices.map((choice) => choice.text)
+        });
       }
     });
   }
@@ -824,20 +876,33 @@ export class LabPage {
     this.startScenario(scenario);
   }
 
-  handleChoice(choiceIndex: number) {
+  handleChoice(choiceId: string) {
     const scenario = this.currentScenario();
     const step = this.activeStep();
     if (!scenario || !step || this.isFailed() || this.isComplete() || this.isResolvingChoice()) {
       return;
     }
 
-    const choice = step.choices[choiceIndex];
+    const choice = step.choices.find((candidate) => candidate.id === choiceId);
     if (!choice) {
+      console.warn('[Lab Debug] Choice lookup failed for active step', {
+        choiceId,
+        stepId: step.id,
+        availableChoices: step.choices.map((candidate) => candidate.id)
+      });
       return;
     }
 
     this.clearPendingStepTransition();
     this.isResolvingChoice.set(true);
+
+    console.debug('[Lab Debug] Resolving choice', {
+      currentIndex: this.currentStepIndex(),
+      stepId: step.id,
+      choiceId: choice.id,
+      choiceText: choice.text,
+      nextStepId: choice.nextStepId
+    });
 
     const decision: ScenarioDecisionRecord = {
       stepId: step.id,
@@ -905,7 +970,7 @@ export class LabPage {
   exitScenario() {
     this.clearPendingStepTransition();
     this.currentScenario.set(null);
-    this.currentStepId.set(null);
+    this.currentStepIndex.set(0);
     this.isFailed.set(false);
     this.isComplete.set(false);
     this.scenarioScore.set(0);
@@ -915,13 +980,15 @@ export class LabPage {
     this.attemptRecorded.set(false);
     this.labImage.set('');
     this.isResolvingChoice.set(false);
+    this.lastLoggedStepRenderKey = null;
   }
 
   private startScenario(scenario: LabScenario) {
+    const displaySafeScenario = this.validateScenarioBeforeDisplay(scenario);
     this.clearPendingStepTransition();
-    this.currentScenario.set(scenario);
-    this.selectedDifficulty.set(scenario.difficulty || 'medium');
-    this.currentStepId.set(scenario.steps[0]?.id || null);
+    this.currentScenario.set(displaySafeScenario);
+    this.selectedDifficulty.set(displaySafeScenario.difficulty || 'medium');
+    this.currentStepIndex.set(0);
     this.isFailed.set(false);
     this.isComplete.set(false);
     this.scenarioScore.set(0);
@@ -931,11 +998,30 @@ export class LabPage {
     this.attemptRecorded.set(false);
     this.labImage.set('');
     this.isResolvingChoice.set(false);
+    this.lastLoggedStepRenderKey = null;
     this.shuffleOptions();
   }
 
   private moveToStep(nextStepId: string) {
-    this.currentStepId.set(nextStepId);
+    const scenario = this.currentScenario();
+    if (!scenario) {
+      this.isResolvingChoice.set(false);
+      this.pendingStepTransitionTimeout = null;
+      return;
+    }
+
+    const nextIndex = scenario.steps.findIndex((step) => step.id === nextStepId);
+    if (nextIndex < 0) {
+      console.warn('[Lab Debug] Unable to resolve next step id', {
+        nextStepId,
+        availableStepIds: scenario.steps.map((step) => step.id)
+      });
+      this.isResolvingChoice.set(false);
+      this.pendingStepTransitionTimeout = null;
+      return;
+    }
+
+    this.currentStepIndex.set(nextIndex);
     this.shuffleOptions();
     this.isResolvingChoice.set(false);
     this.pendingStepTransitionTimeout = null;
@@ -948,8 +1034,8 @@ export class LabPage {
       return;
     }
 
-    const options = step.choices.map((choice, index) => ({
-      originalIndex: index,
+    const options = step.choices.map((choice) => ({
+      id: choice.id,
       text: choice.text
     }));
 
@@ -959,6 +1045,62 @@ export class LabPage {
     }
 
     this.randomizedOptions.set(options);
+    console.debug('[Lab Debug] Randomized options prepared', {
+      currentIndex: this.currentStepIndex(),
+      stepId: step.id,
+      options: options.map((choice) => ({
+        id: choice.id,
+        text: choice.text
+      }))
+    });
+  }
+
+  private validateScenarioBeforeDisplay(scenario: LabScenario): LabScenario {
+    const normalizedSteps = scenario.steps.map((step, stepIndex) => ({
+      ...step,
+      id: step.id || `step_${stepIndex + 1}`,
+      readings: step.readings.map((reading) => ({ ...reading })),
+      choices: step.choices.map((choice, choiceIndex) => ({
+        ...choice,
+        id: `${step.id || `step_${stepIndex + 1}`}_choice_${choiceIndex + 1}`
+      }))
+    }));
+
+    normalizedSteps.forEach((step, stepIndex) => {
+      if (this.countDuplicatePromptAndOptions(step, normalizedSteps) > 1) {
+        console.warn('[Lab Debug] Duplicate prompt/options found during display validation', {
+          currentIndex: stepIndex,
+          stepId: step.id,
+          decisionPrompt: step.decisionPrompt,
+          options: step.choices.map((choice) => choice.text)
+        });
+      }
+    });
+
+    return {
+      ...scenario,
+      steps: normalizedSteps,
+      items: scenario.items.map((item) => ({ ...item })),
+      finalEvaluation: {
+        ...scenario.finalEvaluation,
+        strengths: [...scenario.finalEvaluation.strengths],
+        improvements: [...scenario.finalEvaluation.improvements]
+      }
+    };
+  }
+
+  private countDuplicatePromptAndOptions(step: LabScenarioStep, steps: LabScenarioStep[]): number {
+    const signature = this.buildPromptAndOptionsSignature(step);
+    return steps.filter((candidate) => this.buildPromptAndOptionsSignature(candidate) === signature).length;
+  }
+
+  private buildPromptAndOptionsSignature(step: LabScenarioStep): string {
+    const prompt = step.decisionPrompt.replace(/\s+/g, ' ').trim().toLowerCase();
+    const options = step.choices
+      .map((choice) => choice.text.replace(/\s+/g, ' ').trim().toLowerCase())
+      .sort()
+      .join('|');
+    return `${prompt}::${options}`;
   }
 
   private recordScenarioOutcome(type: 'complete' | 'failed') {

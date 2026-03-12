@@ -65,6 +65,7 @@ export interface SavedFlashcardSet {
   language: LanguageCode;
   cards: FlashcardItem[];
   progress: FlashcardSetProgress;
+  quizHistory: FlashcardQuizAttempt[];
 }
 
 interface GeneratedFlashcardPayload {
@@ -74,10 +75,20 @@ interface GeneratedFlashcardPayload {
 
 interface FlashcardQuizQuestion {
   id: string;
+  cardId?: string;
   question: string;
   options: string[];
   answerIndex: number;
   explanation?: string;
+}
+
+export interface FlashcardQuizAttempt {
+  id: string;
+  completedAt: string;
+  score: number;
+  correctAnswers: number;
+  totalQuestions: number;
+  wrongCardIds: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -145,6 +156,7 @@ export class FlashcardsService {
   saveSet(input: Omit<SavedFlashcardSet, 'updatedAt'> & { updatedAt?: string }, options?: { silent?: boolean }) {
     const payload: SavedFlashcardSet = {
       ...input,
+      quizHistory: this.normalizeQuizHistory(input.quizHistory),
       updatedAt: input.updatedAt || new Date().toISOString()
     };
 
@@ -213,7 +225,8 @@ export class FlashcardsService {
       messageId: context?.messageId,
       language,
       cards: [],
-      progress: this.createInitialProgress([])
+      progress: this.createInitialProgress([]),
+      quizHistory: []
     };
   }
 
@@ -259,26 +272,32 @@ export class FlashcardsService {
     const payload = await this.chatJson<{ questions?: FlashcardQuizQuestion[] }>(
       `Flashcards source title: ${sourceTitle || 'Flashcards'}
 Flashcards:
-${cards.map(card => `TYPE: ${card.type}\nFRONT: ${card.front}\nBACK: ${card.back}`).join('\n\n')}`,
+${cards.map(card => `CARD_ID: ${card.id}\nTYPE: ${card.type}\nFRONT: ${card.front}\nBACK: ${card.back}`).join('\n\n')}`,
       `Generate a high-quality self-test quiz from the flashcards.
 Return ONLY JSON with key: questions.
 Each question must have:
 - id
+- cardId
 - question
 - options (exactly 4)
 - answerIndex (0 to 3)
 - explanation
 Keep questions educational and faithful to the flashcards.
+Every question must reference one provided CARD_ID in cardId.
 Respond strictly in ${this.ai.getLanguageName()}.`
     );
 
-    return (payload.questions || []).map(question => ({
+    const validCardIds = new Set(cards.map(card => card.id));
+    return (payload.questions || []).map((question, index) => ({
       id: question.id || crypto.randomUUID(),
+      cardId: validCardIds.has(String(question.cardId || '').trim())
+        ? String(question.cardId || '').trim()
+        : cards[index % Math.max(cards.length, 1)]?.id,
       question: question.question || '',
       options: Array.isArray(question.options) ? question.options.slice(0, 4) : [],
       answerIndex: Number.isFinite(question.answerIndex) ? question.answerIndex : 0,
       explanation: question.explanation || ''
-    })).filter(question => question.question && question.options.length === 4);
+    })).filter(question => question.question && question.options.length === 4 && !!question.cardId);
   }
 
   async generateArtifact(kind: FlashcardArtifactKind, cards: FlashcardItem[], sourceTitle?: string): Promise<string> {
@@ -715,7 +734,8 @@ Keep the content faithful to the source and respond in ${this.ai.getLanguageName
       : new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'about', 'your', 'their', 'have', 'has', 'had', 'will', 'would', 'could', 'should', 'are', 'was', 'were', 'been', 'than']);
 
     const counts = new Map<string, number>();
-    const words = text.match(language === 'ar' ? /[\u0600-\u06FF]{3,}/g : /[a-zA-Z]{4,}/g) || [];
+    const matchedWords = text.match(language === 'ar' ? /[\u0600-\u06FF]{3,}/g : /[a-zA-Z]{4,}/g);
+    const words: string[] = matchedWords ? [...matchedWords] : [];
 
     words.forEach((raw) => {
       const word = raw.toLowerCase();
@@ -826,7 +846,10 @@ Keep the content faithful to the source and respond in ${this.ai.getLanguageName
       })
     });
 
-    const payload = await response.json().catch(() => null) as { text?: string; error?: string } | null;
+    const payload = await response.json().catch(() => null) as { text?: string; error?: string; validation?: unknown } | null;
+    if (payload?.validation) {
+      this.ai.registerKnowledgeValidation(payload.validation);
+    }
     if (!response.ok || !payload?.text) {
       throw new Error(payload?.error || `Flashcards AI request failed (${response.status})`);
     }
@@ -867,7 +890,8 @@ Keep the content faithful to the source and respond in ${this.ai.getLanguageName
       return Array.isArray(parsed)
         ? parsed.map((set) => ({
           ...set,
-          sourceType: this.normalizeSourceType(set.sourceType)
+          sourceType: this.normalizeSourceType(set.sourceType),
+          quizHistory: this.normalizeQuizHistory(set.quizHistory)
         }))
         : [];
     } catch {
@@ -885,6 +909,26 @@ Keep the content faithful to the source and respond in ${this.ai.getLanguageName
       return 'tutor';
     }
     return normalized || 'manual';
+  }
+
+  private normalizeQuizHistory(value: unknown): FlashcardQuizAttempt[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.map((attempt) => {
+      const raw = attempt as Partial<FlashcardQuizAttempt>;
+      return {
+        id: String(raw.id || crypto.randomUUID()),
+        completedAt: String(raw.completedAt || new Date().toISOString()),
+        score: Math.max(0, Math.min(100, Math.round(Number(raw.score) || 0))),
+        correctAnswers: Math.max(0, Math.round(Number(raw.correctAnswers) || 0)),
+        totalQuestions: Math.max(0, Math.round(Number(raw.totalQuestions) || 0)),
+        wrongCardIds: Array.isArray(raw.wrongCardIds)
+          ? raw.wrongCardIds.map((cardId) => String(cardId || '').trim()).filter(Boolean)
+          : []
+      } satisfies FlashcardQuizAttempt;
+    }).slice(0, 20);
   }
 }
 

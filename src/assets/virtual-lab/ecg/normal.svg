@@ -1,0 +1,28 @@
+<svg width="1200" height="320" viewBox="0 0 1200 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="320" fill="#06111F"/>
+  <g opacity="0.15" stroke="#22C55E">
+    <path d="M0 40H1200"/>
+    <path d="M0 80H1200"/>
+    <path d="M0 120H1200"/>
+    <path d="M0 160H1200"/>
+    <path d="M0 200H1200"/>
+    <path d="M0 240H1200"/>
+    <path d="M0 280H1200"/>
+    <path d="M80 0V320"/>
+    <path d="M160 0V320"/>
+    <path d="M240 0V320"/>
+    <path d="M320 0V320"/>
+    <path d="M400 0V320"/>
+    <path d="M480 0V320"/>
+    <path d="M560 0V320"/>
+    <path d="M640 0V320"/>
+    <path d="M720 0V320"/>
+    <path d="M800 0V320"/>
+    <path d="M880 0V320"/>
+    <path d="M960 0V320"/>
+    <path d="M1040 0V320"/>
+    <path d="M1120 0V320"/>
+  </g>
+  <path d="M0 164H118L152 156L176 172L194 164L210 164L226 92L240 236L260 162L330 164L396 164L434 152L454 176L470 164L488 164L504 88L518 236L536 164L610 164L676 164L716 150L736 178L752 164L768 164L786 94L800 236L818 164L886 164L954 164L990 154L1010 176L1026 164L1042 164L1060 96L1074 236L1092 164H1200" stroke="#34D399" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="48" y="54" fill="#9AE6B4" font-family="monospace" font-size="28">NORMAL SINUS RHYTHM</text>
+</svg>

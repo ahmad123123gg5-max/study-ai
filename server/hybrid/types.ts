@@ -1,7 +1,4 @@
-import type {
-  KnowledgeValidationContext,
-  KnowledgeValidationResult
-} from '../knowledge-validation.js';
+import type { KnowledgeValidationContext } from '../knowledge-validation.js';
 
 export type HybridCacheLayerName = 'l1_memory' | 'l2_redis' | 'l3_database' | 'miss';
 export type HybridRouteType = 'logic' | 'cache' | 'rag' | 'ai' | 'rag_ai' | 'job';
@@ -138,7 +135,6 @@ export interface HybridChatResponse {
   route: HybridRouteType;
   reason: string;
   cacheLayer: HybridCacheLayerName;
-  validation: KnowledgeValidationResult;
   groundedResults: RetrievedDocument[];
   model: string;
   metrics: HybridResponseMetrics;
@@ -153,7 +149,6 @@ export type HybridStreamEvent =
     route: HybridRouteType;
     reason: string;
     cacheLayer: HybridCacheLayerName;
-    validation: KnowledgeValidationResult;
     groundedResults: RetrievedDocument[];
     model: string;
     metrics: HybridResponseMetrics;

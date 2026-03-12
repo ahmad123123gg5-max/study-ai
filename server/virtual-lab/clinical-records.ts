@@ -16,6 +16,7 @@ export interface ClinicalLabVariation {
 
 export interface GeneratedClinicalCase {
   caseId: string;
+  sessionId: string;
   signature: string;
   language: 'ar' | 'en';
   specialty: string;
@@ -883,8 +884,13 @@ export const normalizeGeneratedClinicalCase = (value: unknown): GeneratedClinica
     ? candidate['vitals'] as Record<string, unknown>
     : {};
 
+  const sessionId = typeof candidate['sessionId'] === 'string' && candidate.sessionId.trim()
+    ? candidate.sessionId
+    : caseId;
+
   return {
     caseId,
+    sessionId,
     signature,
     language: candidate['language'] === 'ar' ? 'ar' : 'en',
     specialty,
@@ -1113,6 +1119,7 @@ export const generateClinicalCase = (args: {
 
     return {
       caseId: randomUUID(),
+      sessionId: randomUUID(),
       signature,
       language: args.language,
       specialty: args.specialty,
@@ -1151,6 +1158,7 @@ export const generateClinicalCase = (args: {
   const fallbackVitals = buildVitals(fallbackTemplate.category, 1, args.difficulty, fallbackAgeGroup, fallbackRand);
   return {
     caseId: randomUUID(),
+    sessionId: randomUUID(),
     signature: buildSignature([args.userId, fallbackTemplate.key, String(Date.now())]),
     language: args.language,
     specialty: args.specialty,

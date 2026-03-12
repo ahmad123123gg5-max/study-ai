@@ -8,16 +8,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createHash, randomUUID } from 'crypto';
 import Stripe from 'stripe';
-import { createOpenAIChatCompletion, transcribeOpenAIAudio } from './server/openai/openai-client.js';
+import { transcribeOpenAIAudio } from './server/openai/openai-client.js';
 import { GroundingEngine } from './server/rag/grounding-engine.js';
 import {
-  buildClinicalStats,
   generateClinicalCase,
   normalizeGeneratedClinicalCase,
   normalizeStudentCaseHistoryEntry,
   normalizeStudentClinicalRecord,
-  paginateClinicalRecords,
   type ClinicalCaseDifficulty,
+  type GeneratedClinicalCase,
   type StudentCaseHistoryEntry,
   type StudentClinicalRecord
 } from './server/virtual-lab/clinical-records.js';
@@ -33,18 +32,9 @@ import {
   loadClinicalProgressPage,
   upsertClinicalRecord
 } from './server/virtual-lab/clinical-record-store.js';
-import {
-  buildBlockedKnowledgeResponse,
-  buildKnowledgeGuardianInstruction,
-  buildKnowledgeRevisionInstruction,
-  buildKnowledgeValidatorPrompt,
-  createKnowledgeValidationContext,
-  extractJsonPayload,
-  fallbackKnowledgeValidationResult,
-  normalizeKnowledgeValidationResult,
-  type KnowledgeValidationContext,
-  type KnowledgeValidationResult
-} from './server/knowledge-validation.js';
+import { buildAiCasePrompt, mapAiCaseToGeneratedCase } from './server/virtual-lab/clinical-case-ai.js';
+import { buildCaseV2Prompt, normalizeCaseV2, type ClinicalCaseV2Input } from './server/virtual-lab/clinical-case-v2.js';
+import { createKnowledgeValidationContext } from './server/knowledge-validation.js';
 import { HybridAIPlatform } from './server/hybrid/hybrid-ai-platform.js';
 import {
   forkClusterWorkers,
@@ -972,80 +962,6 @@ const buildHistoryAuditText = (messages: OpenAIChatMessage[]): string => message
   .filter(Boolean)
   .join('\n\n');
 
-const auditKnowledgeResponse = async (
-  context: KnowledgeValidationContext,
-  candidateResponse: string,
-  model: string
-): Promise<KnowledgeValidationResult> => {
-  const validatorPrompt = buildKnowledgeValidatorPrompt(context, candidateResponse);
-
-  try {
-    const rawAudit = await createOpenAIChatCompletion({
-      apiKey: OPENAI_API_KEY || '',
-      model,
-      messages: [
-        { role: 'system', content: validatorPrompt.system },
-        { role: 'user', content: validatorPrompt.user }
-      ],
-      temperature: 0.1,
-      maxTokens: 900
-    });
-    const parsedAudit = JSON.parse(extractJsonPayload(rawAudit)) as unknown;
-    return normalizeKnowledgeValidationResult(parsedAudit, context, candidateResponse);
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : 'Validator audit failed';
-    return fallbackKnowledgeValidationResult(context, candidateResponse, reason);
-  }
-};
-
-const createKnowledgeValidatedChatResponse = async (options: {
-  model: string;
-  messages: OpenAIChatMessage[];
-  temperature: number;
-  maxTokens?: number;
-  context: KnowledgeValidationContext;
-}): Promise<{ text: string; validation: KnowledgeValidationResult }> => {
-  const { model, messages, temperature, maxTokens, context } = options;
-
-  let text = await createOpenAIChatCompletion({
-    apiKey: OPENAI_API_KEY || '',
-    model,
-    messages,
-    temperature,
-    maxTokens
-  });
-  let validation = await auditKnowledgeResponse(context, text, model);
-
-  if (validation.needsRevision || validation.blocked) {
-    try {
-      const revisedText = await createOpenAIChatCompletion({
-        apiKey: OPENAI_API_KEY || '',
-        model,
-        messages: [
-          ...messages,
-          { role: 'assistant', content: text },
-          { role: 'system', content: buildKnowledgeRevisionInstruction(context, validation) }
-        ],
-        temperature: context.jsonMode ? 0.1 : 0.2,
-        maxTokens
-      });
-      const revisedValidation = await auditKnowledgeResponse(context, revisedText, model);
-      if (revisedValidation.score >= validation.score || validation.blocked) {
-        text = revisedText;
-        validation = revisedValidation;
-      }
-    } catch {
-      // keep original draft and validation report
-    }
-  }
-
-  if (validation.blocked && !context.jsonMode) {
-    text = buildBlockedKnowledgeResponse(context, validation);
-  }
-
-  return { text, validation };
-};
-
 const sanitizeMimeType = (value: unknown): string => {
   if (typeof value !== 'string') {
     return 'application/octet-stream';
@@ -1385,86 +1301,6 @@ const normalizeForMatch = (value: string): string => value
   .replace(/\s+/g, ' ')
   .trim();
 
-const mapGroundingDomainToValidationDomain = (domain: string) => {
-  if (domain === 'medical' || domain === 'nursing') {
-    return 'medical';
-  }
-  if (domain === 'engineering') {
-    return 'engineering';
-  }
-  if (domain === 'legal') {
-    return 'law';
-  }
-  if (domain === 'science') {
-    return 'general_science';
-  }
-  return 'general_academic';
-};
-
-const buildGroundingValidation = (grounding: {
-  confidence: 'none' | 'low' | 'medium' | 'high';
-  insufficientKnowledge: boolean;
-  used: boolean;
-  sources: Array<{ domain: string; kind: string; publisher?: string }>;
-}) => {
-  const topDomain = grounding.sources[0]?.domain || 'general';
-  const sourceFamilies = Array.from(new Set(
-    grounding.sources
-      .map((source) => source.publisher || source.kind || source.domain)
-      .filter(Boolean)
-  )).slice(0, 6);
-  const checks = grounding.used
-    ? [
-      'Verified retrieval completed before generation.',
-      `Source count: ${grounding.sources.length}.`,
-      `Confidence: ${grounding.confidence}.`
-    ]
-    : ['No verified grounding sources were used.'];
-  const warnings = grounding.insufficientKnowledge
-    ? ['Insufficient verified knowledge for this request.']
-    : grounding.confidence === 'low'
-      ? ['Grounding confidence is low. Review the answer carefully.']
-      : [];
-
-  return {
-    score: grounding.insufficientKnowledge
-      ? 15
-      : grounding.confidence === 'high'
-        ? 92
-        : grounding.confidence === 'medium'
-          ? 78
-          : grounding.confidence === 'low'
-            ? 58
-            : 35,
-    level: grounding.insufficientKnowledge
-      ? 'needs_verification'
-      : grounding.confidence === 'high'
-        ? 'high'
-        : grounding.confidence === 'medium'
-          ? 'medium'
-          : 'needs_verification',
-    domain: mapGroundingDomainToValidationDomain(topDomain),
-    riskLevel: topDomain === 'medical' || topDomain === 'nursing' || topDomain === 'legal'
-      ? (grounding.confidence === 'high' ? 'moderate' : 'high')
-      : grounding.confidence === 'high'
-        ? 'low'
-        : 'moderate',
-    medicalSafetyApplied: topDomain === 'medical' || topDomain === 'nursing',
-    educationalMode: true,
-    summary: grounding.insufficientKnowledge
-      ? 'The answer was limited because the verified knowledge base did not contain enough grounded information.'
-      : grounding.used
-        ? `The answer was grounded using ${grounding.sources.length} retrieved source(s) with ${grounding.confidence} confidence.`
-        : 'The answer was generated without retrieved grounding sources.',
-    warnings,
-    checks,
-    sourceFamilies,
-    needsRevision: grounding.insufficientKnowledge || grounding.confidence === 'low' || !grounding.used,
-    blocked: grounding.insufficientKnowledge,
-    createdAt: new Date().toISOString()
-  };
-};
-
 const buildHybridChatRequest = (body: unknown): {
   request?: HybridChatRequest;
   preferBackground: boolean;
@@ -1545,6 +1381,7 @@ const writeNdjsonEvent = (res: Response, payload: unknown): void => {
 
 const buildLegacyGroundingMetadata = (response: HybridChatResponse, request?: HybridChatRequest) => {
   const topScore = response.groundedResults[0]?.score || 0;
+  const mode = request?.knowledgeMode || 'auto';
   const confidence =
     topScore >= 0.75 ? 'high' :
       topScore >= 0.55 ? 'medium' :
@@ -1554,10 +1391,10 @@ const buildLegacyGroundingMetadata = (response: HybridChatResponse, request?: Hy
   return {
     enabled: true,
     used: response.groundedResults.length > 0,
-    mode: request?.knowledgeMode || 'auto',
+    mode,
     featureHint: request?.featureHint,
     confidence,
-    insufficientKnowledge: response.validation.blocked,
+    insufficientKnowledge: mode === 'strict' && response.groundedResults.length === 0,
     responseCacheHit: response.cached,
     queryCacheHit: response.cacheLayer !== 'miss',
     embeddingCacheHit: response.cacheLayer !== 'miss',
@@ -1599,7 +1436,6 @@ app.post(['/api/ai/chat', '/api/openai/chat'], asyncHandler(async (req: Request,
     res.json({
       text: response.text,
       grounding: buildLegacyGroundingMetadata(response, parsed.request),
-      validation: response.validation,
       route: response.route,
       cacheLayer: response.cacheLayer,
       groundedResults: response.groundedResults,
@@ -1638,7 +1474,6 @@ app.post(['/api/ai/chat/stream', '/api/openai/chat/stream'], asyncHandler(async 
             route: event.route,
             reason: event.reason,
             cacheLayer: event.cacheLayer,
-            validation: event.validation,
             groundedResults: event.groundedResults,
             model: event.model,
             metrics: event.metrics,
@@ -1918,6 +1753,300 @@ const migrateClinicalStore = (user: StoredUserData): boolean => {
   }
   return migratedLegacyData;
 };
+
+const buildClinicalCaseAiRequest = (
+  message: string,
+  systemInstruction: string,
+  userId: string,
+  requestId: string,
+  sessionId: string,
+  timestamp: number
+): HybridChatRequest => {
+  const validationContext = createKnowledgeValidationContext({
+    message,
+    systemInstruction,
+    historyText: '',
+    attachmentText: '',
+    jsonMode: true
+  });
+
+  return {
+    message,
+    systemInstruction,
+    jsonMode: true,
+    model: OPENAI_MODEL,
+    maxTokens: 1500,
+    historyMessages: [
+      {
+        role: 'system',
+        content: `case-generation-nonce:${requestId}:${sessionId}:${timestamp}`
+      }
+    ],
+    validationContext,
+    userId,
+    knowledgeMode: 'off',
+    featureHint: 'clinical_case_generation'
+  };
+};
+
+app.post('/api/virtual-lab/cases/ai', authenticate, asyncHandler(async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+
+  const authReq = req as AuthRequest;
+  const data = await readDataSafe();
+  const user = data.users.find((entry) => entry.id === authReq.user?.id);
+
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const requestId = typeof req.body?.requestId === 'string' && req.body.requestId.trim()
+    ? req.body.requestId.trim()
+    : randomUUID();
+  const sessionId = typeof req.body?.sessionId === 'string' && req.body.sessionId.trim()
+    ? req.body.sessionId.trim()
+    : randomUUID();
+  const timestamp = typeof req.body?.timestamp === 'number' && Number.isFinite(req.body.timestamp)
+    ? req.body.timestamp
+    : Date.now();
+  const seed = typeof req.body?.seed === 'string' && req.body.seed.trim()
+    ? req.body.seed.trim()
+    : `${timestamp}-${Math.random().toString(36).slice(2)}`;
+  const specialty = typeof req.body?.specialty === 'string' ? req.body.specialty.trim() : '';
+  const requestedCondition = typeof req.body?.requestedCondition === 'string' ? req.body.requestedCondition.trim() : '';
+  const scenario = typeof req.body?.scenario === 'string' ? req.body.scenario.trim() : requestedCondition;
+  const difficulty = normalizeClinicalDifficultyInput(req.body?.difficulty);
+  const language: 'ar' | 'en' = req.body?.language === 'ar' ? 'ar' : 'en';
+
+  if (!specialty) {
+    res.status(400).json({ error: 'specialty is required' });
+    return;
+  }
+
+  if (!isProduction) {
+    console.info('[virtual-lab] generate case request', {
+      requestId,
+      sessionId,
+      timestamp,
+      seed,
+      specialty,
+      requestedCondition: requestedCondition || scenario,
+      difficulty
+    });
+  }
+
+  const migratedClinicalData = migrateClinicalStore(user);
+  const history = listClinicalCaseHistory(user.id, 60);
+  const recentSignatures = history.slice(0, 40).map((entry) => entry.signature);
+  const recentTopics = history.slice(0, 40).map((entry) => entry.disease).filter(Boolean);
+
+  let generatedCase: GeneratedClinicalCase | null = null;
+  let lastError: string | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const attemptSeed = `${seed}-${attempt}-${randomUUID()}`;
+    const prompt = buildAiCasePrompt({
+      userId: user.id,
+      requestId,
+      sessionId,
+      timestamp,
+      specialty,
+      scenario,
+      requestedCondition,
+      difficulty,
+      language,
+      recentSignatures,
+      recentTopics,
+      seed: attemptSeed
+    });
+
+    try {
+      const request = buildClinicalCaseAiRequest(prompt.message, prompt.systemInstruction, user.id, requestId, sessionId, timestamp);
+      request.maxTokens = prompt.maxTokens;
+      request.featureHint = prompt.featureHint;
+      request.knowledgeMode = prompt.knowledgeMode;
+      const response = await hybridPlatform.handleChat(request);
+      const nextCase = mapAiCaseToGeneratedCase(
+        {
+          userId: user.id,
+          requestId,
+          sessionId,
+          timestamp,
+          specialty,
+          scenario,
+          requestedCondition,
+          difficulty,
+          language,
+          recentSignatures,
+          recentTopics,
+          seed: attemptSeed
+        },
+        response.text
+      );
+      const topicKey = `${nextCase.diseaseLabelEn || ''}`.toLowerCase();
+      const topicUsed = recentTopics.some((topic) => topic.toLowerCase() === topicKey);
+      const signatureUsed = recentSignatures.includes(nextCase.signature);
+      if (topicUsed || signatureUsed) {
+        lastError = 'Generated case duplicated recent history.';
+        continue;
+      }
+
+      generatedCase = nextCase;
+      break;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'AI case generation failed';
+    }
+  }
+
+  if (!generatedCase) {
+    if (isProduction) {
+      res.status(502).json({ error: lastError || 'AI case generation failed' });
+      return;
+    }
+
+    const recordCount = getClinicalRecordCount(user.id);
+    const fallback = generateClinicalCase({
+      userId: user.id,
+      specialty,
+      scenario: requestedCondition || scenario || specialty,
+      difficulty,
+      language,
+      history,
+      recordCount
+    });
+    generatedCase = {
+      ...fallback,
+      sessionId
+    };
+    console.warn('[virtual-lab] AI case generation failed, using fallback', {
+      requestId,
+      sessionId,
+      error: lastError || 'unknown',
+      fallbackCaseId: generatedCase.caseId
+    });
+  }
+
+  appendClinicalCaseHistory(user.id, {
+    caseId: generatedCase.caseId,
+    signature: generatedCase.signature,
+    specialty,
+    disease: generatedCase.diseaseLabelEn,
+    difficulty,
+    date: generatedCase.createdAt
+  });
+
+  if (!isProduction) {
+    console.info('[virtual-lab] case generated', {
+      requestId,
+      sessionId,
+      caseId: generatedCase.caseId,
+      specialty,
+      disease: generatedCase.diseaseLabelEn
+    });
+  }
+
+  if (migratedClinicalData) {
+    user.updatedAt = new Date().toISOString();
+  }
+  user.updatedAt = new Date().toISOString();
+  await writeDataSafe(data);
+
+  res.json({
+    case: generatedCase,
+    stats: getClinicalProgressStats(user.id)
+  });
+}));
+
+app.post('/api/clinical-simulation/generate-case', authenticate, asyncHandler(async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+
+  const authReq = req as AuthRequest;
+  const userId = authReq.user?.id || '';
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const requestId = typeof req.body?.requestId === 'string' && req.body.requestId.trim()
+    ? req.body.requestId.trim()
+    : randomUUID();
+  const sessionId = typeof req.body?.sessionId === 'string' && req.body.sessionId.trim()
+    ? req.body.sessionId.trim()
+    : randomUUID();
+  const timestamp = typeof req.body?.timestamp === 'number' && Number.isFinite(req.body.timestamp)
+    ? req.body.timestamp
+    : Date.now();
+  const seed = typeof req.body?.seed === 'string' && req.body.seed.trim()
+    ? req.body.seed.trim()
+    : `${timestamp}-${Math.random().toString(36).slice(2)}`;
+  const specialty = typeof req.body?.specialty === 'string' ? req.body.specialty.trim() : '';
+  const requestedTopic = typeof req.body?.requestedTopic === 'string' ? req.body.requestedTopic.trim() : '';
+  const difficulty = normalizeClinicalDifficultyInput(req.body?.difficulty);
+  const language: 'ar' | 'en' = req.body?.language === 'ar' ? 'ar' : 'en';
+
+  if (!specialty) {
+    res.status(400).json({ error: 'specialty is required' });
+    return;
+  }
+
+  const input: ClinicalCaseV2Input = {
+    requestId,
+    sessionId,
+    timestamp,
+    seed,
+    specialty,
+    requestedTopic,
+    difficulty,
+    learnerLevel: typeof req.body?.learnerLevel === 'string' ? req.body.learnerLevel.trim() : undefined,
+    simulationMode: typeof req.body?.simulationMode === 'string' ? req.body.simulationMode.trim() : undefined,
+    encounterType: typeof req.body?.encounterType === 'string' ? req.body.encounterType.trim() : undefined,
+    language,
+    patientAgePreference: typeof req.body?.patientAgePreference === 'string' ? req.body.patientAgePreference.trim() : undefined,
+    patientGenderPreference: typeof req.body?.patientGenderPreference === 'string' ? req.body.patientGenderPreference.trim() : undefined,
+    careSetting: typeof req.body?.careSetting === 'string' ? req.body.careSetting.trim() : undefined,
+    focusArea: typeof req.body?.focusArea === 'string' ? req.body.focusArea.trim() : undefined
+  };
+
+  if (!isProduction) {
+    console.info('[clinical-simulation] generate-case request', input);
+  }
+
+  const prompt = buildCaseV2Prompt(input);
+  const request = buildClinicalCaseAiRequest(prompt.message, prompt.systemInstruction, userId, requestId, sessionId, timestamp);
+  request.maxTokens = prompt.maxTokens;
+  request.featureHint = prompt.featureHint;
+  request.knowledgeMode = prompt.knowledgeMode;
+
+  try {
+    const response = await hybridPlatform.handleChat(request);
+    const clinicalCase = normalizeCaseV2(response.text, input);
+
+    if (!isProduction) {
+      console.info('[clinical-simulation] generate-case response', {
+        requestId,
+        sessionId,
+        caseId: clinicalCase.caseId,
+        specialty: clinicalCase.specialty,
+        requestedTopic: clinicalCase.requestedTopic,
+        difficulty: clinicalCase.difficulty
+      });
+    }
+
+    res.json({ case: clinicalCase });
+  } catch (error) {
+    if (!isProduction) {
+      console.warn('[clinical-simulation] generate-case failed', {
+        requestId,
+        sessionId,
+        error: error instanceof Error ? error.message : 'unknown'
+      });
+    }
+    res.status(502).json({ error: 'AI clinical case generation failed' });
+  }
+}));
 
 app.post('/api/virtual-lab/cases/next', authenticate, asyncHandler(async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;

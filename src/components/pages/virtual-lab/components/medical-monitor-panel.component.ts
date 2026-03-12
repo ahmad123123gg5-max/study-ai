@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ClinicalAbgPanelResult,
@@ -15,7 +15,8 @@ import {
   imports: [CommonModule],
   template: `
     @if (config()?.monitor; as monitor) {
-      <div class="space-y-4 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(71,85,105,0.95)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600/90 [&::-webkit-scrollbar-track]:bg-transparent">
+      <div class="flex h-full min-h-0 flex-col overflow-hidden">
+        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(71,85,105,0.95)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600/90 [&::-webkit-scrollbar-track]:bg-transparent">
         <section class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
           <div class="flex items-center justify-between gap-3">
             <div>
@@ -28,6 +29,16 @@ import {
             </div>
           </div>
           <p class="mt-3 text-sm leading-7 text-slate-300">{{ monitor.trendNote }}</p>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <span class="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]" [ngClass]="liveBadgeClasses(monitor)">
+              {{ monitor.patientState.monitoringActive || monitor.alarmActive ? ui('المونيتور يعمل', 'Monitor Live') : ui('عرض ساكن', 'Passive View') }}
+            </span>
+            @if (monitor.alarmActive) {
+              <span class="rounded-full border border-rose-400/25 bg-rose-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-rose-100 animate-pulse">
+                {{ ui('إنذار', 'Alarm') }}
+              </span>
+            }
+          </div>
           @if (clinical()?.alerts?.length) {
             <div class="mt-4 space-y-2">
               @for (alert of clinical()?.alerts || []; track alert) {
@@ -39,25 +50,48 @@ import {
           }
         </section>
 
+        <section class="rounded-[1.45rem] border border-emerald-400/14 bg-[linear-gradient(180deg,rgba(2,6,23,0.94),rgba(2,6,23,0.86))] p-4 shadow-[inset_0_0_32px_rgba(16,185,129,0.06)]">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300/75">{{ ui('المونيتور الحيوي', 'Live Monitor Feed') }}</p>
+              <p class="mt-1 text-xs font-semibold text-slate-400">{{ ui('تحديث حي مرتبط بالحالة الحالية', 'Live signal tied to the current case state') }}</p>
+            </div>
+            <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">
+              <span class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(74,222,128,0.9)]" [class.animate-ping]="monitor.patientState.monitoringActive || monitor.alarmActive"></span>
+              <span>{{ ui('مباشر', 'Live') }}</span>
+            </div>
+          </div>
+          <div class="grid [grid-template-columns:repeat(24,minmax(0,1fr))] items-end gap-1 overflow-hidden rounded-[1.15rem] border border-emerald-400/12 bg-black/25 px-2 py-3">
+            @for (bar of waveformBars(); track $index) {
+              <span
+                class="rounded-full bg-gradient-to-t from-emerald-500/35 via-emerald-400/70 to-cyan-200/90 transition-[height,opacity,transform] duration-150"
+                [style.height.%]="bar"
+                [style.opacity]="barOpacity($index)"
+                [style.transform]="barTransform($index)"
+              ></span>
+            }
+          </div>
+        </section>
+
         <section class="grid grid-cols-2 gap-3">
           <div class="rounded-[1.4rem] border border-white/10 bg-slate-950/80 p-4">
             <p class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">HR</p>
-            <p class="mt-2 text-3xl font-black tabular-nums text-white">{{ monitor.heartRate }}</p>
+            <p class="mt-2 text-3xl font-black tabular-nums text-white">{{ displayHeartRate() }}</p>
             <p class="text-xs font-semibold text-slate-500">bpm</p>
           </div>
           <div class="rounded-[1.4rem] border border-white/10 bg-slate-950/80 p-4">
             <p class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">SpO2</p>
-            <p class="mt-2 text-3xl font-black tabular-nums" [class.text-cyan-300]="monitor.oxygenSaturation >= 94" [class.text-amber-300]="monitor.oxygenSaturation < 94 && monitor.oxygenSaturation >= 90" [class.text-rose-300]="monitor.oxygenSaturation < 90">{{ monitor.oxygenSaturation }}%</p>
+            <p class="mt-2 text-3xl font-black tabular-nums" [class.text-cyan-300]="displayOxygenSaturation() >= 94" [class.text-amber-300]="displayOxygenSaturation() < 94 && displayOxygenSaturation() >= 90" [class.text-rose-300]="displayOxygenSaturation() < 90">{{ displayOxygenSaturation() }}%</p>
             <p class="text-xs font-semibold text-slate-500">oxygen</p>
           </div>
           <div class="rounded-[1.4rem] border border-white/10 bg-slate-950/80 p-4">
             <p class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">BP</p>
-            <p class="mt-2 text-2xl font-black tabular-nums text-white">{{ monitor.bloodPressure }}</p>
+            <p class="mt-2 text-2xl font-black tabular-nums text-white">{{ displayBloodPressure() }}</p>
             <p class="text-xs font-semibold text-slate-500">mmHg</p>
           </div>
           <div class="rounded-[1.4rem] border border-white/10 bg-slate-950/80 p-4">
             <p class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">RR</p>
-            <p class="mt-2 text-2xl font-black tabular-nums text-white">{{ monitor.respiratoryRate }}</p>
+            <p class="mt-2 text-2xl font-black tabular-nums text-white">{{ displayRespiratoryRate() }}</p>
             <p class="text-xs font-semibold text-slate-500">/min</p>
           </div>
         </section>
@@ -383,23 +417,205 @@ import {
             </div>
           </section>
         }
+        </div>
       </div>
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class MedicalMonitorPanelComponent {
+export class MedicalMonitorPanelComponent implements OnDestroy {
   readonly config = input<PanelConfig | null>(null);
   readonly clinical = computed(() => this.config()?.clinical || null);
+  readonly animationStep = signal(0);
   readonly featuredResult = computed(() => {
     const dashboard = this.clinical();
     if (!dashboard) return null;
     return dashboard.results.find((item) => item.id === dashboard.featuredResultId) || dashboard.results[dashboard.results.length - 1] || null;
   });
+  readonly displayHeartRate = computed(() => {
+    const monitor = this.config()?.monitor;
+    if (!monitor) return 0;
+    return this.animateInteger(monitor.heartRate, 2, 30, 210);
+  });
+  readonly displayOxygenSaturation = computed(() => {
+    const monitor = this.config()?.monitor;
+    if (!monitor) return 0;
+    return this.animateInteger(monitor.oxygenSaturation, monitor.alarmActive ? 2 : 1, 60, 100);
+  });
+  readonly displayRespiratoryRate = computed(() => {
+    const monitor = this.config()?.monitor;
+    if (!monitor) return 0;
+    return this.animateInteger(monitor.respiratoryRate, 1, 6, 48);
+  });
+  readonly displayBloodPressure = computed(() => {
+    const monitor = this.config()?.monitor;
+    if (!monitor) return '0/0';
+    const systolic = this.animateInteger(monitor.bloodPressureSystolic, 3, 40, 220, 0.7);
+    const diastolic = this.animateInteger(monitor.bloodPressureDiastolic, 2, 20, 160, 1.4);
+    return `${systolic}/${diastolic}`;
+  });
+  readonly waveformBars = computed(() => {
+    const monitor = this.config()?.monitor;
+    const step = this.animationStep();
+    if (!monitor) {
+      return [];
+    }
+
+    const live = this.isMonitorLive(monitor);
+    const barCount = 24;
+    const cursor = step % barCount;
+
+    return Array.from({ length: barCount }, (_, index) => {
+      const base = live ? 14 + Math.abs(Math.sin((index + step) / 2.4)) * 12 : 10;
+      const distance = Math.min(Math.abs(index - cursor), barCount - Math.abs(index - cursor));
+      const spike = this.waveSpikeHeight(distance, monitor);
+      return Math.max(10, Math.min(96, Math.round(base + spike)));
+    });
+  });
+
+  private beatIntervalId: number | null = null;
+  private beatDelayMs: number | null = null;
+  private beatTone: 'beat' | 'alarm' | null = null;
+  private audioContext: AudioContext | null = null;
+
+  constructor() {
+    effect(() => {
+      const monitor = this.config()?.monitor;
+      if (!monitor || !this.isMonitorLive(monitor)) {
+        this.stopBeatLoop();
+        return;
+      }
+
+      const delay = this.resolveBeatDelay(monitor);
+      const tone = monitor.alarmActive ? 'alarm' as const : 'beat' as const;
+      if (this.beatIntervalId !== null && this.beatDelayMs === delay && this.beatTone === tone) {
+        return;
+      }
+
+      this.startBeatLoop(delay, tone);
+    });
+  }
 
   ui(arabic: string, english: string) {
     const dashboard = this.clinical();
     return dashboard && /[\u0600-\u06FF]/.test(dashboard.patientChart.caseTitle) ? arabic : english;
+  }
+
+  ngOnDestroy() {
+    this.stopBeatLoop();
+    if (this.audioContext) {
+      void this.audioContext.close().catch(() => undefined);
+      this.audioContext = null;
+    }
+  }
+
+  liveBadgeClasses(monitor: MedicalMonitorPanelData) {
+    const live = this.isMonitorLive(monitor);
+    return {
+      'border-emerald-400/20 bg-emerald-500/10 text-emerald-100': live && !monitor.alarmActive,
+      'border-rose-400/20 bg-rose-500/10 text-rose-100': monitor.alarmActive,
+      'border-white/10 bg-white/5 text-slate-300': !live
+    };
+  }
+
+  barOpacity(index: number) {
+    const cursor = this.animationStep() % 24;
+    const distance = Math.min(Math.abs(index - cursor), 24 - Math.abs(index - cursor));
+    return distance <= 1 ? 1 : distance <= 3 ? 0.82 : 0.62;
+  }
+
+  barTransform(index: number) {
+    const cursor = this.animationStep() % 24;
+    const distance = Math.min(Math.abs(index - cursor), 24 - Math.abs(index - cursor));
+    return distance === 0 ? 'translateY(-2px)' : 'translateY(0)';
+  }
+
+  private isMonitorLive(monitor: MedicalMonitorPanelData) {
+    return monitor.patientState.monitoringActive || monitor.alarmActive;
+  }
+
+  private animateInteger(baseValue: number, amplitude: number, min: number, max: number, phaseOffset: number = 0) {
+    const monitor = this.config()?.monitor;
+    if (!monitor || !this.isMonitorLive(monitor)) {
+      return Math.round(baseValue);
+    }
+
+    const phase = this.animationStep() * 0.85 + phaseOffset;
+    const nextValue = baseValue + Math.sin(phase) * amplitude + Math.cos(phase / 2.1) * (amplitude * 0.35);
+    return Math.max(min, Math.min(max, Math.round(nextValue)));
+  }
+
+  private waveSpikeHeight(distance: number, monitor: MedicalMonitorPanelData) {
+    const spikeMap: Record<MedicalMonitorPanelData['ecgPreset'], number[]> = {
+      normal: [54, 24, 10, 4],
+      stemi: [60, 28, 14, 6],
+      af: [42, 20, 9, 4],
+      vtach: [72, 36, 18, 8]
+    };
+    const values = spikeMap[monitor.ecgPreset] || spikeMap.normal;
+    const amplitude = monitor.alarmActive ? 1.16 : 1;
+    return distance < values.length ? values[distance] * amplitude : 0;
+  }
+
+  private resolveBeatDelay(monitor: MedicalMonitorPanelData) {
+    const bpm = Math.max(42, Math.min(180, monitor.heartRate));
+    const delay = Math.round(60000 / bpm);
+    return monitor.alarmActive ? Math.max(360, Math.round(delay * 0.82)) : Math.max(420, delay);
+  }
+
+  private startBeatLoop(delay: number, tone: 'beat' | 'alarm') {
+    this.stopBeatLoop();
+    this.beatDelayMs = delay;
+    this.beatTone = tone;
+    this.emitPulse(tone);
+    this.beatIntervalId = window.setInterval(() => this.emitPulse(tone), delay);
+  }
+
+  private stopBeatLoop() {
+    if (this.beatIntervalId !== null) {
+      window.clearInterval(this.beatIntervalId);
+      this.beatIntervalId = null;
+    }
+
+    this.beatDelayMs = null;
+    this.beatTone = null;
+  }
+
+  private emitPulse(tone: 'beat' | 'alarm') {
+    this.animationStep.update((value) => value + 1);
+    this.playMonitorTone(tone);
+  }
+
+  private playMonitorTone(tone: 'beat' | 'alarm') {
+    if (typeof window === 'undefined' || document.visibilityState !== 'visible') {
+      return;
+    }
+
+    const AudioContextCtor = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) {
+      return;
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new AudioContextCtor();
+    }
+
+    const context = this.audioContext;
+    if (context.state === 'suspended') {
+      void context.resume().catch(() => undefined);
+    }
+
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = tone === 'alarm' ? 'square' : 'triangle';
+    oscillator.frequency.setValueAtTime(tone === 'alarm' ? 880 : 520, context.currentTime);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(tone === 'alarm' ? 0.028 : 0.014, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + (tone === 'alarm' ? 0.12 : 0.08));
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(context.currentTime);
+    oscillator.stop(context.currentTime + (tone === 'alarm' ? 0.14 : 0.1));
   }
 
   asLabPanel(result: ClinicalResultViewer) {

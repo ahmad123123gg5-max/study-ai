@@ -12,23 +12,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LocalizationService } from '../../../../services/localization.service';
+import { AIService } from '../../../../services/ai.service';
 import { NotificationService } from '../../../../services/notification.service';
-
-type SpeechRecognitionResultLike = ArrayLike<{ transcript: string }>;
-type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> };
-type SpeechRecognitionInstance = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onstart: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
 
 @Component({
   selector: 'app-simulation-input',
@@ -80,7 +65,7 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
             <button
               type="button"
               (click)="toggleRecording()"
-              [disabled]="disabled()"
+              [disabled]="disabled() || isTranscribing()"
               [title]="ui('تسجيل صوتي', 'Voice input')"
               class="flex h-11 w-11 items-center justify-center rounded-2xl border text-sm text-white transition disabled:opacity-50"
               [class.border-white/10]="!isRecording()"
@@ -145,7 +130,7 @@ type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SimulationInputComponent implements OnDestroy {
-  private readonly localization = inject(LocalizationService);
+  private readonly ai = inject(AIService);
   private readonly notifications = inject(NotificationService);
   private readonly draftInput = viewChild<ElementRef<HTMLTextAreaElement>>('draftInput');
 
@@ -162,9 +147,12 @@ export class SimulationInputComponent implements OnDestroy {
   readonly showOptions = signal(false);
   readonly showHelperMenu = signal(false);
   readonly isRecording = signal(false);
+  readonly isTranscribing = signal(false);
 
-  private recognition: SpeechRecognitionInstance | null = null;
-  private speechBaseDraft = '';
+  private mediaRecorder: MediaRecorder | null = null;
+  private recordingStream: MediaStream | null = null;
+  private audioChunks: Blob[] = [];
+  private shouldTranscribeOnStop = false;
 
   constructor() {
     effect(() => {
@@ -188,7 +176,7 @@ export class SimulationInputComponent implements OnDestroy {
       if (this.disabled()) {
         this.showOptions.set(false);
         this.showHelperMenu.set(false);
-        this.stopRecording();
+        this.stopRecording(false);
       }
     });
   }
@@ -203,7 +191,7 @@ export class SimulationInputComponent implements OnDestroy {
       return;
     }
 
-    this.stopRecording();
+    this.stopRecording(false);
     this.showOptions.set(false);
     this.showHelperMenu.set(false);
     this.submitted.emit(nextValue);
@@ -215,7 +203,7 @@ export class SimulationInputComponent implements OnDestroy {
       return;
     }
 
-    this.stopRecording();
+    this.stopRecording(false);
     this.showOptions.set(false);
     this.showHelperMenu.set(false);
     this.submitted.emit(option);
@@ -230,15 +218,18 @@ export class SimulationInputComponent implements OnDestroy {
     this.submit();
   }
 
-  toggleRecording() {
+  async toggleRecording() {
     this.showHelperMenu.set(false);
     if (this.isRecording()) {
-      this.stopRecording();
+      this.stopRecording(true);
       return;
     }
 
-    const RecognitionCtor = this.resolveSpeechRecognitionCtor();
-    if (!RecognitionCtor) {
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === 'undefined'
+    ) {
       this.notifications.show(
         this.ui('تسجيل صوتي', 'Voice Input'),
         this.ui('الإدخال الصوتي غير مدعوم في هذا المتصفح.', 'Voice input is not supported in this browser.'),
@@ -248,48 +239,76 @@ export class SimulationInputComponent implements OnDestroy {
       return;
     }
 
-    this.speechBaseDraft = this.draft().trim();
-    const recognition = new RecognitionCtor();
-    recognition.lang = this.localization.getSpeechRecognitionLocale(this.language());
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.onstart = () => this.isRecording.set(true);
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript || '')
-        .join(' ')
-        .trim();
-      const separator = this.speechBaseDraft && transcript ? ' ' : '';
-      this.draft.set(`${this.speechBaseDraft}${separator}${transcript}`.trim());
-    };
-    recognition.onerror = () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredMimeType = this.resolveRecordingMimeType();
+      const recorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream);
+
+      this.recordingStream = stream;
+      this.mediaRecorder = recorder;
+      this.audioChunks = [];
+      this.shouldTranscribeOnStop = true;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this.audioChunks.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        this.notifications.show(
+          this.ui('تسجيل صوتي', 'Voice Input'),
+          this.ui('تعذر بدء التسجيل الصوتي الآن.', 'Voice input could not start right now.'),
+          'warning',
+          'fa-solid fa-microphone-lines-slash'
+        );
+        this.cleanupRecorder();
+      };
+
+      recorder.onstop = async () => {
+        const chunks = [...this.audioChunks];
+        const mimeType = recorder.mimeType || preferredMimeType || 'audio/webm';
+        const shouldTranscribe = this.shouldTranscribeOnStop;
+        this.cleanupRecorder();
+
+        if (!shouldTranscribe || chunks.length === 0) {
+          return;
+        }
+
+        this.isTranscribing.set(true);
+        try {
+          const base64 = await this.blobToBase64(new Blob(chunks, { type: mimeType }));
+          const transcript = await this.ai.transcribeAudio(base64, mimeType);
+          const cleaned = transcript.trim();
+          if (cleaned) {
+            this.draft.update((value) => [value.trim(), cleaned].filter(Boolean).join(' '));
+          }
+        } catch (error) {
+          console.error('Simulation voice transcription failed', error);
+          this.notifications.show(
+            this.ui('تسجيل صوتي', 'Voice Input'),
+            this.ui('تعذر تحويل التسجيل إلى نص. حاول مرة أخرى.', 'The recording could not be converted to text. Try again.'),
+            'warning',
+            'fa-solid fa-microphone-lines-slash'
+          );
+        } finally {
+          this.isTranscribing.set(false);
+        }
+      };
+
+      recorder.start();
+      this.isRecording.set(true);
+    } catch (error) {
+      console.error('Simulation voice capture failed', error);
       this.notifications.show(
         this.ui('تسجيل صوتي', 'Voice Input'),
         this.ui('يرجى السماح بالوصول إلى الميكروفون ثم المحاولة مرة أخرى.', 'Please allow microphone access and try again.'),
         'warning',
         'fa-solid fa-microphone-lines-slash'
       );
-      this.stopRecording();
-    };
-    recognition.onend = () => {
-      this.isRecording.set(false);
-      if (this.recognition === recognition) {
-        this.recognition = null;
-      }
-      this.speechBaseDraft = this.draft().trim();
-    };
-
-    this.recognition = recognition;
-    try {
-      recognition.start();
-    } catch {
-      this.notifications.show(
-        this.ui('تسجيل صوتي', 'Voice Input'),
-        this.ui('تعذر بدء التسجيل الصوتي الآن.', 'Voice input could not start right now.'),
-        'warning',
-        'fa-solid fa-microphone-lines-slash'
-      );
-      this.stopRecording();
+      this.cleanupRecorder();
     }
   }
 
@@ -330,7 +349,7 @@ export class SimulationInputComponent implements OnDestroy {
           ? this.ui('أريد الخروج من الاختبار الآن.', 'I want to exit the lab now.')
           : this.ui('أوقف الحالة وعلمني خطوة بخطوة.', 'Stop the case and teach it to me step by step.');
 
-    this.stopRecording();
+    this.stopRecording(false);
     this.showOptions.set(false);
     this.submitted.emit(payload);
   }
@@ -366,7 +385,7 @@ export class SimulationInputComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
-    this.stopRecording();
+    this.stopRecording(false);
   }
 
   private syncTextareaHeight() {
@@ -379,24 +398,44 @@ export class SimulationInputComponent implements OnDestroy {
     element.style.height = `${Math.min(element.scrollHeight, 116)}px`;
   }
 
-  private stopRecording() {
-    const activeRecognition = this.recognition;
-    this.recognition = null;
+  private stopRecording(transcribe: boolean) {
+    this.shouldTranscribeOnStop = transcribe;
     this.isRecording.set(false);
-    this.speechBaseDraft = this.draft().trim();
-    activeRecognition?.stop();
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      this.mediaRecorder.stop();
+      return;
+    }
+
+    this.cleanupRecorder();
   }
 
-  private resolveSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
-    if (typeof window === 'undefined') {
+  private cleanupRecorder() {
+    this.mediaRecorder = null;
+    this.audioChunks = [];
+    this.shouldTranscribeOnStop = false;
+    this.recordingStream?.getTracks().forEach((track) => track.stop());
+    this.recordingStream = null;
+    this.isRecording.set(false);
+  }
+
+  private resolveRecordingMimeType(): string | null {
+    if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
       return null;
     }
 
-    const browserWindow = window as typeof window & {
-      SpeechRecognition?: SpeechRecognitionCtor;
-      webkitSpeechRecognition?: SpeechRecognitionCtor;
-    };
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || null;
+  }
 
-    return browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition || null;
+  private blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error || new Error('Failed to read audio blob.'));
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        resolve(result.includes(',') ? result.split(',')[1] : result);
+      };
+      reader.readAsDataURL(blob);
+    });
   }
 }

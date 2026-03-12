@@ -95,7 +95,7 @@ export class SimulationEngineService {
     this.activeProfile = this.profiles.resolveProfile(config.specialty, config.scenario);
     this.status.set('starting');
     this.lastError.set('');
-    const usesMedicalRuntime = this.profiles.shouldUseMedicalRuntime(config, this.activeProfile);
+    const usesMedicalRuntime = this.profiles.shouldUseMedicalRuntime(config, this.activeProfile) && !config.clinicalCase;
 
     if (usesMedicalRuntime) {
       this.isMedicalSession.set(true);
@@ -358,7 +358,7 @@ export class SimulationEngineService {
     const humanLanguage = request.config.language === 'ar' ? 'Arabic' : 'English';
     const parsedAction = request.userInput ? this.actionParser.parse(request.userInput) : null;
     const historyText = request.transcript.length > 0
-      ? request.transcript.slice(-8).map((entry) => `${entry.role.toUpperCase()}: ${entry.text}`).join('\n')
+      ? request.transcript.slice(-6).map((entry) => `${entry.role.toUpperCase()}: ${entry.text}`).join('\n')
       : 'No previous transcript yet.';
     const requestInstruction = request.requestType === 'start'
       ? 'Start the simulation immediately with role, setting, urgency, and the first decision prompt. Do not ask setup questions.'
@@ -368,11 +368,16 @@ export class SimulationEngineService {
           ? 'The learner explicitly asked for options. Keep the session active and provide 3 or 4 plausible options in the options array. Do not reveal the best answer directly.'
           : `Learner response: "${request.userInput || ''}". Evaluate it logically, then continue the scenario.`;
 
+    const caseInstruction = request.config.clinicalCase
+      ? 'A clinical case JSON payload has been provided. Use it as the single source of truth. Do not invent a different patient, vitals, or story. Stay aligned to it.'
+      : 'If no clinical case payload is provided, generate a realistic scenario from the specialty and scenario input.';
+
     const systemInstruction = [
       'You are an advanced interactive training simulation engine.',
       'Return strictly valid JSON only.',
       'Keep all user-facing prose directly in the requested language.',
       'The session must feel realistic, profession-specific, stepwise, and immersive.',
+      caseInstruction,
       'The learner selected a fixed lab duration. Do not close the scenario before the timeout turn arrives unless the learner explicitly exits or asks for tutor handoff.',
       'Adapt every part of the experience to the chosen specialty profile instead of using generic wording.',
       'Use concise but vivid wording so the learner feels inside a real workplace, not a chatbot.',
@@ -398,12 +403,17 @@ export class SimulationEngineService {
       `Write everything for the learner in ${humanLanguage}.`
     ].join(' ');
 
+    const clinicalCaseContext = request.config.clinicalCase
+      ? `Clinical case context (must follow exactly, do not invent conflicting details):\n${JSON.stringify(request.config.clinicalCase)}`
+      : 'No pre-generated clinical case payload.';
+
     const message = [
       `Specialty: "${request.config.specialty}".`,
       `Scenario: "${request.config.scenario}".`,
       `Difficulty: ${request.config.difficulty}.`,
       `Lab duration: ${request.config.durationMinutes} minutes.`,
       `Specialty category: ${category}.`,
+      clinicalCaseContext,
       this.profiles.buildPromptContext(profile, request.config),
       request.sessionMeta
         ? `Current session state: title="${request.sessionMeta.title || ''}", role="${request.sessionMeta.role || ''}", setting="${request.sessionMeta.setting || ''}", stepIndex=${request.sessionMeta.stepIndex || 0}, estimatedTotalSteps=${request.sessionMeta.estimatedTotalSteps || 0}, score=${request.sessionMeta.score || 50}, consultant="${request.sessionMeta.consultantLabel || ''}".`
@@ -423,34 +433,28 @@ export class SimulationEngineService {
       message,
       systemInstruction,
       jsonMode: true,
-      maxTokens: 1600,
+      maxTokens: 1400,
       featureHint: 'simulation',
-      knowledgeMode: 'strict'
+      knowledgeMode: 'off'
     });
 
+    this.startStreamingPreview(request.requestType);
     try {
-      const streamed = await this.requestAiTurnStream(body, request.requestType);
-      return this.parseJson(streamed);
-    } catch (streamError) {
-      console.warn('Simulation streaming failed, falling back to non-streaming mode', streamError);
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+
+      const payload = await response.json().catch(() => null) as { text?: string; error?: string } | null;
+      if (!response.ok || !payload?.text) {
+        throw new Error(payload?.error || `Simulation request failed (${response.status})`);
+      }
+
+      return this.parseJson(payload.text);
+    } finally {
       this.clearStreamingPreview();
     }
-
-    const response = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body
-    });
-
-    const payload = await response.json().catch(() => null) as { text?: string; error?: string; validation?: unknown } | null;
-    if (payload?.validation) {
-      this.ai.registerKnowledgeValidation(payload.validation);
-    }
-    if (!response.ok || !payload?.text) {
-      throw new Error(payload?.error || `Simulation request failed (${response.status})`);
-    }
-
-    return this.parseJson(payload.text);
   }
 
   private async requestAiTurnStream(body: string, requestType: SimulationTurnRequest['requestType']): Promise<string> {
@@ -487,15 +491,19 @@ export class SimulationEngineService {
           continue;
         }
 
-        const event = JSON.parse(trimmed) as { type?: string; text?: string; error?: string };
+        const event = JSON.parse(trimmed) as { type?: string; text?: string; delta?: string; error?: string };
         if (event.type === 'error') {
           throw new Error(event.error || 'Simulation streaming failed');
         }
 
-        if (event.type === 'delta' && typeof event.text === 'string') {
-          finalText = event.text;
-          const preview = this.extractAssistantPreview(event.text) || this.streamingPreviewLabel(requestType);
+        if (event.type === 'chunk' && typeof event.delta === 'string') {
+          finalText += event.delta;
+          const preview = this.extractAssistantPreview(finalText) || this.streamingPreviewLabel(requestType);
           this.updateStreamingPreview(preview);
+        }
+
+        if (event.type === 'meta') {
+          continue;
         }
 
         if (event.type === 'done' && typeof event.text === 'string') {
@@ -738,7 +746,7 @@ export class SimulationEngineService {
     }
 
     const config = this.activeConfig;
-    const generatedCase = config?.generatedCase || null;
+    const generatedCase = config?.generatedCase || this.buildGeneratedCaseFromClinicalCase(config?.clinicalCase || null, config) || null;
     if (!config || !generatedCase || !summary) {
       return;
     }
@@ -784,6 +792,63 @@ export class SimulationEngineService {
       this.clinicalRecordSaved = false;
       console.error('Failed to persist clinical record', error);
     }
+  }
+
+  private buildGeneratedCaseFromClinicalCase(clinicalCase: SimulationScenarioConfig['clinicalCase'] | null, config: SimulationScenarioConfig | null) {
+    if (!clinicalCase || !config) {
+      return null;
+    }
+
+    const requestedTopic = clinicalCase.requestedTopic || clinicalCase.title;
+    const diseaseLabelEn = requestedTopic || clinicalCase.title;
+
+    const ageGroup = clinicalCase.patient.age < 16
+      ? 'child'
+      : clinicalCase.patient.age > 64
+        ? 'older-adult'
+        : 'adult';
+
+    const patientSex = (clinicalCase.patient.gender === 'female' ? 'female' : 'male') as 'male' | 'female';
+
+    return {
+      caseId: clinicalCase.caseId,
+      sessionId: clinicalCase.sessionId,
+      signature: `${clinicalCase.caseId}-${clinicalCase.sessionId}`,
+      language: clinicalCase.language,
+      specialty: clinicalCase.specialty,
+      scenario: requestedTopic,
+      specialtyTrack: clinicalCase.setting.careArea || clinicalCase.specialty,
+      title: clinicalCase.title,
+      diseaseKey: diseaseLabelEn.toLowerCase().replace(/\s+/g, '-'),
+      diseaseLabel: clinicalCase.title,
+      diseaseLabelEn,
+      difficulty: config.difficulty,
+      runtimeCategory: 'respiratory' as const,
+      patientAge: clinicalCase.patient.age || 0,
+      ageGroup: ageGroup as 'child' | 'adult' | 'older-adult',
+      patientSex,
+      severity: clinicalCase.setting.urgencyLevel || '',
+      complication: '',
+      source: '',
+      medicalHistory: clinicalCase.pastMedicalHistory || [],
+      chiefComplaint: clinicalCase.chiefComplaint,
+      openingMessage: clinicalCase.historyOfPresentIllness,
+      caseDescription: clinicalCase.historyOfPresentIllness,
+      treatmentResponse: '',
+      learningFocus: clinicalCase.learningObjectives || [],
+      recommendedInvestigations: clinicalCase.availableTests || [],
+      vitals: {
+        heartRate: 0,
+        respiratoryRate: 0,
+        oxygenSaturation: 0,
+        systolic: 0,
+        diastolic: 0,
+        temperatureCelsius: 0
+      },
+      labs: [],
+      levelTier: 'bronze' as const,
+      createdAt: new Date().toISOString()
+    };
   }
 
   private normalizeTurn(input: unknown, request: SimulationTurnRequest): SimulationTurnResponse {

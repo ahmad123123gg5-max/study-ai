@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { buildKnowledgeGuardianInstruction } from '../../knowledge-validation.js';
 const normalizeText = (value) => value.replace(/\s+/g, ' ').trim();
 const contentToPlainText = (content) => {
     if (typeof content === 'string') {
@@ -106,12 +105,11 @@ export class AIHyperOptimizationEngine {
                 content: 'Return strictly valid JSON only. Do not include markdown fences or extra explanations.'
             });
         }
-        const guardian = buildKnowledgeGuardianInstruction(request.validationContext);
         const systemInstruction = normalizeText(request.systemInstruction);
         const grounding = this.createGroundingBlock(groundedResults, request.validationContext.languageCode);
         messages.push({
             role: 'system',
-            content: [systemInstruction, guardian, grounding].filter(Boolean).join('\n\n')
+            content: [systemInstruction, grounding].filter(Boolean).join('\n\n')
         });
         messages.push(...this.compactHistory(request.historyMessages));
         messages.push({

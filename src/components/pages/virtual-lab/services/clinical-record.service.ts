@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, isDevMode } from '@angular/core';
 import {
   ClinicalProgressStats,
   ClinicalRecordSummary,
@@ -77,17 +77,54 @@ export class ClinicalRecordService {
   readonly savingRecord = signal(false);
 
   async requestNextCase(config: ScenarioConfig, language: 'ar' | 'en'): Promise<GeneratedClinicalCase> {
-    const response = await this.request<NextClinicalCaseResponse>(`${this.apiBase}/cases/next`, {
-      method: 'POST',
-      body: JSON.stringify({
+    const requestId = crypto.randomUUID();
+    const sessionId = crypto.randomUUID();
+    const timestamp = Date.now();
+    const seed = `${timestamp}-${Math.random().toString(36).slice(2)}-${requestId.slice(0, 8)}`;
+    const requestedCondition = config.scenario?.trim() || '';
+
+    if (isDevMode()) {
+      console.info('[virtual-lab] request new case', {
+        requestId,
+        sessionId,
         specialty: config.specialty,
-        scenario: config.scenario,
+        requestedCondition,
+        difficulty: config.difficulty,
+        seed
+      });
+    }
+
+    const response = await this.request<NextClinicalCaseResponse>(`${this.apiBase}/cases/ai?rid=${encodeURIComponent(requestId)}&ts=${timestamp}`, {
+      method: 'POST',
+      cache: 'no-store',
+      body: JSON.stringify({
+        requestId,
+        sessionId,
+        timestamp,
+        seed,
+        specialty: config.specialty,
+        requestedCondition,
+        scenario: requestedCondition,
         difficulty: config.difficulty,
         language
-      })
+      }),
+      headers: {
+        'Cache-Control': 'no-store',
+        Pragma: 'no-cache',
+        'X-Request-Id': requestId
+      }
     });
 
     this.stats.set(response.stats || { ...EMPTY_STATS });
+    if (isDevMode()) {
+      console.info('[virtual-lab] received case', {
+        requestId,
+        sessionId,
+        caseId: response.case?.caseId,
+        disease: response.case?.diseaseLabelEn,
+        specialty: response.case?.specialty
+      });
+    }
     return response.case;
   }
 

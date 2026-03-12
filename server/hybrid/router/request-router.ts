@@ -13,7 +13,6 @@ export class SmartRequestRouter {
     const simpleQuery = SIMPLE_QUERY_RE.test(message) || message.length <= 220;
     const generative = GENERATIVE_RE.test(combined) || request.jsonMode || hasFiles;
     const factualDomain = knowledgeMode !== 'off' && request.validationContext.domain !== 'general_academic';
-    const highRisk = request.validationContext.riskLevel === 'high';
     const heavy = message.length > 1400 || hasFiles || /research|quiz|exam|case|file|ملف|بحث/i.test(combined);
 
     if (!generative && !hasFiles && !hasHistory && simpleQuery) {
@@ -42,7 +41,7 @@ export class SmartRequestRouter {
         needsRag: knowledgeMode !== 'off' && factualDomain,
         canUseRagOnly: false,
         needsAi: true,
-        allowStreaming: !request.jsonMode && !highRisk,
+        allowStreaming: !request.jsonMode,
         backgroundCandidate: true,
         preferredModel: request.model
       };
@@ -58,7 +57,7 @@ export class SmartRequestRouter {
       needsRag: knowledgeMode !== 'off' && factualDomain,
       canUseRagOnly: false,
       needsAi: true,
-      allowStreaming: !request.jsonMode && !highRisk,
+      allowStreaming: !request.jsonMode,
       backgroundCandidate: heavy,
       preferredModel: request.model
     };

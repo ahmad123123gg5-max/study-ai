@@ -28,8 +28,24 @@ export class VirtualLabSessionService {
     this.routeTo('simulation-setup');
   }
 
+  resetSimulationState() {
+    this.reviewRecordId.set(null);
+    this.simulationConfig.set(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(this.simulationStorageKey);
+    }
+  }
+
   openSimulationSession(config: SimulationScenarioConfig) {
     this.simulationConfig.set(config);
+    this.reviewRecordId.set(null);
+    this.routeTo('simulation-session');
+  }
+
+  resumeSimulationSession() {
+    if (!this.simulationConfig()) {
+      return;
+    }
     this.reviewRecordId.set(null);
     this.routeTo('simulation-session');
   }
@@ -142,8 +158,11 @@ export class VirtualLabSessionService {
       const generatedCase = parsed.generatedCase && typeof parsed.generatedCase === 'object'
         ? parsed.generatedCase as SimulationScenarioConfig['generatedCase']
         : null;
+      const clinicalCase = parsed.clinicalCase && typeof parsed.clinicalCase === 'object'
+        ? parsed.clinicalCase as SimulationScenarioConfig['clinicalCase']
+        : null;
 
-      if (!specialty || !scenario) {
+      if (!specialty) {
         return null;
       }
 
@@ -153,7 +172,9 @@ export class VirtualLabSessionService {
         difficulty,
         durationMinutes,
         language,
-        generatedCase
+        generatedCase,
+        clinicalCase,
+        referenceImages: []
       };
     } catch {
       return null;
@@ -170,6 +191,11 @@ export class VirtualLabSessionService {
       return;
     }
 
-    localStorage.setItem(storageKey, JSON.stringify(config));
+    const persistedConfig: SimulationScenarioConfig = {
+      ...config,
+      referenceImages: []
+    };
+
+    localStorage.setItem(storageKey, JSON.stringify(persistedConfig));
   }
 }

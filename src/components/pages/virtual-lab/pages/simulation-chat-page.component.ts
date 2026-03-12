@@ -93,7 +93,7 @@ import { VirtualLabSessionService } from '../services/virtual-lab-session.servic
             </button>
             <button
               type="button"
-              (click)="handleBack()"
+              (click)="startNewCase()"
               class="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-black text-white transition hover:bg-white/10"
             >
               {{ ui('ابدأ حالة جديدة', 'Start New Case') }}
@@ -109,6 +109,25 @@ import { VirtualLabSessionService } from '../services/virtual-lab-session.servic
               <span class="rounded-full border border-white/10 bg-slate-900/80 px-3 py-1 text-[11px] font-black text-slate-200">{{ engine.sessionMeta()?.difficultyLabel }}</span>
               <span class="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-black text-emerald-100">{{ engine.sessionMeta()?.coachLabel }}</span>
             </div>
+
+            @if (referenceImages().length > 0) {
+              <div class="rounded-[1.4rem] border border-white/10 bg-white/[0.03] p-3">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <p class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">{{ ui('صور مرجعية محلية', 'Local Reference Images') }}</p>
+                  <span class="text-[11px] font-bold text-cyan-100">{{ referenceImages().length }} {{ ui('صورة', 'image(s)') }}</span>
+                </div>
+                <div class="flex gap-3 overflow-x-auto pb-1">
+                  @for (image of referenceImages(); track image.id) {
+                    <div class="w-28 shrink-0 overflow-hidden rounded-[1.1rem] border border-white/10 bg-slate-900/80">
+                      <div class="aspect-square overflow-hidden">
+                        <img [src]="image.dataUrl" [alt]="image.name" class="h-full w-full object-cover">
+                      </div>
+                      <p class="truncate px-3 py-2 text-[11px] font-semibold text-slate-300">{{ image.name }}</p>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
 
             <div class="min-h-0 flex-1 overflow-hidden rounded-[1.8rem] border border-white/10 bg-slate-950/94 p-3 md:p-4">
               <app-simulation-message-list [messages]="engine.messages()" [language]="language()"></app-simulation-message-list>
@@ -155,6 +174,7 @@ export class SimulationChatPageComponent implements OnDestroy {
   readonly engine = inject(SimulationEngineService);
   readonly mobilePanelOpen = signal(false);
   readonly language = computed<'ar' | 'en'>(() => this.session.simulationConfig()?.language === 'ar' ? 'ar' : 'en');
+  readonly referenceImages = computed(() => this.session.simulationConfig()?.referenceImages || []);
   readonly criticalAlert = computed(() => {
     const panel = this.engine.panelConfig();
     return this.engine.isMedicalSession()
@@ -209,8 +229,14 @@ export class SimulationChatPageComponent implements OnDestroy {
   }
 
   handleBack() {
+    this.mobilePanelOpen.set(false);
+    this.session.routeTo('simulation-setup');
+  }
+
+  startNewCase() {
     this.engine.reset();
     this.mobilePanelOpen.set(false);
+    this.session.resetSimulationState();
     this.session.routeTo('simulation-setup');
   }
 

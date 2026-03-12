@@ -171,19 +171,15 @@ export class ClinicalCaseLibraryService {
     return this.lensById('allied-health');
   }
 
-  resolveCaseId(topic: string, lens: ClinicalSpecialtyLens): ClinicalCaseId {
+  resolveCaseId(topic: string, lens: ClinicalSpecialtyLens, seed: number): ClinicalCaseId {
     const normalized = this.normalize(topic);
     const matched = this.definitions.find((definition) => definition.aliases.some((alias) => normalized.includes(alias)));
     if (matched) {
       return matched.id;
     }
 
-    if (lens.id === 'pediatrics') return 'acute-asthma';
-    if (lens.id === 'obstetrics') return 'postpartum-hemorrhage';
-    if (lens.id === 'surgery') return 'acute-appendicitis';
-    if (lens.id === 'icu') return 'septic-shock';
-    if (lens.id === 'emergency') return 'anaphylaxis';
-    return 'pneumonia';
+    const pool = this.fallbackCasePool(lens.id);
+    return pool[seed % pool.length] || 'pneumonia';
   }
 
   definitionById(id: ClinicalCaseId): ClinicalCaseDefinition {
@@ -196,14 +192,28 @@ export class ClinicalCaseLibraryService {
 
   createContext(config: SimulationScenarioConfig): GeneratedCaseContext {
     const lens = this.resolveLens(config.specialty);
-    const definition = this.definitionById(this.resolveCaseId(config.scenario, lens));
-    const seed = this.createSeed(`${config.specialty}:${config.scenario}:${config.difficulty}`);
+    const generatedCase = config.generatedCase || null;
+    const topic = (generatedCase?.diseaseLabelEn || generatedCase?.diseaseKey || config.scenario || config.specialty).trim();
+    const seedSource = [
+      config.specialty,
+      topic,
+      config.difficulty,
+      generatedCase?.signature || generatedCase?.sessionId || ''
+    ].join(':');
+    const seed = this.createSeed(seedSource);
+    const definition = this.definitionById(this.resolveCaseId(topic, lens, seed));
     const patientSex = definition.gender === 'any'
-      ? (seed % 2 === 0 ? 'male' : 'female')
+      ? (generatedCase?.patientSex === 'female' || generatedCase?.patientSex === 'male' ? generatedCase.patientSex : (seed % 2 === 0 ? 'male' : 'female'))
       : definition.gender;
     const ageSpan = Math.max(1, (definition.ageRange[1] - definition.ageRange[0]) + 1);
-    const patientAge = definition.ageRange[0] + (seed % ageSpan);
+    const patientAge = typeof generatedCase?.patientAge === 'number'
+      ? generatedCase.patientAge
+      : definition.ageRange[0] + (seed % ageSpan);
     const names = patientSex === 'female' ? FEMALE_NAMES : MALE_NAMES;
+
+    const patientName = generatedCase?.patientSex === 'female' || generatedCase?.patientSex === 'male'
+      ? names[seed % names.length]
+      : names[seed % names.length];
 
     return {
       config,
@@ -211,7 +221,7 @@ export class ClinicalCaseLibraryService {
       seed,
       lens,
       definition,
-      patientName: names[seed % names.length],
+      patientName,
       patientSex,
       patientAge
     };
@@ -481,6 +491,26 @@ export class ClinicalCaseLibraryService {
       .replace(/[ة]/g, 'ه')
       .replace(/[ىي]/g, 'ي')
       .replace(/\s+/g, ' ');
+  }
+
+  private fallbackCasePool(lensId: ClinicalSpecialtyLensId): ClinicalCaseId[] {
+    switch (lensId) {
+      case 'pediatrics':
+        return ['acute-asthma', 'pneumonia', 'hypoglycemia', 'septic-shock'];
+      case 'obstetrics':
+        return ['postpartum-hemorrhage', 'septic-shock', 'gi-bleed'];
+      case 'surgery':
+        return ['acute-appendicitis', 'gi-bleed', 'septic-shock'];
+      case 'icu':
+        return ['septic-shock', 'myocardial-infarction', 'dka', 'stroke'];
+      case 'emergency':
+        return ['anaphylaxis', 'myocardial-infarction', 'stroke', 'septic-shock', 'gi-bleed'];
+      case 'medicine':
+      case 'nursing':
+        return ['pneumonia', 'copd-exacerbation', 'hypoglycemia', 'dka', 'gi-bleed'];
+      default:
+        return ['pneumonia', 'hypoglycemia', 'septic-shock', 'copd-exacerbation'];
+    }
   }
 
   private round(value: number): number {

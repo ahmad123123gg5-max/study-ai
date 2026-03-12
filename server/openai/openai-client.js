@@ -88,6 +88,32 @@ export async function* streamOpenAIChatCompletion({ apiKey, model, messages, tem
     const decoder = new TextDecoder();
     let buffer = '';
     let finalUsage;
+    const processStreamLine = (rawLine) => {
+        const line = rawLine.trim();
+        if (!line.startsWith('data:')) {
+            return null;
+        }
+        const data = line.slice(5).trim();
+        if (!data) {
+            return null;
+        }
+        if (data === '[DONE]') {
+            return { type: 'done', usage: finalUsage };
+        }
+        const payload = JSON.parse(data);
+        if (payload.usage) {
+            finalUsage = {
+                promptTokens: payload.usage.prompt_tokens,
+                completionTokens: payload.usage.completion_tokens,
+                totalTokens: payload.usage.total_tokens
+            };
+        }
+        const delta = payload.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string' && delta.length > 0) {
+            return { type: 'delta', text: delta };
+        }
+        return null;
+    };
     while (true) {
         const { done, value } = await reader.read();
         if (done) {
@@ -97,30 +123,29 @@ export async function* streamOpenAIChatCompletion({ apiKey, model, messages, tem
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
         for (const rawLine of lines) {
-            const line = rawLine.trim();
-            if (!line.startsWith('data:')) {
+            const event = processStreamLine(rawLine);
+            if (!event) {
                 continue;
             }
-            const data = line.slice(5).trim();
-            if (!data) {
-                continue;
-            }
-            if (data === '[DONE]') {
-                yield { type: 'done', usage: finalUsage };
+            if (event.type === 'done') {
+                yield event;
                 return;
             }
-            const payload = JSON.parse(data);
-            if (payload.usage) {
-                finalUsage = {
-                    promptTokens: payload.usage.prompt_tokens,
-                    completionTokens: payload.usage.completion_tokens,
-                    totalTokens: payload.usage.total_tokens
-                };
+            yield event;
+        }
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+        for (const rawLine of buffer.split('\n')) {
+            const event = processStreamLine(rawLine);
+            if (!event) {
+                continue;
             }
-            const delta = payload.choices?.[0]?.delta?.content;
-            if (typeof delta === 'string' && delta.length > 0) {
-                yield { type: 'delta', text: delta };
+            if (event.type === 'done') {
+                yield event;
+                return;
             }
+            yield event;
         }
     }
     yield { type: 'done', usage: finalUsage };

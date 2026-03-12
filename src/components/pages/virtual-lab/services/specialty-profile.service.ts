@@ -510,11 +510,8 @@ export class SpecialtyProfileService {
 
   shouldUseMedicalRuntime(config: SimulationScenarioConfig, providedProfile?: SpecialtyProfile): boolean {
     const profile = providedProfile || this.resolveProfile(config.specialty, config.scenario);
-    if (profile.category === 'medical') {
-      return true;
-    }
-
-    return profile.runtimeMode === 'medical-live';
+    const hasLocalReferenceImages = (config.referenceImages?.length || 0) > 0;
+    return profile.runtimeMode === 'medical-live' && !hasLocalReferenceImages;
   }
 
   wantsMonitor(config: SimulationScenarioConfig, providedProfile?: SpecialtyProfile): boolean {
@@ -525,7 +522,7 @@ export class SpecialtyProfileService {
     if (profile.monitorPolicy === 'never') {
       return false;
     }
-    return this.shouldUseMedicalRuntime(config, profile);
+    return profile.category === 'medical' || this.shouldUseMedicalRuntime(config, profile);
   }
 
   consultantLabel(profile: SpecialtyProfile, language: 'ar' | 'en'): string {

@@ -691,8 +691,12 @@ export const normalizeGeneratedClinicalCase = (value) => {
     const vitalsCandidate = candidate['vitals'] && typeof candidate['vitals'] === 'object'
         ? candidate['vitals']
         : {};
+    const sessionId = typeof candidate['sessionId'] === 'string' && candidate.sessionId.trim()
+        ? candidate.sessionId
+        : caseId;
     return {
         caseId,
+        sessionId,
         signature,
         language: candidate['language'] === 'ar' ? 'ar' : 'en',
         specialty,
@@ -899,6 +903,7 @@ export const generateClinicalCase = (args) => {
             : `This case is built around ${template.label.en} at ${severity.en} severity inside ${trackLabel}. Current findings suggest ${source.en} with ${complication.en}. Expected treatment response: ${response.en}.`;
         return {
             caseId: randomUUID(),
+            sessionId: randomUUID(),
             signature,
             language: args.language,
             specialty: args.specialty,
@@ -936,6 +941,7 @@ export const generateClinicalCase = (args) => {
     const fallbackVitals = buildVitals(fallbackTemplate.category, 1, args.difficulty, fallbackAgeGroup, fallbackRand);
     return {
         caseId: randomUUID(),
+        sessionId: randomUUID(),
         signature: buildSignature([args.userId, fallbackTemplate.key, String(Date.now())]),
         language: args.language,
         specialty: args.specialty,

@@ -26,11 +26,20 @@ export interface ScenarioConfig {
   scenario: string;
   difficulty: ScenarioDifficulty;
   durationMinutes: SimulationDurationMinutes;
+  referenceImages?: SimulationReferenceImage[];
 }
 
 export interface SimulationScenarioConfig extends ScenarioConfig {
   language: 'ar' | 'en';
   generatedCase?: GeneratedClinicalCase | null;
+  clinicalCase?: ClinicalAiCase | null;
+}
+
+export interface SimulationReferenceImage {
+  id: string;
+  name: string;
+  dataUrl: string;
+  mimeType: string;
 }
 
 export interface ClinicalLabVariation {
@@ -42,6 +51,7 @@ export interface ClinicalLabVariation {
 
 export interface GeneratedClinicalCase {
   caseId: string;
+  sessionId: string;
   signature: string;
   language: 'ar' | 'en';
   specialty: string;
@@ -77,6 +87,59 @@ export interface GeneratedClinicalCase {
   labs: ClinicalLabVariation[];
   levelTier: ClinicalLevelTier;
   createdAt: string;
+}
+
+export interface ClinicalAiCase {
+  caseId: string;
+  sessionId: string;
+  specialty: string;
+  difficulty: string;
+  requestedTopic: string;
+  language: 'ar' | 'en';
+  title: string;
+  patient: {
+    name: string;
+    age: number;
+    gender: string;
+    weight?: string;
+    background?: string;
+  };
+  setting: {
+    careArea?: string;
+    urgencyLevel?: string;
+    context?: string;
+  };
+  chiefComplaint: string;
+  historyOfPresentIllness: string;
+  pastMedicalHistory: string[];
+  medications: string[];
+  allergies: string[];
+  vitalSigns: {
+    temperature: string;
+    heartRate: string;
+    bloodPressure: string;
+    respiratoryRate: string;
+    oxygenSaturation: string;
+    painScore?: string;
+  };
+  physicalExam: {
+    generalAppearance: string;
+    systemFindings: string[];
+  };
+  initialClues: string[];
+  redFlags: string[];
+  expectedFocus: string[];
+  progressionModel: {
+    canDeteriorate: boolean;
+    canImprove: boolean;
+    triggers: string[];
+  };
+  availableTests: string[];
+  initialManagementPossibilities: string[];
+  learningObjectives: string[];
+  aiNotesInternal: {
+    notVisibleToStudent: true;
+  };
 }
 
 export interface ClinicalRecordSummary {

@@ -31,7 +31,6 @@ export interface HybridRuntimeConfig {
     defaultModel: string;
     fastModel: string;
     embeddingModel: string;
-    enableFullAuditOnLowRisk: boolean;
   };
   cache: {
     defaultTtlMs: number;
@@ -68,8 +67,7 @@ export const getHybridRuntimeConfig = (): HybridRuntimeConfig => ({
   ai: {
     defaultModel: process.env['OPENAI_MODEL'] || 'gpt-4o-mini',
     fastModel: process.env['HYBRID_FAST_MODEL'] || process.env['OPENAI_MODEL'] || 'gpt-4o-mini',
-    embeddingModel: process.env['OPENAI_EMBEDDING_MODEL'] || 'text-embedding-3-small',
-    enableFullAuditOnLowRisk: parseBoolean(process.env['HYBRID_FULL_AUDIT_LOW_RISK'], false)
+    embeddingModel: process.env['OPENAI_EMBEDDING_MODEL'] || 'text-embedding-3-small'
   },
   cache: {
     defaultTtlMs: parseNumber(process.env['HYBRID_CACHE_TTL_SECONDS'], 3600) * 1000,

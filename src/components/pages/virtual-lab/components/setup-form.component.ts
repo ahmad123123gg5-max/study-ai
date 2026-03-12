@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   ScenarioConfig,
   ScenarioDifficulty,
+  SimulationReferenceImage,
   SimulationDurationMinutes,
   VIRTUAL_LAB_DIFFICULTY_OPTIONS,
   VIRTUAL_LAB_DURATION_OPTIONS
@@ -41,6 +42,59 @@ import {
             [placeholder]="scenarioPlaceholder()"
           ></textarea>
         </label>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-sm font-black text-white">{{ imageLabel() }}</span>
+            @if (referenceImages().length > 0) {
+              <span class="text-xs font-bold text-cyan-200">{{ referenceImages().length }} {{ imageCountLabel() }}</span>
+            }
+          </div>
+
+          <label class="block cursor-pointer rounded-[1.7rem] border border-dashed border-white/10 bg-slate-900/70 p-5 transition hover:border-cyan-400/40 hover:bg-slate-900">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              class="hidden"
+              (change)="onImageSelected($event)"
+            >
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-black text-white">{{ imageHelperText() }}</p>
+                <p class="mt-2 text-xs font-medium leading-6 text-slate-400">{{ imageNote() }}</p>
+              </div>
+              <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-100">
+                <i class="fa-solid fa-images"></i>
+              </div>
+            </div>
+          </label>
+
+          @if (referenceImages().length > 0) {
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              @for (image of referenceImages(); track image.id) {
+                <div class="overflow-hidden rounded-[1.4rem] border border-white/10 bg-slate-900/85">
+                  <div class="aspect-[4/3] overflow-hidden bg-slate-950">
+                    <img [src]="image.dataUrl" [alt]="image.name" class="h-full w-full object-cover">
+                  </div>
+                  <div class="flex items-center justify-between gap-3 px-4 py-3">
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-bold text-white">{{ image.name }}</p>
+                      <p class="text-[11px] font-medium text-slate-500">{{ image.mimeType }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      (click)="removeImage(image.id)"
+                      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/10 text-rose-200 transition hover:bg-rose-500/20"
+                    >
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
 
         <div class="space-y-3">
           <span class="text-sm font-black text-white">{{ difficultyLabel() }}</span>
@@ -136,6 +190,10 @@ export class SetupFormComponent {
   readonly specialtyPlaceholder = input.required<string>();
   readonly scenarioLabel = input.required<string>();
   readonly scenarioPlaceholder = input.required<string>();
+  readonly imageLabel = input.required<string>();
+  readonly imageHelperText = input.required<string>();
+  readonly imageNote = input.required<string>();
+  readonly imageCountLabel = input('images');
   readonly difficultyLabel = input.required<string>();
   readonly durationLabel = input.required<string>();
   readonly submitLabel = input.required<string>();
@@ -150,10 +208,11 @@ export class SetupFormComponent {
 
   readonly difficultyOptions = VIRTUAL_LAB_DIFFICULTY_OPTIONS;
   readonly durationOptions = VIRTUAL_LAB_DURATION_OPTIONS;
+  readonly referenceImages = signal<SimulationReferenceImage[]>([]);
 
   readonly form = this.fb.nonNullable.group({
     specialty: ['', Validators.required],
-    scenario: ['', Validators.required],
+    scenario: [''],
     difficulty: ['medium' as ScenarioDifficulty, Validators.required],
     durationMinutes: [10 as SimulationDurationMinutes, Validators.required]
   });
@@ -171,6 +230,7 @@ export class SetupFormComponent {
         difficulty: value.difficulty,
         durationMinutes: value.durationMinutes || 10
       }, { emitEvent: false });
+      this.referenceImages.set(Array.isArray(value.referenceImages) ? value.referenceImages : []);
     });
   }
 
@@ -196,8 +256,26 @@ export class SetupFormComponent {
       specialty: value.specialty.trim(),
       scenario: value.scenario.trim(),
       difficulty: value.difficulty,
-      durationMinutes: value.durationMinutes
+      durationMinutes: value.durationMinutes,
+      referenceImages: this.referenceImages()
     });
+  }
+
+  async onImageSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files || []).filter((file) => file.type.startsWith('image/'));
+    if (files.length === 0) {
+      input.value = '';
+      return;
+    }
+
+    const nextImages = await Promise.all(files.map((file) => this.readImage(file)));
+    this.referenceImages.update((current) => [...current, ...nextImages]);
+    input.value = '';
+  }
+
+  removeImage(imageId: string) {
+    this.referenceImages.update((current) => current.filter((image) => image.id !== imageId));
   }
 
   durationOptionLabel(minutes: SimulationDurationMinutes) {
@@ -207,5 +285,19 @@ export class SetupFormComponent {
   durationOptionDescription(minutes: SimulationDurationMinutes) {
     const option = this.durationOptions.find((item) => item.value === minutes);
     return option?.description || '';
+  }
+
+  private readImage(file: File): Promise<SimulationReferenceImage> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error || new Error('Failed to read image file.'));
+      reader.onload = () => resolve({
+        id: crypto.randomUUID(),
+        name: file.name,
+        dataUrl: typeof reader.result === 'string' ? reader.result : '',
+        mimeType: file.type || 'image/*'
+      });
+      reader.readAsDataURL(file);
+    });
   }
 }

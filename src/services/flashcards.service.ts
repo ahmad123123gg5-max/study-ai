@@ -846,10 +846,7 @@ Keep the content faithful to the source and respond in ${this.ai.getLanguageName
       })
     });
 
-    const payload = await response.json().catch(() => null) as { text?: string; error?: string; validation?: unknown } | null;
-    if (payload?.validation) {
-      this.ai.registerKnowledgeValidation(payload.validation);
-    }
+    const payload = await response.json().catch(() => null) as { text?: string; error?: string } | null;
     if (!response.ok || !payload?.text) {
       throw new Error(payload?.error || `Flashcards AI request failed (${response.status})`);
     }

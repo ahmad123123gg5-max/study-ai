@@ -1,12 +1,4 @@
 import {
-  buildBlockedKnowledgeResponse,
-  buildKnowledgeRevisionInstruction,
-  buildKnowledgeValidatorPrompt,
-  extractJsonPayload,
-  fallbackKnowledgeValidationResult,
-  normalizeKnowledgeValidationResult
-} from '../../knowledge-validation.js';
-import {
   createOpenAIChatCompletionDetailed,
   streamOpenAIChatCompletion,
   type OpenAIChatCompletionUsage
@@ -28,8 +20,7 @@ export class AIEngine {
     private readonly apiKey: string | undefined,
     private readonly fastModel: string,
     private readonly optimizer: AIHyperOptimizationEngine,
-    private readonly monitor: HybridPerformanceMonitor,
-    private readonly enableFullAuditOnLowRisk: boolean
+    private readonly monitor: HybridPerformanceMonitor
   ) {}
 
   private normalizeUsage(usage: OpenAIChatCompletionUsage | undefined, text: string): HybridUsageSnapshot {
@@ -47,50 +38,12 @@ export class AIEngine {
     };
   }
 
-  private shouldUseFullAudit(request: HybridChatRequest): boolean {
-    return this.enableFullAuditOnLowRisk ||
-      request.validationContext.riskLevel !== 'low' ||
-      request.validationContext.medicalSafetyApplied ||
-      request.jsonMode;
-  }
-
-  private async auditResponse(
-    request: HybridChatRequest,
-    candidateResponse: string,
-    model: string
-  ) {
-    if (!this.apiKey || !this.shouldUseFullAudit(request)) {
-      return fallbackKnowledgeValidationResult(request.validationContext, candidateResponse);
-    }
-
-    const validatorPrompt = buildKnowledgeValidatorPrompt(request.validationContext, candidateResponse);
-
-    try {
-      const audit = await createOpenAIChatCompletionDetailed({
-        apiKey: this.apiKey,
-        model,
-        messages: [
-          { role: 'system', content: validatorPrompt.system },
-          { role: 'user', content: validatorPrompt.user }
-        ],
-        temperature: 0.1,
-        maxTokens: 900
-      });
-      const parsed = JSON.parse(extractJsonPayload(audit.text)) as unknown;
-      return normalizeKnowledgeValidationResult(parsed, request.validationContext, candidateResponse);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Validator audit failed';
-      return fallbackKnowledgeValidationResult(request.validationContext, candidateResponse, reason);
-    }
-  }
-
   async generate(
     request: HybridChatRequest,
     decision: HybridRoutingDecision,
     groundedResults: RetrievedDocument[]
   ): Promise<{
     text: string;
-    validation: Awaited<ReturnType<AIEngine['auditResponse']>>;
     model: string;
     usage?: HybridUsageSnapshot;
     aiLatencyMs: number;
@@ -103,7 +56,7 @@ export class AIEngine {
     const prepared = this.optimizer.buildMessages(request, groundedResults);
     const startedAt = Date.now();
 
-    let completion = await createOpenAIChatCompletionDetailed({
+    const completion = await createOpenAIChatCompletionDetailed({
       apiKey: this.apiKey,
       model,
       messages: prepared.messages,
@@ -111,45 +64,13 @@ export class AIEngine {
       maxTokens: request.maxTokens
     });
 
-    let text = completion.text;
-    let validation = await this.auditResponse(request, text, model);
-
-    if (validation.needsRevision || validation.blocked) {
-      try {
-        const revised = await createOpenAIChatCompletionDetailed({
-          apiKey: this.apiKey,
-          model,
-          messages: [
-            ...prepared.messages,
-            { role: 'assistant', content: text },
-            { role: 'system', content: buildKnowledgeRevisionInstruction(request.validationContext, validation) }
-          ],
-          temperature: request.jsonMode ? 0.1 : 0.2,
-          maxTokens: request.maxTokens
-        });
-
-        const revisedValidation = await this.auditResponse(request, revised.text, model);
-        if (revisedValidation.score >= validation.score || validation.blocked) {
-          completion = revised;
-          text = revised.text;
-          validation = revisedValidation;
-        }
-      } catch {
-        // Keep the original answer if revision fails.
-      }
-    }
-
-    if (validation.blocked && !request.jsonMode) {
-      text = buildBlockedKnowledgeResponse(request.validationContext, validation);
-    }
-
+    const text = completion.text;
     const aiLatencyMs = Date.now() - startedAt;
     const usage = this.normalizeUsage(completion.usage, text);
     this.monitor.recordAiUsage(aiLatencyMs, usage);
 
     return {
       text,
-      validation,
       model,
       usage,
       aiLatencyMs
@@ -163,7 +84,6 @@ export class AIEngine {
   ): AsyncGenerator<HybridStreamEvent> {
     if (
       !decision.allowStreaming ||
-      request.validationContext.riskLevel === 'high' ||
       request.jsonMode ||
       !this.apiKey
     ) {
@@ -174,7 +94,6 @@ export class AIEngine {
         route: groundedResults.length > 0 ? 'rag_ai' : 'ai',
         reason: decision.reason,
         cacheLayer: 'miss',
-        validation: generated.validation,
         groundedResults,
         model: generated.model,
         metrics: {
@@ -211,7 +130,6 @@ export class AIEngine {
       }
     }
 
-    const validation = await this.auditResponse(request, fullText, model);
     const aiLatencyMs = Date.now() - startedAt;
     this.monitor.recordAiUsage(aiLatencyMs, usage);
 
@@ -220,7 +138,6 @@ export class AIEngine {
       route: groundedResults.length > 0 ? 'rag_ai' : 'ai',
       reason: decision.reason,
       cacheLayer: 'miss',
-      validation,
       groundedResults,
       model,
       metrics: {

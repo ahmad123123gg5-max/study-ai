@@ -194,6 +194,50 @@ export async function* streamOpenAIChatCompletion({
   let buffer = '';
   let finalUsage: OpenAIChatCompletionUsage | undefined;
 
+  const processStreamLine = (rawLine: string): OpenAIChatStreamEvent | null => {
+    const line = rawLine.trim();
+    if (!line.startsWith('data:')) {
+      return null;
+    }
+
+    const data = line.slice(5).trim();
+    if (!data) {
+      return null;
+    }
+
+    if (data === '[DONE]') {
+      return { type: 'done', usage: finalUsage };
+    }
+
+    const payload = JSON.parse(data) as {
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      };
+      choices?: Array<{
+        delta?: {
+          content?: string;
+        };
+      }>;
+    };
+
+    if (payload.usage) {
+      finalUsage = {
+        promptTokens: payload.usage.prompt_tokens,
+        completionTokens: payload.usage.completion_tokens,
+        totalTokens: payload.usage.total_tokens
+      };
+    }
+
+    const delta = payload.choices?.[0]?.delta?.content;
+    if (typeof delta === 'string' && delta.length > 0) {
+      return { type: 'delta', text: delta };
+    }
+
+    return null;
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) {
@@ -205,46 +249,34 @@ export async function* streamOpenAIChatCompletion({
     buffer = lines.pop() || '';
 
     for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line.startsWith('data:')) {
+      const event = processStreamLine(rawLine);
+      if (!event) {
         continue;
       }
 
-      const data = line.slice(5).trim();
-      if (!data) {
-        continue;
-      }
-
-      if (data === '[DONE]') {
-        yield { type: 'done', usage: finalUsage };
+      if (event.type === 'done') {
+        yield event;
         return;
       }
 
-      const payload = JSON.parse(data) as {
-        usage?: {
-          prompt_tokens?: number;
-          completion_tokens?: number;
-          total_tokens?: number;
-        };
-        choices?: Array<{
-          delta?: {
-            content?: string;
-          };
-        }>;
-      };
+      yield event;
+    }
+  }
 
-      if (payload.usage) {
-        finalUsage = {
-          promptTokens: payload.usage.prompt_tokens,
-          completionTokens: payload.usage.completion_tokens,
-          totalTokens: payload.usage.total_tokens
-        };
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    for (const rawLine of buffer.split('\n')) {
+      const event = processStreamLine(rawLine);
+      if (!event) {
+        continue;
       }
 
-      const delta = payload.choices?.[0]?.delta?.content;
-      if (typeof delta === 'string' && delta.length > 0) {
-        yield { type: 'delta', text: delta };
+      if (event.type === 'done') {
+        yield event;
+        return;
       }
+
+      yield event;
     }
   }
 

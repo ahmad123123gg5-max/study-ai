@@ -811,10 +811,7 @@ Return plain text only.`
       })
     });
 
-    const payload = await response.json().catch(() => null) as { text?: string; error?: string; validation?: unknown } | null;
-    if (payload?.validation) {
-      this.ai.registerKnowledgeValidation(payload.validation);
-    }
+    const payload = await response.json().catch(() => null) as { text?: string; error?: string } | null;
     if (!response.ok || !payload?.text) {
       throw new Error(payload?.error || `Mind map AI request failed (${response.status})`);
     }

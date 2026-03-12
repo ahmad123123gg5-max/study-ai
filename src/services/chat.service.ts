@@ -48,6 +48,7 @@ export class ChatService {
   private readonly DEFAULT_TITLES = new Set(
     SUPPORTED_LANGUAGES.map((language) => this.localization.phrase('New Chat', language.code))
   );
+  private readonly FALLBACK_TITLE = this.localization.phrase('New Chat');
   
   conversations = signal<Conversation[]>([]);
   activeChatId = signal<string | null>(null);
@@ -70,16 +71,23 @@ export class ChatService {
       try {
         const parsed = (JSON.parse(saved) as StoredConversation[])
           .filter((conversation) => conversation.mode !== 'voice' && conversation.mode !== 'voice_tutor')
-          .map((conversation) => ({
-            ...conversation,
-            mode: 'text' as ConversationMode,
-            messages: Array.isArray(conversation.messages)
+          .map((conversation) => {
+            const messages = Array.isArray(conversation.messages)
               ? conversation.messages.map(message => ({
                 ...message,
                 createdAt: typeof message.createdAt === 'number' ? message.createdAt : conversation.createdAt
               }))
-              : []
-          }));
+              : [];
+
+            return {
+              ...conversation,
+              title: this.shouldRefreshAutoTitle(conversation.title, messages)
+                ? this.buildAutoTitle(messages)
+                : conversation.title,
+              mode: 'text' as ConversationMode,
+              messages
+            };
+          });
         this.conversations.set(parsed);
         if (parsed.length > 0) {
           this.activeChatId.set(parsed[0].id);
@@ -116,13 +124,49 @@ export class ChatService {
       if (c.id === chatId) {
         // Update title based on first message if it's still default
         let newTitle = c.title;
-        if (this.DEFAULT_TITLES.has(c.title) && messages.length > 0) {
-          newTitle = messages[0].text.substring(0, 30) + '...';
+        if (this.shouldRefreshAutoTitle(c.title, c.messages) && messages.length > 0) {
+          newTitle = this.buildAutoTitle(messages);
         }
         return { ...c, messages, title: newTitle };
       }
       return c;
     }));
+  }
+
+  private buildAutoTitle(messages: Message[]): string {
+    const sourceText = messages
+      .find((message) => message.role === 'user' && message.text.trim())
+      ?.text.trim() || messages[0]?.text.trim() || '';
+
+    if (!sourceText) {
+      return this.FALLBACK_TITLE;
+    }
+
+    const normalized = sourceText.replace(/\s+/g, ' ').trim();
+    const words = normalized.split(' ').filter(Boolean);
+
+    if (words.length <= 8 && normalized.length <= 72) {
+      return normalized;
+    }
+
+    const byWords = words.slice(0, 8).join(' ');
+    const byChars = normalized.slice(0, 72).trimEnd();
+    const baseTitle = byWords.length >= byChars.length ? byWords : byChars;
+
+    return baseTitle === normalized ? baseTitle : `${baseTitle}...`;
+  }
+
+  private shouldRefreshAutoTitle(title: string, messages: Message[]): boolean {
+    if (this.DEFAULT_TITLES.has(title)) {
+      return true;
+    }
+
+    return title === this.buildLegacyAutoTitle(messages);
+  }
+
+  private buildLegacyAutoTitle(messages: Message[]): string {
+    const legacySource = messages[0]?.text ?? '';
+    return legacySource ? `${legacySource.substring(0, 30)}...` : '';
   }
 
   renameChat(chatId: string, title: string) {

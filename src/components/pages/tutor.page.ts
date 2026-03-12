@@ -134,7 +134,7 @@ interface TutorUnderstandingAction {
                           [class.border-indigo-500/30]="chatService.activeChatId() === chat.id"
                           class="flex-1 text-right p-4 rounded-2xl border border-transparent transition-all flex items-center gap-4 hover:bg-white/5 group">
                     <i class="fa-solid fa-message text-slate-500 group-hover:text-indigo-400" [class.text-indigo-400]="chatService.activeChatId() === chat.id"></i>
-                    <span class="flex-1 text-sm font-bold truncate text-slate-300 group-hover:text-white" [class.text-white]="chatService.activeChatId() === chat.id">
+                    <span class="flex-1 text-sm font-bold text-slate-300 group-hover:text-white leading-snug break-words line-clamp-2" [class.text-white]="chatService.activeChatId() === chat.id">
                       {{ chat.title }}
                     </span>
                   </button>
@@ -175,7 +175,7 @@ interface TutorUnderstandingAction {
               </button>
               <div class="flex items-center gap-2 md:gap-4">
                 <span class="hidden xs:inline text-[10px] md:text-xs font-black text-indigo-400 uppercase tracking-widest">{{ uiLabels().activeSessionPrefix }}</span>
-                <h3 class="text-xs md:text-sm font-black text-white truncate max-w-[100px] sm:max-w-[120px] md:max-w-sm">{{ chatService.getActiveChat()?.title || uiLabels().welcomeTitle }}</h3>
+                <h3 class="text-xs md:text-sm font-black text-white leading-tight break-words line-clamp-2 max-w-[55vw] sm:max-w-[60vw] md:max-w-sm">{{ chatService.getActiveChat()?.title || uiLabels().welcomeTitle }}</h3>
               </div>
               
               @if (chatService.activeChatId()) {
@@ -243,7 +243,7 @@ interface TutorUnderstandingAction {
                          [class.bg-slate-900]="m.role === 'model'"
                          [class.text-white]="m.role === 'user'"
                          [class.border-white/5]="m.role === 'model'"
-                         class="p-3 md:p-8 rounded-2xl md:rounded-[2.5rem] border shadow-sm text-sm md:text-lg leading-relaxed whitespace-pre-wrap selection:bg-indigo-400 selection:text-white"
+                         class="p-3 md:p-8 rounded-2xl md:rounded-[2.5rem] border shadow-sm text-sm md:text-lg leading-relaxed whitespace-pre-wrap break-words selection:bg-indigo-400 selection:text-white"
                          [class.rounded-tr-none]="m.role === 'user'"
                          [class.rounded-tl-none]="m.role === 'model'">
                       
@@ -261,42 +261,6 @@ interface TutorUnderstandingAction {
                       {{ m.text }}
                     </div>
 
-                    @if (m.role === 'model' && m.grounding?.sources?.length) {
-                      <div class="rounded-[1.35rem] border border-emerald-400/15 bg-emerald-500/8 p-3 md:p-4">
-                        <div class="mb-2 flex items-center gap-2 text-emerald-100">
-                          <i class="fa-solid fa-book-open-reader text-xs"></i>
-                          <p class="text-[10px] font-black uppercase tracking-[0.28em]">{{ t('Grounded Sources') }}</p>
-                        </div>
-
-                        <div class="grid gap-2">
-                          @for (source of m.grounding?.sources || []; track source.id) {
-                            <div class="rounded-2xl border border-white/8 bg-black/15 px-3 py-2.5">
-                              <div class="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/80">
-                                <span>{{ source.label }}</span>
-                                <span>{{ source.domain }}</span>
-                                @if (source.publisher) {
-                                  <span>{{ source.publisher }}</span>
-                                }
-                              </div>
-                              <p class="mt-1 text-sm font-bold text-white">{{ source.title }}</p>
-                              <p class="mt-1 text-xs leading-5 text-slate-300">{{ source.snippet }}</p>
-                              @if (source.url) {
-                                <a
-                                  [href]="source.url"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  class="mt-2 inline-flex items-center gap-2 text-xs font-black text-emerald-200 transition hover:text-white"
-                                >
-                                  <span>{{ t('Open source') }}</span>
-                                  <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-                                </a>
-                              }
-                            </div>
-                          }
-                        </div>
-                      </div>
-                    }
-                    
                     @if (m.role === 'model' && m.text.trim()) {
                       <div class="mt-2 space-y-3 animate-in fade-in duration-500 delay-200">
                         <div class="flex flex-wrap items-center gap-2">
@@ -1189,28 +1153,20 @@ CRITICAL: You MUST respond strictly in ${lang}.`;
     try {
       const history = options.useConversationHistory === false ? [] : this.buildHistory(activeChat.messages);
       const systemPrompt = this.buildTutorSystemPrompt(contextToUse, options.extraSystemInstruction);
-      const responseStream = this.ai.chatStream(
+      const responseText = await this.ai.chat(
         requestText,
         systemPrompt,
         history,
         'gpt-4o-mini',
         attachedFiles,
-        { featureHint: 'tutor', knowledgeMode: 'strict' }
+        { featureHint: 'tutor', knowledgeMode: 'off', maxTokens: 2400 }
       );
-
-      let fullResponse = '';
       const responseTimestamp = Date.now();
-      this.chatService.updateChatMessages(activeId, [...newMessages, { role: 'model', text: '', createdAt: responseTimestamp }]);
-
-      for await (const chunk of responseStream) {
-        fullResponse += chunk;
-        const grounding = this.ai.lastGrounding();
-        this.chatService.updateChatMessages(activeId, [
-          ...newMessages,
-          { role: 'model', text: fullResponse, createdAt: responseTimestamp, grounding }
-        ]);
-        this.scrollToBottom();
-      }
+      this.chatService.updateChatMessages(activeId, [
+        ...newMessages,
+        { role: 'model', text: responseText, createdAt: responseTimestamp }
+      ]);
+      this.scrollToBottom();
 
       this.ai.incrementUsage('aiTeacherQuestions');
       this.ai.addXP(10);

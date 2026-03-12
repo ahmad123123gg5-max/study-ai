@@ -31,7 +31,6 @@ import { QuizPage } from './components/pages/quiz.page';
 import { AuroraBgComponent } from './components/shared/aurora-bg.component';
 import { AchievementNotificationComponent } from './components/layout/achievement-notification.component';
 import { VirtualLabPage } from './components/pages/virtual-lab/virtual-lab.page';
-import { KnowledgeReliabilityBannerComponent } from './components/shared/knowledge-reliability-banner.component';
 
 export type AppView = 'landing' | 'auth' | 'dashboard';
 export type DashboardPage = 
@@ -51,8 +50,7 @@ export type DashboardPage =
     AdminPage, TeacherPage, SettingsPage, NotificationsPage, 
     MarketplacePage,
     ContentTransformPage, VirtualLabPage,
-    PlannerPage, TimerPage, FlashcardsPage, MindMapPage, QuizPage, AuroraBgComponent, AchievementNotificationComponent,
-    KnowledgeReliabilityBannerComponent
+    PlannerPage, TimerPage, FlashcardsPage, MindMapPage, QuizPage, AuroraBgComponent, AchievementNotificationComponent
   ],
   template: `
     <div
@@ -64,7 +62,6 @@ export type DashboardPage =
     >
       <app-aurora-bg></app-aurora-bg>
       <app-achievement-notification></app-achievement-notification>
-      <app-knowledge-reliability-banner></app-knowledge-reliability-banner>
       
       <!-- Global Switchers -->
       <div class="fixed bottom-6 right-6 z-[200] flex gap-4">

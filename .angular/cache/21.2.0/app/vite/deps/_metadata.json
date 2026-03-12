@@ -1,67 +1,67 @@
 {
-  "hash": "1349d701",
+  "hash": "d9b5a880",
   "configHash": "85ee728b",
-  "lockfileHash": "d89821cf",
-  "browserHash": "86bcf784",
+  "lockfileHash": "bf81a373",
+  "browserHash": "ab8b4e72",
   "optimized": {
     "@angular/common": {
       "src": "../../../../../../node_modules/@angular/common/fesm2022/common.mjs",
       "file": "@angular_common.js",
-      "fileHash": "ad1613db",
+      "fileHash": "9c7f4a1c",
       "needsInterop": false
     },
     "@angular/core": {
       "src": "../../../../../../node_modules/@angular/core/fesm2022/core.mjs",
       "file": "@angular_core.js",
-      "fileHash": "cc6f69ea",
+      "fileHash": "8efbbbce",
       "needsInterop": false
     },
     "@angular/forms": {
       "src": "../../../../../../node_modules/@angular/forms/fesm2022/forms.mjs",
       "file": "@angular_forms.js",
-      "fileHash": "dafc81c7",
+      "fileHash": "028f458a",
       "needsInterop": false
     },
     "@angular/platform-browser": {
       "src": "../../../../../../node_modules/@angular/platform-browser/fesm2022/platform-browser.mjs",
       "file": "@angular_platform-browser.js",
-      "fileHash": "9197f893",
+      "fileHash": "a64beac3",
       "needsInterop": false
     },
     "docx": {
       "src": "../../../../../../node_modules/docx/dist/index.mjs",
       "file": "docx.js",
-      "fileHash": "e7b06942",
+      "fileHash": "d871a922",
       "needsInterop": false
     },
     "html2canvas": {
       "src": "../../../../../../node_modules/html2canvas/dist/html2canvas.esm.js",
       "file": "html2canvas.js",
-      "fileHash": "85407046",
+      "fileHash": "e1999006",
       "needsInterop": false
     },
     "jspdf": {
       "src": "../../../../../../node_modules/jspdf/dist/jspdf.es.min.js",
       "file": "jspdf.js",
-      "fileHash": "3db9641f",
+      "fileHash": "7a5772ce",
       "needsInterop": false
     },
     "mammoth": {
       "src": "../../../../../../node_modules/mammoth/lib/index.js",
       "file": "mammoth.js",
-      "fileHash": "e7bc4a91",
+      "fileHash": "2fbf2847",
       "needsInterop": true
     },
     "motion": {
       "src": "../../../../../../node_modules/motion/dist/es/index.mjs",
       "file": "motion.js",
-      "fileHash": "9da61f83",
+      "fileHash": "b9714d6a",
       "needsInterop": false
     },
     "pdfjs-dist": {
       "src": "../../../../../../node_modules/pdfjs-dist/build/pdf.mjs",
       "file": "pdfjs-dist.js",
-      "fileHash": "45ac109c",
+      "fileHash": "00958c00",
       "needsInterop": false
     }
   },

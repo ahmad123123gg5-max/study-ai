@@ -215,32 +215,6 @@ export interface ImprovementPlan {
   nextSteps: string[];
 }
 
-export type KnowledgeDomain =
-  | 'medical'
-  | 'engineering'
-  | 'law'
-  | 'general_science'
-  | 'general_academic';
-
-export type KnowledgeRiskLevel = 'low' | 'moderate' | 'high';
-export type InformationReliabilityLevel = 'high' | 'medium' | 'needs_verification';
-
-export interface KnowledgeValidationReport {
-  score: number;
-  level: InformationReliabilityLevel;
-  domain: KnowledgeDomain;
-  riskLevel: KnowledgeRiskLevel;
-  medicalSafetyApplied: boolean;
-  educationalMode: boolean;
-  summary: string;
-  warnings: string[];
-  checks: string[];
-  sourceFamilies: string[];
-  needsRevision: boolean;
-  blocked: boolean;
-  createdAt: string;
-}
-
 type ChatHistoryEntry = {
   role: string;
   parts: { text?: string; inlineData?: { data: string; mimeType: string } }[];
@@ -275,7 +249,6 @@ export class AIService {
 
   currentLanguage = signal<LanguageCode>(normalizeLanguageCode(localStorage.getItem('smartedge_user_lang') || DEFAULT_LANGUAGE));
   lastGrounding = signal<GroundingMetadata | null>(null);
-  lastKnowledgeValidation = signal<KnowledgeValidationReport | null>(null);
 
   saveProfile() {
     localStorage.setItem('smartedge_user_name', this.userName());
@@ -646,52 +619,6 @@ export class AIService {
     return undefined;
   }
 
-  registerKnowledgeValidation(value: unknown): KnowledgeValidationReport | null {
-    if (!value || typeof value !== 'object') {
-      return null;
-    }
-
-    const candidate = value as Record<string, unknown>;
-    const report: KnowledgeValidationReport = {
-      score: typeof candidate['score'] === 'number' && Number.isFinite(candidate['score'])
-        ? Math.max(0, Math.min(100, Math.round(candidate['score'])))
-        : 0,
-      level: candidate['level'] === 'high' || candidate['level'] === 'medium' || candidate['level'] === 'needs_verification'
-        ? candidate['level']
-        : 'needs_verification',
-      domain: candidate['domain'] === 'medical'
-        || candidate['domain'] === 'engineering'
-        || candidate['domain'] === 'law'
-        || candidate['domain'] === 'general_science'
-        || candidate['domain'] === 'general_academic'
-        ? candidate['domain']
-        : 'general_academic',
-      riskLevel: candidate['riskLevel'] === 'low' || candidate['riskLevel'] === 'moderate' || candidate['riskLevel'] === 'high'
-        ? candidate['riskLevel']
-        : 'moderate',
-      medicalSafetyApplied: candidate['medicalSafetyApplied'] === true,
-      educationalMode: candidate['educationalMode'] !== false,
-      summary: typeof candidate['summary'] === 'string' ? candidate['summary'].trim() : '',
-      warnings: Array.isArray(candidate['warnings'])
-        ? candidate['warnings'].map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
-        : [],
-      checks: Array.isArray(candidate['checks'])
-        ? candidate['checks'].map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
-        : [],
-      sourceFamilies: Array.isArray(candidate['sourceFamilies'])
-        ? candidate['sourceFamilies'].map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
-        : [],
-      needsRevision: candidate['needsRevision'] === true,
-      blocked: candidate['blocked'] === true,
-      createdAt: typeof candidate['createdAt'] === 'string' && candidate['createdAt'].trim()
-        ? candidate['createdAt'].trim()
-        : new Date().toISOString()
-    };
-
-    this.lastKnowledgeValidation.set(report);
-    return report;
-  }
-
   private extractJsonPayload(raw: string): string {
     const text = raw.trim();
     const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -738,17 +665,13 @@ export class AIService {
         jsonMode,
         model,
         files,
-        maxTokens,
+        maxTokens: requestOptions.maxTokens ?? maxTokens,
         featureHint: requestOptions.featureHint,
         knowledgeMode: requestOptions.knowledgeMode
       })
     });
 
-    const payload = await response.json().catch(() => null) as (AIChatResponsePayload & { validation?: unknown }) | null;
-    if (payload?.validation) {
-      this.registerKnowledgeValidation(payload.validation);
-    }
-
+    const payload = await response.json().catch(() => null) as AIChatResponsePayload | null;
     this.lastGrounding.set(payload?.grounding || null);
 
     if (!response.ok || !payload?.text) {
@@ -839,7 +762,7 @@ export class AIService {
         false,
         this.resolveModel(model),
         files,
-        undefined,
+        requestOptions.maxTokens,
         requestOptions
       );
 
@@ -879,6 +802,7 @@ export class AIService {
         jsonMode: false,
         model: this.resolveModel(model),
         files,
+        maxTokens: requestOptions.maxTokens,
         featureHint: requestOptions.featureHint,
         knowledgeMode: requestOptions.knowledgeMode
       })
@@ -893,6 +817,34 @@ export class AIService {
     const decoder = new TextDecoder();
     let buffer = '';
 
+    const processStreamLine = (rawLine: string): string | GroundingMetadata | null => {
+      const line = rawLine.trim();
+      if (!line) {
+        return null;
+      }
+
+      const payload = JSON.parse(line) as {
+        type?: string;
+        delta?: string;
+        error?: string;
+        grounding?: GroundingMetadata | null;
+      };
+
+      if (payload.type === 'error') {
+        throw new Error(payload.error || 'AI stream failed');
+      }
+
+      if (payload.type === 'meta') {
+        return payload.grounding || null;
+      }
+
+      if (payload.type === 'chunk' && typeof payload.delta === 'string' && payload.delta.length > 0) {
+        return payload.delta;
+      }
+
+      return null;
+    };
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
@@ -904,34 +856,23 @@ export class AIService {
       buffer = lines.pop() || '';
 
       for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line) {
-          continue;
+        const processed = processStreamLine(rawLine);
+        if (typeof processed === 'string') {
+          yield processed;
+        } else {
+          this.lastGrounding.set(processed || null);
         }
+      }
+    }
 
-        const payload = JSON.parse(line) as {
-          type?: string;
-          delta?: string;
-          error?: string;
-          validation?: unknown;
-          grounding?: GroundingMetadata | null;
-        };
-
-        if (payload.type === 'error') {
-          throw new Error(payload.error || 'AI stream failed');
-        }
-
-        if (payload.type === 'meta') {
-          this.lastGrounding.set(payload.grounding || null);
-          if (payload.validation) {
-            this.registerKnowledgeValidation(payload.validation);
-          }
-          yield '';
-          continue;
-        }
-
-        if (payload.type === 'chunk' && typeof payload.delta === 'string' && payload.delta.length > 0) {
-          yield payload.delta;
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      for (const rawLine of buffer.split('\n')) {
+        const processed = processStreamLine(rawLine);
+        if (typeof processed === 'string') {
+          yield processed;
+        } else {
+          this.lastGrounding.set(processed || null);
         }
       }
     }

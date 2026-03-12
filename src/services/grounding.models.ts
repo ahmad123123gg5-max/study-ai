@@ -34,6 +34,7 @@ export interface GroundingMetadata {
 export interface AIChatRequestOptions {
   featureHint?: string;
   knowledgeMode?: GroundingMode;
+  maxTokens?: number;
 }
 
 export interface AIChatResponsePayload {

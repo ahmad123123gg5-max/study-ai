@@ -1,4 +1,3 @@
-import { fallbackKnowledgeValidationResult } from '../knowledge-validation.js';
 import { getHybridRuntimeConfig, type HybridRuntimeConfig } from './config.js';
 import { AIEngine } from './ai/ai-engine.js';
 import { AIHyperOptimizationEngine } from './ai/ai-hyper-optimization-engine.js';
@@ -65,24 +64,12 @@ export class HybridAIPlatform {
     this.logic = new LogicEngine(this.knowledgeBase);
     this.rag = new RAGEngine(this.knowledgeBase, embeddings, vectorStore, this.monitor, config.vector.topK);
     this.optimizer = new AIHyperOptimizationEngine();
-    this.ai = new AIEngine(apiKey, config.ai.fastModel, this.optimizer, this.monitor, config.ai.enableFullAuditOnLowRisk);
+    this.ai = new AIEngine(apiKey, config.ai.fastModel, this.optimizer, this.monitor);
     this.workers = new BackgroundJobQueue(
       config.workers.concurrency,
       async (request) => this.handleChat(request, true),
       this.monitor
     );
-  }
-
-  private buildNonAiValidation(request: HybridChatRequest, text: string) {
-    const validation = fallbackKnowledgeValidationResult(request.validationContext, text);
-    return {
-      ...validation,
-      blocked: false,
-      needsRevision: false,
-      summary: request.validationContext.languageCode === 'ar'
-        ? 'تمت الإجابة عبر المنطق أو قاعدة المعرفة بدون توليد نموذجي.'
-        : 'Resolved through logic or grounded knowledge without model generation.'
-    };
   }
 
   private systemStatus(): HybridSystemStatus {
@@ -129,7 +116,6 @@ export class HybridAIPlatform {
         route: 'logic',
         reason: logicFirst.reason,
         cacheLayer: 'miss',
-        validation: this.buildNonAiValidation(request, logicFirst.text),
         groundedResults: logicFirst.groundedResults,
         model: 'logic-engine',
         metrics: {
@@ -158,7 +144,6 @@ export class HybridAIPlatform {
           route: ragResolution.route,
           reason: ragResolution.reason,
           cacheLayer: 'miss',
-          validation: this.buildNonAiValidation(request, ragResolution.text),
           groundedResults: ragResolution.groundedResults,
           model: ragResolution.route === 'logic' ? 'logic-engine' : 'rag-engine',
           metrics: {
@@ -187,7 +172,6 @@ export class HybridAIPlatform {
         route: groundedResults.length > 0 ? 'rag' : 'logic',
         reason: decision.reason,
         cacheLayer: 'miss',
-        validation: this.buildNonAiValidation(request, fallbackText),
         groundedResults,
         model: groundedResults.length > 0 ? 'rag-engine' : 'logic-engine',
         metrics: {
@@ -208,7 +192,6 @@ export class HybridAIPlatform {
       route,
       reason: decision.reason,
       cacheLayer: 'miss',
-      validation: generated.validation,
       groundedResults,
       model: generated.model,
       metrics: {
@@ -221,7 +204,7 @@ export class HybridAIPlatform {
       cached: false
     };
 
-    if (decision.cacheable && !internalJob && !generated.validation.blocked) {
+    if (decision.cacheable && !internalJob) {
       await this.cache.set(cacheKey, response);
     }
 
@@ -243,7 +226,6 @@ export class HybridAIPlatform {
           route: 'cache',
           reason: 'Served from multi-level cache.',
           cacheLayer: cached.layer,
-          validation: cached.value.validation,
           groundedResults: cached.value.groundedResults,
           model: cached.value.model,
           metrics: {
@@ -270,7 +252,6 @@ export class HybridAIPlatform {
         route: 'logic',
         reason: logicFirst.reason,
         cacheLayer: 'miss',
-        validation: this.buildNonAiValidation(request, logicFirst.text),
         groundedResults: logicFirst.groundedResults,
         model: 'logic-engine',
         metrics: {
@@ -296,7 +277,6 @@ export class HybridAIPlatform {
           route: ragResolution.route,
           reason: ragResolution.reason,
           cacheLayer: 'miss',
-          validation: this.buildNonAiValidation(request, ragResolution.text),
           groundedResults: ragResolution.groundedResults,
           model: ragResolution.route === 'logic' ? 'logic-engine' : 'rag-engine',
           metrics: {
@@ -329,13 +309,12 @@ export class HybridAIPlatform {
         }
       };
 
-      if (decision.cacheable && !event.validation.blocked) {
+      if (decision.cacheable) {
         await this.cache.set(cacheKey, {
           text: fullText,
           route: event.route,
           reason: event.reason,
           cacheLayer: 'miss',
-          validation: event.validation,
           groundedResults: event.groundedResults,
           model: event.model,
           metrics: finalEvent.metrics,

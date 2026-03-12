@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { buildKnowledgeGuardianInstruction } from '../../knowledge-validation.js';
 import type {
   HybridChatContent,
   HybridChatImagePart,
@@ -140,13 +139,12 @@ export class AIHyperOptimizationEngine {
       });
     }
 
-    const guardian = buildKnowledgeGuardianInstruction(request.validationContext);
     const systemInstruction = normalizeText(request.systemInstruction);
     const grounding = this.createGroundingBlock(groundedResults, request.validationContext.languageCode);
 
     messages.push({
       role: 'system',
-      content: [systemInstruction, guardian, grounding].filter(Boolean).join('\n\n')
+      content: [systemInstruction, grounding].filter(Boolean).join('\n\n')
     });
 
     messages.push(...this.compactHistory(request.historyMessages));

@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
@@ -70,8 +70,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DB_FILE = path.join(__dirname, '..', '..', 'clinical-records.sqlite');
 
-const db = new DatabaseSync(DB_FILE, {
-  open: true,
+const db = new Database(DB_FILE, {
   timeout: 5000
 });
 

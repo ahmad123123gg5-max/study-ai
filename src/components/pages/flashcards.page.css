@@ -32,10 +32,17 @@
   perspective: 2200px;
   min-height: 31rem;
   position: relative;
+  cursor: pointer;
 }
 
 .flashcard-stage-preview {
   min-height: 24rem;
+}
+
+.flashcard-stage:focus-visible,
+.flashcard-stage-preview:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.8);
+  outline-offset: 8px;
 }
 
 .flashcard-scene {

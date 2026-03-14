@@ -137,68 +137,78 @@
                 <button (click)="openCustomizationPanel()" class="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-fuchsia-100 transition hover:bg-fuchsia-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'تخصيص البطاقة' : 'Customize Card' }}</button>
               </div>
 
-              <div class="flashcard-stage">
-                <div class="flashcard-scene" [attr.data-card-id]="card.id" [ngStyle]="cardSceneStyle(displayMode() === 'classic' && isFlipped())">
-                  <div class="flashcard-flipper">
-                    <article class="flashcard-face flashcard-face-front" [ngStyle]="cardFaceStyle('front')" [attr.data-theme]="faceAttributeTheme()" [attr.data-shape]="faceAttributeShape()" [attr.data-border]="faceAttributeBorder()" [attr.data-motion]="faceAttributeMotion()">
-                      <div class="flashcard-face-surface">
-                        <div class="flashcard-pattern" [ngClass]="facePatternClass()"></div>
-                        <div class="flashcard-sheen"></div>
-                        <div class="flashcard-face-inner">
-                          <div class="flex flex-wrap items-center justify-between gap-3">
-                            <span class="rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" [ngStyle]="typeChipStyle(card.type)"><i class="fa-solid mr-2" [class]="cardTypeIcon(card.type)"></i>{{ cardTypeLabel(card.type) }}</span>
-                            <span class="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" style="color: var(--card-text-color)">{{ cardSectionLabel('front') }}</span>
-                          </div>
-
-                          <div class="flashcard-content-area">
-                            <p class="flashcard-kicker" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'">{{ currentDisplayLabel() }}</p>
-                            <div class="flashcard-copy no-scrollbar" [attr.dir]="resolveTextDirection(card.front, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.front, currentSetLanguage())">
-                              <h3 class="flashcard-text" [class.flashcard-text-ar]="resolveTextDirection(card.front, currentSetLanguage()) === 'rtl'" [attr.dir]="resolveTextDirection(card.front, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.front, currentSetLanguage())">{{ card.front }}</h3>
+              @for (renderKey of [activeCardRenderKey()]; track renderKey) {
+                <div
+                  class="flashcard-stage"
+                  role="button"
+                  tabindex="0"
+                  [attr.aria-label]="revealButtonLabel()"
+                  [attr.data-card-render-key]="renderKey"
+                  (click)="interactWithCardStage()"
+                  (keydown)="handleStageKeydown($event)"
+                >
+                  <div class="flashcard-scene" [attr.data-card-id]="card.id" [ngStyle]="cardSceneStyle(displayMode() === 'classic' && isFlipped())">
+                    <div class="flashcard-flipper">
+                      <article class="flashcard-face flashcard-face-front" [ngStyle]="cardFaceStyle('front')" [attr.data-theme]="faceAttributeTheme()" [attr.data-shape]="faceAttributeShape()" [attr.data-border]="faceAttributeBorder()" [attr.data-motion]="faceAttributeMotion()">
+                        <div class="flashcard-face-surface">
+                          <div class="flashcard-pattern" [ngClass]="facePatternClass()"></div>
+                          <div class="flashcard-sheen"></div>
+                          <div class="flashcard-face-inner">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                              <span class="rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" [ngStyle]="typeChipStyle(card.type)"><i class="fa-solid mr-2" [class]="cardTypeIcon(card.type)"></i>{{ cardTypeLabel(card.type) }}</span>
+                              <span class="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" style="color: var(--card-text-color)">{{ cardSectionLabel('front') }}</span>
                             </div>
-                          </div>
 
-                          <div class="flex flex-wrap gap-2">
-                            @for (tag of card.tags || []; track tag) {
-                              <span class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]" style="color: var(--card-text-color)">#{{ tag }}</span>
-                            }
-                          </div>
-                        </div>
-                      </div>
-                    </article>
+                            <div class="flashcard-content-area">
+                              <p class="flashcard-kicker" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'">{{ currentDisplayLabel() }}</p>
+                              <div class="flashcard-copy no-scrollbar" [attr.dir]="resolveTextDirection(card.front, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.front, currentSetLanguage())">
+                                <h3 class="flashcard-text" [class.flashcard-text-ar]="resolveTextDirection(card.front, currentSetLanguage()) === 'rtl'" [attr.dir]="resolveTextDirection(card.front, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.front, currentSetLanguage())">{{ card.front }}</h3>
+                              </div>
+                            </div>
 
-                    <article class="flashcard-face flashcard-face-back" [ngStyle]="cardFaceStyle('back')" [attr.data-theme]="faceAttributeTheme()" [attr.data-shape]="faceAttributeShape()" [attr.data-border]="faceAttributeBorder()" [attr.data-motion]="faceAttributeMotion()">
-                      <div class="flashcard-face-surface">
-                        <div class="flashcard-pattern" [ngClass]="facePatternClass()"></div>
-                        <div class="flashcard-sheen"></div>
-                        <div class="flashcard-face-inner">
-                          <div class="flex flex-wrap items-center justify-between gap-3">
-                            <span class="rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" [ngStyle]="difficultyChipStyle(card.difficulty)">{{ difficultyLabel(card.difficulty) }}</span>
-                            <span class="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" style="color: var(--card-text-color)">{{ cardSectionLabel('back') }}</span>
-                          </div>
-
-                          <div class="flashcard-content-area">
-                            <p class="flashcard-kicker" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'">{{ ai.currentLanguage() === 'ar' ? 'الإجابة / التوضيح' : 'Answer / Explanation' }}</p>
-                            <div class="flashcard-copy no-scrollbar" [attr.dir]="resolveTextDirection(card.back, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.back, currentSetLanguage())">
-                              <h3 class="flashcard-text" [class.flashcard-text-ar]="resolveTextDirection(card.back, currentSetLanguage()) === 'rtl'" [attr.dir]="resolveTextDirection(card.back, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.back, currentSetLanguage())">{{ card.back }}</h3>
-                              @if (card.sourceSnippet) {
-                                <div class="mt-4 rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3 text-sm font-semibold leading-7" [attr.dir]="resolveTextDirection(card.sourceSnippet, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.sourceSnippet, currentSetLanguage())" style="color: var(--card-muted-color)">
-                                  <span class="font-black" style="color: var(--card-text-color)">{{ ai.currentLanguage() === 'ar' ? 'من المصدر:' : 'From Source:' }}</span> {{ card.sourceSnippet }}
-                                </div>
+                            <div class="flex flex-wrap gap-2">
+                              @for (tag of card.tags || []; track tag) {
+                                <span class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]" style="color: var(--card-text-color)">#{{ tag }}</span>
                               }
                             </div>
                           </div>
+                        </div>
+                      </article>
 
-                          <div class="flex flex-wrap gap-2">
-                            @for (tag of card.tags || []; track tag) {
-                              <span class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]" style="color: var(--card-text-color)">#{{ tag }}</span>
-                            }
+                      <article class="flashcard-face flashcard-face-back" [ngStyle]="cardFaceStyle('back')" [attr.data-theme]="faceAttributeTheme()" [attr.data-shape]="faceAttributeShape()" [attr.data-border]="faceAttributeBorder()" [attr.data-motion]="faceAttributeMotion()">
+                        <div class="flashcard-face-surface">
+                          <div class="flashcard-pattern" [ngClass]="facePatternClass()"></div>
+                          <div class="flashcard-sheen"></div>
+                          <div class="flashcard-face-inner">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                              <span class="rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" [ngStyle]="difficultyChipStyle(card.difficulty)">{{ difficultyLabel(card.difficulty) }}</span>
+                              <span class="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] flashcard-label" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'" style="color: var(--card-text-color)">{{ cardSectionLabel('back') }}</span>
+                            </div>
+
+                            <div class="flashcard-content-area">
+                              <p class="flashcard-kicker" [class.flashcard-label-ar]="currentSetLanguage() === 'ar'" [attr.dir]="currentSetLanguage() === 'ar' ? 'rtl' : 'ltr'">{{ ai.currentLanguage() === 'ar' ? 'الإجابة / التوضيح' : 'Answer / Explanation' }}</p>
+                              <div class="flashcard-copy no-scrollbar" [attr.dir]="resolveTextDirection(card.back, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.back, currentSetLanguage())">
+                                <h3 class="flashcard-text" [class.flashcard-text-ar]="resolveTextDirection(card.back, currentSetLanguage()) === 'rtl'" [attr.dir]="resolveTextDirection(card.back, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.back, currentSetLanguage())">{{ card.back }}</h3>
+                                @if (card.sourceSnippet) {
+                                  <div class="mt-4 rounded-[1.2rem] border border-white/10 bg-black/15 px-4 py-3 text-sm font-semibold leading-7" [attr.dir]="resolveTextDirection(card.sourceSnippet, currentSetLanguage())" [attr.lang]="resolveTextLanguage(card.sourceSnippet, currentSetLanguage())" style="color: var(--card-muted-color)">
+                                    <span class="font-black" style="color: var(--card-text-color)">{{ ai.currentLanguage() === 'ar' ? 'من المصدر:' : 'From Source:' }}</span> {{ card.sourceSnippet }}
+                                  </div>
+                                }
+                              </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2">
+                              @for (tag of card.tags || []; track tag) {
+                                <span class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]" style="color: var(--card-text-color)">#{{ tag }}</span>
+                              }
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </article>
+                      </article>
+                    </div>
                   </div>
                 </div>
-              </div>
+              }
 
               @if (displayMode() !== 'classic' && showAnswer()) {
                 <div class="mt-6 rounded-[1.8rem] border border-white/10 bg-black/25 p-5 backdrop-blur-xl">
@@ -262,6 +272,45 @@
 
     <aside class="border-t border-white/10 bg-slate-950/35 px-4 py-5 backdrop-blur-xl lg:overflow-y-auto lg:border-l lg:border-t-0 lg:px-5">
       <div class="space-y-5 pb-12">
+        <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'بطاقات المجموعة' : 'Deck Cards' }}</p>
+              <h3 class="mt-2 text-lg font-black">{{ ai.currentLanguage() === 'ar' ? 'اختر البطاقة النشطة' : 'Choose The Active Card' }}</h3>
+            </div>
+            <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">{{ visibleCardCount() }}</span>
+          </div>
+
+          @if (sidebarCards().length > 0) {
+            <div class="max-h-[42vh] space-y-2 overflow-y-auto pr-1">
+              @for (card of sidebarCards(); track card.id; let idx = $index) {
+                <button
+                  type="button"
+                  (click)="selectSidebarCard(card.id)"
+                  class="w-full rounded-[1.4rem] border p-4 text-right transition"
+                  [class.border-sky-400/40]="card.id === activeCardId()"
+                  [class.bg-sky-500/10]="card.id === activeCardId()"
+                  [class.border-white/10]="card.id !== activeCardId()"
+                  [class.bg-black/20]="card.id !== activeCardId()"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{{ idx + 1 }}</span>
+                        <span class="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em]" [ngStyle]="typeChipStyle(card.type)">{{ cardTypeLabel(card.type) }}</span>
+                      </div>
+                      <p class="mt-3 line-clamp-2 text-sm font-black text-white" [attr.dir]="resolveTextDirection(card.front, currentSetLanguage())">{{ card.front }}</p>
+                      <p class="mt-2 line-clamp-2 text-xs font-semibold leading-6 text-slate-400" [attr.dir]="resolveTextDirection(card.back, currentSetLanguage())">{{ card.back }}</p>
+                    </div>
+                  </div>
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="rounded-[1.4rem] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm font-bold text-slate-400">{{ ai.currentLanguage() === 'ar' ? 'لا توجد بطاقات مطابقة للفلاتر الحالية.' : 'No cards match the current filters.' }}</div>
+          }
+        </div>
+
         <div class="rounded-[2rem] border border-white/10 bg-white/5 p-4">
           <div class="mb-4 flex items-center justify-between gap-3"><div><p class="text-[10px] font-black uppercase tracking-[0.32em] text-slate-500">{{ ai.currentLanguage() === 'ar' ? 'النص المصدر' : 'Source Text' }}</p><h3 class="mt-2 text-lg font-black">{{ ai.currentLanguage() === 'ar' ? 'حرّر المحتوى أو ألصقه' : 'Edit or Paste the Content' }}</h3></div><button (click)="clearEditor()" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-300 transition hover:border-rose-400/30 hover:text-rose-100">{{ ai.currentLanguage() === 'ar' ? 'تفريغ' : 'Clear' }}</button></div>
           <textarea [ngModel]="sourceEditorText()" (ngModelChange)="sourceEditorText.set($event)" rows="10" class="w-full resize-none rounded-[1.5rem] border border-white/10 bg-black/20 px-4 py-4 text-sm font-semibold leading-7 text-white outline-none placeholder:text-slate-600" [attr.dir]="resolveTextDirection(sourceEditorText(), currentSetLanguage())" [placeholder]="ai.currentLanguage() === 'ar' ? 'الصق النص هنا لتوليد أو إعادة توليد البطاقات...' : 'Paste content here to generate or regenerate flashcards...'"></textarea>
@@ -341,7 +390,14 @@
             <div class="flex gap-2"><button (click)="togglePreviewFlip()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100">{{ ai.currentLanguage() === 'ar' ? 'قلب المعاينة' : 'Flip Preview' }}</button><button (click)="saveCustomization()" class="rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-[0.24em] transition hover:scale-[1.02]" [ngStyle]="accentButtonStyle(true)">{{ ai.currentLanguage() === 'ar' ? 'حفظ التخصيص' : 'Save Customization' }}</button></div>
           </div>
 
-          <div class="flashcard-stage flashcard-stage-preview">
+          <div
+            class="flashcard-stage flashcard-stage-preview"
+            role="button"
+            tabindex="0"
+            [attr.aria-label]="ai.currentLanguage() === 'ar' ? 'قلب بطاقة المعاينة' : 'Flip preview card'"
+            (click)="interactWithPreviewStage()"
+            (keydown)="handleStageKeydown($event, true)"
+          >
             <div class="flashcard-scene flashcard-scene-preview" [ngStyle]="cardSceneStyle(previewFlipped(), true)">
               <div class="flashcard-flipper flashcard-flipper-preview">
                 <article class="flashcard-face flashcard-face-front" [ngStyle]="cardFaceStyle('front', true)" [attr.data-theme]="faceAttributeTheme(true)" [attr.data-shape]="faceAttributeShape(true)" [attr.data-border]="faceAttributeBorder(true)" [attr.data-motion]="faceAttributeMotion(true)">

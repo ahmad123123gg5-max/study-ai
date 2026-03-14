@@ -35,6 +35,7 @@ export interface AIChatRequestOptions {
   featureHint?: string;
   knowledgeMode?: GroundingMode;
   maxTokens?: number;
+  temperature?: number;
 }
 
 export interface AIChatResponsePayload {

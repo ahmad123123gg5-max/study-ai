@@ -1,4 +1,3 @@
-
 import { Injectable, signal, effect, inject } from '@angular/core';
 import { LocalizationService } from './localization.service';
 import { GroundingMetadata } from './grounding.models';
@@ -21,6 +20,14 @@ export interface ConversationContext {
   helpType: string;
 }
 
+export interface TutorSessionState {
+  topic: string;
+  explainedSubtopics: string[];
+  currentDepth: number; // 0:overview, 1:core, 2:deep, 3:application, 4:summary
+  lastIntent: string;
+  mcqHistory: Array<{question: string, correct: string, explanation: string}>;
+}
+
 export interface Conversation {
   id: string;
   title: string;
@@ -28,6 +35,7 @@ export interface Conversation {
   createdAt: number;
   mode?: ConversationMode;
   context?: ConversationContext;
+  tutorState?: TutorSessionState;
 }
 
 export interface PendingTutorLaunch {
@@ -194,8 +202,24 @@ export class ChatService {
     localStorage.removeItem(this.STORAGE_KEY);
   }
 
-  getActiveChat() {
+getActiveChat() {
     return this.conversations().find(c => c.id === this.activeChatId());
+  }
+
+  public getTutorState(chatId: string): TutorSessionState | null {
+    const chat = this.conversations().find(c => c.id === chatId);
+    return chat?.tutorState || null;
+  }
+
+  public updateTutorState(chatId: string, tutorState: TutorSessionState) {
+    this.conversations.update(list =>
+      list.map(c => {
+        if (c.id === chatId) {
+          return { ...c, tutorState };
+        }
+        return c;
+      })
+    );
   }
 
   queueTutorLaunch(launch: PendingTutorLaunch) {
@@ -208,3 +232,5 @@ export class ChatService {
     return pending;
   }
 }
+
+

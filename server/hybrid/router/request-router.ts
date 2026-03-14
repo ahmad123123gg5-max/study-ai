@@ -8,12 +8,14 @@ export class SmartRequestRouter {
     const message = request.message.trim();
     const combined = `${request.systemInstruction}\n${message}`;
     const knowledgeMode = request.knowledgeMode || 'auto';
+    const featureHint = typeof request.featureHint === 'string' ? request.featureHint.trim().toLowerCase() : '';
     const hasFiles = (request.rawFilesCount || 0) > 0 || !!request.attachmentText || (request.attachmentImages || []).length > 0;
     const hasHistory = request.historyMessages.length > 0;
     const simpleQuery = SIMPLE_QUERY_RE.test(message) || message.length <= 220;
     const generative = GENERATIVE_RE.test(combined) || request.jsonMode || hasFiles;
     const factualDomain = knowledgeMode !== 'off' && request.validationContext.domain !== 'general_academic';
     const heavy = message.length > 1400 || hasFiles || /research|quiz|exam|case|file|ملف|بحث/i.test(combined);
+    const cacheable = !hasFiles && !hasHistory && featureHint !== 'quiz';
 
     if (!generative && !hasFiles && !hasHistory && simpleQuery) {
       return {
@@ -37,7 +39,7 @@ export class SmartRequestRouter {
         route: factualDomain ? 'rag_ai' : 'ai',
         complexity: 'heavy',
         reason: 'Heavy request: use AI with optional background-processing path.',
-        cacheable: !hasFiles && !hasHistory,
+        cacheable,
         needsRag: knowledgeMode !== 'off' && factualDomain,
         canUseRagOnly: false,
         needsAi: true,
@@ -53,7 +55,7 @@ export class SmartRequestRouter {
       reason: factualDomain
         ? 'Grounded AI path: retrieve evidence first, then generate.'
         : 'AI path selected for explanatory or generative response.',
-      cacheable: !hasFiles && !hasHistory,
+      cacheable,
       needsRag: knowledgeMode !== 'off' && factualDomain,
       canUseRagOnly: false,
       needsAi: true,

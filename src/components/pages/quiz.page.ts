@@ -1,7 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
+import * as mammoth from 'mammoth';
 import { AIFileAttachment, AIService, ImprovementPlan, QuizDifficulty, QuizQuestion, QuizQuestionType } from '../../services/ai.service';
 import { NotificationService } from '../../services/notification.service';
+import { normalizeExtractedStudyText, reconstructPdfPageText } from '../../utils/extracted-text';
 import { UpgradeModal } from '../shared/upgrade-modal.component';
 
 type QuizView = 'home' | 'config' | 'active' | 'results' | 'review';
@@ -20,6 +22,47 @@ interface SavedMaterial {
   name: string;
   history: QuizAttempt[];
 }
+
+type QuizUploadKind = 'audio' | 'pdf' | 'docx' | 'text' | 'image' | 'doc' | 'unknown';
+
+interface PreparedQuizAttachmentResult {
+  attachment: AIFileAttachment | null;
+  extractedText: boolean;
+}
+
+type QuizQuestionCandidate = Partial<QuizQuestion> & {
+  [key: string]: unknown;
+  question?: unknown;
+  prompt?: unknown;
+  text?: unknown;
+  explanation?: unknown;
+  reasoning?: unknown;
+  options?: unknown;
+  choices?: unknown;
+  answers?: unknown;
+  items?: unknown;
+  answer?: unknown;
+  correctAnswer?: unknown;
+  correct_option?: unknown;
+  correctOption?: unknown;
+  correct_choice?: unknown;
+  correctChoice?: unknown;
+  answerIndex?: unknown;
+  correctIndex?: unknown;
+  correctOptionIndex?: unknown;
+  optionA?: unknown;
+  optionB?: unknown;
+  optionC?: unknown;
+  optionD?: unknown;
+  choiceA?: unknown;
+  choiceB?: unknown;
+  choiceC?: unknown;
+  choiceD?: unknown;
+  option1?: unknown;
+  option2?: unknown;
+  option3?: unknown;
+  option4?: unknown;
+};
 
 @Component({
   selector: 'app-quiz-page',
@@ -105,7 +148,7 @@ interface SavedMaterial {
               <div class="flex min-h-[70vh] flex-col">
                 <div class="mb-8 flex flex-wrap items-center justify-between gap-4"><div class="flex items-center gap-4"><span class="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-indigo-100">{{ ui('سؤال', 'Question') }} {{ currentQuestionIndex() + 1 }} / {{ questions().length }}</span><div class="flex items-center gap-2 rounded-full border border-white/10 bg-slate-800 px-4 py-2"><i class="fa-solid fa-clock animate-pulse text-rose-400"></i><span class="font-mono text-sm font-black text-white">{{ formatTime(timeLeft()) }}</span></div></div><div class="text-right"><p class="text-sm font-black text-white">{{ activeSubject() }}</p><p class="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">{{ quizDifficulty() }}</p></div></div>
                 <div class="mb-8 h-2 overflow-hidden rounded-full bg-slate-800"><div class="h-full rounded-full bg-indigo-500 transition-all duration-300" [style.width.%]="progressPercent()"></div></div>
-                <div class="flex-1 space-y-6"><div class="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 text-right"><h3 class="text-2xl font-black leading-relaxed text-white">{{ question.q }}</h3></div><div class="grid grid-cols-1 gap-4">@for (opt of question.o; track question.id + '-' + $index; let i = $index) { <button (click)="selectAnswer(i)" class="flex w-full items-center justify-between rounded-[1.5rem] border-2 p-5 text-right font-bold text-white transition" [class.border-indigo-500]="currentUserAnswer() === i" [class.bg-indigo-900/40]="currentUserAnswer() === i" [class.border-slate-800]="currentUserAnswer() !== i" [class.bg-slate-950/70]="currentUserAnswer() !== i"><span>{{ opt }}</span><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-xs font-black">{{ optionLabel(i) }}</span></button> }</div></div>
+                <div class="flex-1 space-y-6"><div class="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 text-right"><h3 class="text-2xl font-black leading-relaxed text-white">{{ question.q }}</h3></div>@if (currentQuestionOptions().length > 0) { <div class="grid grid-cols-1 gap-4">@for (opt of currentQuestionOptions(); track question.id + '-' + $index; let i = $index) { <button (click)="selectAnswer(i)" class="flex w-full items-center justify-between rounded-[1.5rem] border-2 p-5 text-right font-bold text-white transition" [class.border-indigo-500]="currentUserAnswer() === i" [class.bg-indigo-900/40]="currentUserAnswer() === i" [class.border-slate-700]="currentUserAnswer() !== i" [class.bg-slate-900/80]="currentUserAnswer() !== i"><span>{{ visibleOptionText(opt, i) }}</span><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-xs font-black">{{ optionLabel(i) }}</span></button> }</div> } @else { <div class="rounded-[1.6rem] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-right text-sm font-bold text-rose-100">{{ ui('تعذر تحميل خيارات هذا السؤال. أعد إنشاء الاختبار.', 'Failed to load the options for this question. Regenerate the exam.') }}</div> }</div>
                 <div class="mt-10 flex justify-start" [class.justify-end]="quizLanguage() === 'ar'">@if (currentQuestionIndex() < questions().length - 1) { <button (click)="nextQuestion()" [disabled]="currentUserAnswer() === null" class="rounded-2xl bg-indigo-600 px-8 py-4 font-black text-white disabled:opacity-30">{{ ui('التالي', 'Next') }}</button> } @else { <button (click)="finishQuiz()" [disabled]="currentUserAnswer() === null" class="rounded-2xl bg-emerald-600 px-8 py-4 font-black text-white disabled:opacity-30">{{ ui('إنهاء وتسليم', 'Finish & Submit') }}</button> }</div>
               </div>
             }
@@ -116,7 +159,7 @@ interface SavedMaterial {
           <div class="space-y-8 rounded-[2.6rem] border border-white/10 bg-slate-900 p-6 shadow-2xl md:p-8">
             <div class="text-center"><h2 class="text-4xl font-black text-white">{{ ui('النتيجة النهائية', 'Final Result') }}</h2><p class="mt-4 text-7xl font-black" [class]="getScoreColor(finalScore())">{{ finalScore() }}%</p><p class="mt-4 text-lg font-black" [class.text-emerald-400]="xpChange() >= 0" [class.text-rose-400]="xpChange() < 0">{{ xpChange() >= 0 ? '+' : '' }}{{ xpChange() }} XP</p></div>
             @if (isAnalyzing()) { <div class="rounded-[2rem] border border-indigo-400/20 bg-indigo-500/10 p-8 text-center"><p class="text-xl font-black text-white">{{ ui('جاري تحليل الأخطاء...', 'Analyzing mistakes...') }}</p></div> } @else if (improvementPlan(); as plan) { <div class="grid grid-cols-1 gap-6 lg:grid-cols-2"><div class="space-y-4 rounded-[2rem] border border-white/10 bg-slate-950/70 p-6"><p class="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-300">{{ ui('نقاط الضعف', 'Weak Points') }}</p>@for (point of plan.weakPoints; track point.topic + '-' + $index) { <div class="rounded-[1.4rem] border border-white/5 bg-slate-900/70 p-4 text-right"><p class="font-black text-white">{{ point.topic }}</p><p class="mt-3 text-sm font-medium leading-7 text-slate-300">{{ point.explanation }}</p></div> }</div><div class="space-y-6"><div class="rounded-[2rem] border border-indigo-400/20 bg-indigo-500/10 p-6 text-right"><p class="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-200">{{ ui('نصيحة عامة', 'Overall Advice') }}</p><p class="mt-4 font-bold leading-8 text-white">{{ plan.overallAdvice }}</p></div><div class="rounded-[2rem] border border-emerald-400/20 bg-emerald-500/10 p-6 text-right"><p class="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200">{{ ui('الخطوات القادمة', 'Next Steps') }}</p><div class="mt-4 space-y-3">@for (step of plan.nextSteps; track step + '-' + $index) { <div class="rounded-2xl border border-emerald-400/10 bg-black/10 px-4 py-3 text-sm font-bold text-white">{{ step }}</div> }</div></div></div></div> }
-            <div class="space-y-5">@for (q of questions(); track q.id; let i = $index) { <div class="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 text-right"><p class="font-black text-white">{{ i + 1 }}. {{ q.q }}</p><div class="mt-4 space-y-2">@for (opt of q.o; track q.id + '-result-' + $index; let j = $index) { <div class="rounded-xl px-4 py-3 text-sm font-semibold" [class.bg-emerald-500/20]="j === q.a" [class.text-emerald-200]="j === q.a" [class.bg-rose-500/20]="j !== q.a && j === userAnswers()[i]" [class.text-rose-200]="j !== q.a && j === userAnswers()[i]" [class.bg-white/5]="j !== q.a && j !== userAnswers()[i]" [class.text-slate-300]="j !== q.a && j !== userAnswers()[i]"><span class="mr-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ optionLabel(j) }}</span>{{ opt }}</div> }</div><div class="mt-4 border-t border-white/10 pt-4"><p class="text-sm font-medium leading-7 text-slate-300"><span class="font-black text-indigo-300">{{ ui('الشرح', 'Explanation') }}:</span> {{ q.e }}</p><button (click)="openAiHelp(q, userAnswers()[i])" class="mt-3 text-sm font-black text-indigo-300 hover:text-indigo-200"><i class="fa-solid fa-brain"></i> {{ ui('اسأل المساعد الذكي', 'Ask AI Assistant') }}</button></div></div> }</div>
+            <div class="space-y-5">@for (q of questions(); track q.id; let i = $index) { <div class="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 text-right"><p class="font-black text-white">{{ i + 1 }}. {{ q.q }}</p><div class="mt-4 space-y-2">@for (opt of questionOptions(q); track q.id + '-result-' + $index; let j = $index) { <div class="rounded-xl px-4 py-3 text-sm font-semibold" [class.bg-emerald-500/20]="j === q.a" [class.text-emerald-200]="j === q.a" [class.bg-rose-500/20]="j !== q.a && j === userAnswers()[i]" [class.text-rose-200]="j !== q.a && j === userAnswers()[i]" [class.bg-white/5]="j !== q.a && j !== userAnswers()[i]" [class.text-slate-300]="j !== q.a && j !== userAnswers()[i]"><span class="mr-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ optionLabel(j) }}</span>{{ visibleOptionText(opt, j) }}</div> }</div><div class="mt-4 border-t border-white/10 pt-4"><p class="text-sm font-medium leading-7 text-slate-300"><span class="font-black text-indigo-300">{{ ui('الشرح', 'Explanation') }}:</span> {{ q.e }}</p><button (click)="openAiHelp(q, userAnswers()[i])" class="mt-3 text-sm font-black text-indigo-300 hover:text-indigo-200"><i class="fa-solid fa-brain"></i> {{ ui('اسأل المساعد الذكي', 'Ask AI Assistant') }}</button></div></div> }</div>
             <div class="flex justify-center"><button (click)="reset()" class="rounded-2xl bg-indigo-600 px-8 py-4 font-black text-white hover:scale-[1.02]">{{ ui('العودة للرئيسية', 'Back To Home') }}</button></div>
           </div>
         }
@@ -124,7 +167,7 @@ interface SavedMaterial {
         @case ('review') {
           <div class="space-y-6 rounded-[2.6rem] border border-white/10 bg-slate-900 p-6 shadow-2xl md:p-8">
             <div class="flex flex-wrap items-center justify-between gap-4"><button (click)="view.set('home')" class="flex items-center gap-2 text-sm font-black text-slate-400 hover:text-white"><i class="fa-solid fa-arrow-right" [class.fa-arrow-left]="!isArabicUi()"></i>{{ ui('العودة للسجل', 'Back To History') }}</button><div class="text-center"><h2 class="text-2xl font-black text-white">{{ ui('مراجعة المحاولة', 'Attempt Review') }}</h2><p class="text-xs font-bold text-slate-500">{{ formatDate(activeAttempt()?.date || 0) }}</p></div><div class="text-2xl font-black" [class]="getScoreColor(activeAttempt()?.score || 0)">{{ activeAttempt()?.score || 0 }}%</div></div>
-            <div class="space-y-5">@for (q of activeAttempt()?.questions || []; track q.id; let i = $index) { <div class="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 text-right"><p class="font-black text-white">{{ i + 1 }}. {{ q.q }}</p><div class="mt-4 space-y-2">@for (opt of q.o; track q.id + '-review-' + $index; let j = $index) { <div class="rounded-xl px-4 py-3 text-sm font-semibold" [class.bg-emerald-500/20]="j === q.a" [class.text-emerald-200]="j === q.a" [class.bg-rose-500/20]="j !== q.a && j === activeAttempt()?.userAnswers?.[i]" [class.text-rose-200]="j !== q.a && j === activeAttempt()?.userAnswers?.[i]" [class.bg-white/5]="j !== q.a && j !== activeAttempt()?.userAnswers?.[i]" [class.text-slate-300]="j !== q.a && j !== activeAttempt()?.userAnswers?.[i]"><span class="mr-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ optionLabel(j) }}</span>{{ opt }}</div> }</div><div class="mt-4 border-t border-white/10 pt-4"><p class="text-sm font-medium leading-7 text-slate-300"><span class="font-black text-indigo-300">{{ ui('الشرح', 'Explanation') }}:</span> {{ q.e }}</p><button (click)="openAiHelp(q, activeAttempt()?.userAnswers?.[i] ?? null)" class="mt-3 text-sm font-black text-indigo-300 hover:text-indigo-200"><i class="fa-solid fa-brain"></i> {{ ui('اسأل المساعد الذكي', 'Ask AI Assistant') }}</button></div></div> }</div>
+            <div class="space-y-5">@for (q of activeAttempt()?.questions || []; track q.id; let i = $index) { <div class="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 text-right"><p class="font-black text-white">{{ i + 1 }}. {{ q.q }}</p><div class="mt-4 space-y-2">@for (opt of questionOptions(q); track q.id + '-review-' + $index; let j = $index) { <div class="rounded-xl px-4 py-3 text-sm font-semibold" [class.bg-emerald-500/20]="j === q.a" [class.text-emerald-200]="j === q.a" [class.bg-rose-500/20]="j !== q.a && j === activeAttempt()?.userAnswers?.[i]" [class.text-rose-200]="j !== q.a && j === activeAttempt()?.userAnswers?.[i]" [class.bg-white/5]="j !== q.a && j !== activeAttempt()?.userAnswers?.[i]" [class.text-slate-300]="j !== q.a && j !== activeAttempt()?.userAnswers?.[i]"><span class="mr-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{{ optionLabel(j) }}</span>{{ visibleOptionText(opt, j) }}</div> }</div><div class="mt-4 border-t border-white/10 pt-4"><p class="text-sm font-medium leading-7 text-slate-300"><span class="font-black text-indigo-300">{{ ui('الشرح', 'Explanation') }}:</span> {{ q.e }}</p><button (click)="openAiHelp(q, activeAttempt()?.userAnswers?.[i] ?? null)" class="mt-3 text-sm font-black text-indigo-300 hover:text-indigo-200"><i class="fa-solid fa-brain"></i> {{ ui('اسأل المساعد الذكي', 'Ask AI Assistant') }}</button></div></div> }</div>
           </div>
         }
       }
@@ -172,6 +215,7 @@ export class QuizPage {
     return history.length === 0 ? 0 : Math.round(history.reduce((sum, attempt) => sum + attempt.score, 0) / history.length);
   });
   readonly currentQuestion = computed(() => this.questions()[Math.max(0, Math.min(this.currentQuestionIndex(), Math.max(0, this.questions().length - 1)))] || null);
+  readonly currentQuestionOptions = computed(() => this.questionOptions(this.currentQuestion()));
   readonly currentUserAnswer = computed(() => this.userAnswers()[this.currentQuestionIndex()] ?? null);
   readonly progressPercent = computed(() => this.questions().length === 0 ? 0 : ((this.currentQuestionIndex() + 1) / this.questions().length) * 100);
 
@@ -226,13 +270,7 @@ export class QuizPage {
             score: Number(attempt.score || 0),
             xpChange: Number(attempt.xpChange || 0),
             questions: Array.isArray(attempt.questions)
-              ? attempt.questions.map((question, index) => ({
-                id: String(question?.id || `quiz_${index + 1}`),
-                q: String(question?.q || ''),
-                o: Array.isArray(question?.o) ? question.o.map((option) => String(option)) : [],
-                a: Number(question?.a || 0),
-                e: String(question?.e || '')
-              }))
+              ? attempt.questions.map((question, index) => this.normalizeQuestionRecord(question as QuizQuestionCandidate, index))
               : [],
             userAnswers: Array.isArray(attempt.userAnswers)
               ? attempt.userAnswers.map((answer) => typeof answer === 'number' ? answer : null)
@@ -278,7 +316,7 @@ export class QuizPage {
   reviewAttempt(attempt: QuizAttempt) {
     this.activeAttempt.set({
       ...attempt,
-      questions: attempt.questions.map((question) => ({ ...question, o: [...question.o] })),
+      questions: attempt.questions.map((question, index) => this.normalizeQuestionRecord(question, index)),
       userAnswers: [...attempt.userAnswers]
     });
     this.view.set('review');
@@ -323,7 +361,7 @@ export class QuizPage {
   }
 
   async startQuizGeneration(topicInput: string, countInput: string, durationInput: string) {
-    const topic = (topicInput || this.activeSubject()).trim();
+    const topic = (topicInput || this.activeSubject() || this.buildFallbackSubjectFromFiles()).trim();
     const count = Math.max(1, Math.min(50, Number.parseInt(countInput, 10) || 10));
     const duration = Math.max(1, Number.parseInt(durationInput, 10) || 10);
 
@@ -346,18 +384,54 @@ export class QuizPage {
     this.loadingMessage.set(this.ui('جاري تجهيز الملفات...', 'Preparing files...'));
 
     try {
+      const files = this.selectedFiles();
       const attachments: AIFileAttachment[] = [];
-      for (const file of this.selectedFiles()) {
-        const base64 = await this.fileToBase64(file);
-        attachments.push({
-          name: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          data: base64.split(',')[1] || ''
-        });
+      const skippedFiles: string[] = [];
+      let extractedSources = 0;
+
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        this.loadingProgress.set(10 + (((index + 1) / Math.max(1, files.length)) * 35));
+        this.loadingMessage.set(this.ui(
+          `جاري قراءة الملف ${index + 1} من ${files.length}: ${file.name}`,
+          `Reading file ${index + 1} of ${files.length}: ${file.name}`
+        ));
+
+        const prepared = await this.prepareQuizAttachment(file);
+        if (prepared.attachment) {
+          attachments.push(prepared.attachment);
+          if (prepared.extractedText) {
+            extractedSources += 1;
+          }
+          continue;
+        }
+
+        skippedFiles.push(file.name);
+      }
+
+      if (files.length > 0 && attachments.length === 0) {
+        alert(this.ui(
+          'لم أتمكن من قراءة أي ملف مرفوع. استخدم PDF أو DOCX أو TXT أو ملفات صوتية واضحة.',
+          'I could not read any uploaded file. Use clear PDF, DOCX, TXT, or audio files.'
+        ));
+        return;
+      }
+
+      if (skippedFiles.length > 0) {
+        this.ns.show(
+          this.ui('تم تجاوز بعض الملفات', 'Some files were skipped'),
+          skippedFiles.join(', '),
+          'warning',
+          'fa-triangle-exclamation'
+        );
       }
 
       this.loadingProgress.set(55);
-      this.loadingMessage.set(this.ui('جاري إنشاء أسئلة الاختبار...', 'Generating exam questions...'));
+      this.loadingMessage.set(
+        attachments.length > 0 && extractedSources > 0
+          ? this.ui('جاري إنشاء الاختبار من محتوى الملفات...', 'Building the exam from the uploaded file content...')
+          : this.ui('جاري إنشاء أسئلة الاختبار...', 'Generating exam questions...')
+      );
 
       const questions = await this.ai.generateQuiz(
         topic,
@@ -368,11 +442,11 @@ export class QuizPage {
         this.quizDifficulty()
       );
 
-      const normalizedQuestions = questions.map((question, index) => ({
+      const normalizedQuestions = questions.map((question, index) => this.normalizeQuestionRecord({
         ...question,
         id: question.id || `quiz_${index + 1}`,
-        o: [...question.o]
-      }));
+        o: [...(Array.isArray(question.o) ? question.o : [])]
+      }, index, this.quizType()));
 
       this.questions.set(normalizedQuestions);
       this.userAnswers.set(Array.from({ length: normalizedQuestions.length }, () => null));
@@ -394,7 +468,168 @@ export class QuizPage {
     }
   }
 
-  private fileToBase64(file: File): Promise<string> {
+  private buildFallbackSubjectFromFiles(): string {
+    const files = this.selectedFiles();
+    if (files.length === 1) {
+      return files[0].name.replace(/\.[^/.]+$/, '').trim();
+    }
+
+    if (files.length > 1) {
+      return this.ui('المحتوى المرفوع', 'Uploaded Material');
+    }
+
+    return '';
+  }
+
+  private async prepareQuizAttachment(file: File): Promise<PreparedQuizAttachmentResult> {
+    const kind = this.detectQuizFileKind(file);
+    const extractedText = await this.extractTextFromQuizFile(file, kind);
+
+    if (extractedText) {
+      return {
+        attachment: this.buildExtractedTextAttachment(file.name, extractedText),
+        extractedText: true
+      };
+    }
+
+    if (kind === 'doc') {
+      this.ns.show(
+        this.ui('ملف قديم محدود الدعم', 'Legacy file with limited support'),
+        this.ui(
+          `الملف ${file.name} بصيغة DOC القديمة وقد لا يُقرأ بدقة. يفضّل استخدام DOCX أو PDF أو TXT.`,
+          `${file.name} is a legacy DOC file and may not be read accurately. DOCX, PDF, or TXT is preferred.`
+        ),
+        'warning',
+        'fa-file-circle-xmark'
+      );
+    }
+
+    try {
+      return {
+        attachment: await this.buildRawQuizAttachment(file),
+        extractedText: false
+      };
+    } catch (error) {
+      console.error(`Failed to prepare quiz attachment for ${file.name}`, error);
+      return {
+        attachment: null,
+        extractedText: false
+      };
+    }
+  }
+
+  private detectQuizFileKind(file: File): QuizUploadKind {
+    const type = file.type.toLowerCase();
+    const ext = file.name.toLowerCase().split('.').pop() || '';
+
+    if (type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(ext)) return 'image';
+    if (type.startsWith('audio/') || ['mp3', 'wav', 'm4a', 'ogg', 'webm', 'aac'].includes(ext)) return 'audio';
+    if (type === 'application/pdf' || ext === 'pdf') return 'pdf';
+    if (type.includes('wordprocessingml.document') || ext === 'docx') return 'docx';
+    if (type === 'application/msword' || ext === 'doc') return 'doc';
+    if (type.startsWith('text/') || ['txt', 'md', 'csv', 'json'].includes(ext)) return 'text';
+
+    return 'unknown';
+  }
+
+  private async extractTextFromQuizFile(file: File, kind: QuizUploadKind): Promise<string | null> {
+    try {
+      switch (kind) {
+        case 'audio':
+          return this.normalizeQuizSourceText(
+            await this.ai.transcribeAudio(await this.blobToBase64(file), file.type || 'audio/webm')
+          );
+        case 'pdf':
+          return this.normalizeQuizSourceText(await this.extractQuizPdfText(file));
+        case 'docx':
+          return this.normalizeQuizSourceText(
+            (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value
+          );
+        case 'text':
+          return this.normalizeQuizSourceText(await file.text());
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.error(`Failed to extract quiz source text from ${file.name}`, error);
+      return null;
+    }
+  }
+
+  private async extractQuizPdfText(file: File): Promise<string> {
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = 'assets/pdfjs/build/pdf.worker.min.mjs';
+
+    const task = pdfjs.getDocument({
+      data: new Uint8Array(await file.arrayBuffer()),
+      cMapUrl: 'assets/pdfjs/cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: 'assets/pdfjs/standard_fonts/'
+    });
+
+    const document = await task.promise;
+    try {
+      const pages: string[] = [];
+      for (let index = 1; index <= document.numPages; index += 1) {
+        const page = await document.getPage(index);
+        const content = await page.getTextContent();
+        const text = reconstructPdfPageText(content.items);
+        pages.push(text);
+      }
+
+      return pages.join('\n\n');
+    } finally {
+      await document.destroy();
+    }
+  }
+
+  private normalizeQuizSourceText(value: string): string {
+    return normalizeExtractedStudyText(value);
+  }
+
+  private buildExtractedTextAttachment(fileName: string, extractedText: string): AIFileAttachment {
+    const payload = this.normalizeQuizSourceText([
+      `Source file: ${fileName}`,
+      '',
+      'Extracted content:',
+      extractedText
+    ].join('\n'));
+
+    return {
+      name: `${fileName}.smartedge-source.txt`,
+      mimeType: 'text/plain',
+      data: this.textToBase64(payload)
+    };
+  }
+
+  private async buildRawQuizAttachment(file: File): Promise<AIFileAttachment> {
+    const base64 = await this.fileToBase64(file);
+    return {
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      data: base64.split(',')[1] || ''
+    };
+  }
+
+  private textToBase64(value: string): string {
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    const chunkSize = 0x8000;
+
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      const chunk = bytes.subarray(index, index + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+
+    return btoa(binary);
+  }
+
+  private async blobToBase64(blob: Blob): Promise<string> {
+    const dataUrl = await this.fileToBase64(blob);
+    return dataUrl.split(',')[1] || '';
+  }
+
+  private fileToBase64(file: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
@@ -452,6 +687,352 @@ export class QuizPage {
       : String.fromCharCode(65 + index);
   }
 
+  questionOptions(question: QuizQuestion | null | undefined): string[] {
+    if (!question) {
+      return [];
+    }
+
+    const preferredType = question.t === 'mcq' || question.t === 'true_false'
+      ? question.t
+      : undefined;
+
+    return this.normalizeQuestionOptions(
+      Array.isArray(question.o) ? question.o : [],
+      this.inferQuestionType(Array.isArray(question.o) ? question.o : [], preferredType)
+    );
+  }
+
+  private normalizeQuestionRecord(
+    question: QuizQuestion | QuizQuestionCandidate | null | undefined,
+    index: number,
+    preferredType?: QuizQuestionType
+  ): QuizQuestion {
+    const candidate = (question || {}) as QuizQuestionCandidate;
+    const promptFallback = this.ui('سؤال بدون نص', 'Question without text');
+    const promptSource = this.pickQuestionPrompt(candidate, promptFallback);
+    const rawOptions = this.collectQuestionOptionCandidates(candidate);
+    const storedType = candidate.t === 'mcq' || candidate.t === 'true_false'
+      ? candidate.t
+      : undefined;
+    const initialType = storedType || preferredType;
+    const questionType = this.inferQuestionType(rawOptions, initialType);
+    const extracted = this.extractInlineQuestionOptions(promptSource, questionType);
+    const options = this.normalizeQuestionOptions([...rawOptions, ...extracted.options], questionType);
+    const parsedAnswer = this.resolveQuestionAnswerIndex(candidate, options, questionType);
+
+    return {
+      id: String(candidate.id || `quiz_${index + 1}`),
+      q: extracted.prompt || promptFallback,
+      o: options,
+      a: Math.max(0, Math.min(options.length - 1, parsedAnswer)),
+      e: this.pickQuestionExplanation(candidate, this.ui('لا يوجد شرح إضافي.', 'No extra explanation available.')),
+      t: questionType
+    };
+  }
+
+  private normalizeQuestionOptions(options: string[], type: QuizQuestionType): string[] {
+    const cleaned = options
+      .map((option) => this.cleanOptionText(option))
+      .filter(Boolean)
+      .filter((option, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === option.toLowerCase()) === index);
+
+    if (type === 'true_false') {
+      return this.quizLanguage() === 'ar' ? ['صح', 'خطأ'] : ['True', 'False'];
+    }
+
+    if (cleaned.length >= 2) {
+      return cleaned.slice(0, 4);
+    }
+
+    return this.quizLanguage() === 'ar'
+      ? ['الخيار الأول', 'الخيار الثاني', 'الخيار الثالث', 'الخيار الرابع']
+      : ['Option 1', 'Option 2', 'Option 3', 'Option 4'];
+  }
+
+  visibleOptionText(option: string, index: number): string {
+    const cleaned = this.cleanOptionText(option);
+    if (cleaned) {
+      return cleaned;
+    }
+
+    return this.quizLanguage() === 'ar'
+      ? `الخيار ${index + 1}`
+      : `Option ${index + 1}`;
+  }
+
+  private cleanOptionText(option: unknown): string {
+    return String(option ?? '')
+      .replace(/^[\-\*\u2022]?\s*(?:(?:option|choice|الخيار)\s*)?(?:[A-Da-d]|[1-4]|[أابجدهـهو])\s*[\)\].:-]\s*/iu, '')
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private inferQuestionType(options: string[], preferredType?: QuizQuestionType): QuizQuestionType {
+    if (preferredType) {
+      return preferredType;
+    }
+
+    const normalized = options
+      .map((option) => option.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (
+      normalized.length === 2
+      && normalized.every((option) => ['true', 'false', 'صح', 'خطأ', 'صحيح', 'غلط'].includes(option))
+    ) {
+      return 'true_false';
+    }
+
+    return 'mcq';
+  }
+
+  private pickQuestionPrompt(
+    question: QuizQuestion | QuizQuestionCandidate | null | undefined,
+    fallback: string
+  ): string {
+    const candidate = (question || {}) as QuizQuestionCandidate;
+    const direct = typeof candidate.q === 'string' && candidate.q.trim()
+      ? candidate.q.trim()
+      : typeof candidate.question === 'string' && candidate.question.trim()
+        ? candidate.question.trim()
+        : typeof candidate.prompt === 'string' && candidate.prompt.trim()
+          ? candidate.prompt.trim()
+          : typeof candidate.text === 'string' && candidate.text.trim()
+            ? candidate.text.trim()
+            : '';
+
+    return direct || fallback;
+  }
+
+  private pickQuestionExplanation(
+    question: QuizQuestion | QuizQuestionCandidate | null | undefined,
+    fallback: string
+  ): string {
+    const candidate = (question || {}) as QuizQuestionCandidate;
+    const explanation = typeof candidate.e === 'string' && candidate.e.trim()
+      ? candidate.e.trim()
+      : typeof candidate.explanation === 'string' && candidate.explanation.trim()
+        ? candidate.explanation.trim()
+        : typeof candidate.reasoning === 'string' && candidate.reasoning.trim()
+          ? candidate.reasoning.trim()
+          : '';
+
+    return explanation || fallback;
+  }
+
+  private collectQuestionOptionCandidates(
+    question: QuizQuestion | QuizQuestionCandidate | null | undefined
+  ): string[] {
+    const candidate = (question || {}) as QuizQuestionCandidate;
+    const candidates: unknown[] = [];
+    const sources = [candidate.o, candidate.options, candidate.choices, candidate.answers, candidate.items];
+
+    for (const source of sources) {
+      if (Array.isArray(source)) {
+        candidates.push(...source);
+      } else if (source && typeof source === 'object') {
+        candidates.push(...this.collectQuestionOptionsFromObject(source as Record<string, unknown>));
+      }
+    }
+
+    candidates.push(...this.collectQuestionOptionsFromObject(candidate, true));
+
+    return candidates
+      .map((candidate) => this.coerceQuestionOptionText(candidate))
+      .filter(Boolean);
+  }
+
+  private collectQuestionOptionsFromObject(candidate: Record<string, unknown>, topLevel: boolean = false): unknown[] {
+    const keys = topLevel
+      ? ['optionA', 'optionB', 'optionC', 'optionD', 'choiceA', 'choiceB', 'choiceC', 'choiceD', 'option1', 'option2', 'option3', 'option4']
+      : ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd', '1', '2', '3', '4', 'optionA', 'optionB', 'optionC', 'optionD'];
+
+    return keys
+      .map((key) => candidate[key])
+      .filter((value) => value !== undefined && value !== null);
+  }
+
+  private coerceQuestionOptionText(value: unknown): string {
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return this.cleanOptionText(value);
+    }
+
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      for (const key of ['text', 'label', 'option', 'value', 'content', 'answer', 'title', 'name']) {
+        const nested = record[key];
+        if (typeof nested === 'string' && nested.trim()) {
+          return this.cleanOptionText(nested);
+        }
+      }
+    }
+
+    return '';
+  }
+
+  private extractInlineQuestionOptions(prompt: string, type: QuizQuestionType): { prompt: string; options: string[] } {
+    const text = String(prompt || '').trim();
+    if (!text || type === 'true_false') {
+      return { prompt: text, options: [] };
+    }
+
+    const lines = text.split(/\r?\n/g).map((line) => line.trim()).filter(Boolean);
+    const firstOptionIndex = lines.findIndex((line) => this.matchInlineQuestionOption(line) !== null);
+    if (firstOptionIndex < 0) {
+      return { prompt: text, options: [] };
+    }
+
+    const options: string[] = [];
+    for (let index = firstOptionIndex; index < lines.length; index += 1) {
+      const option = this.matchInlineQuestionOption(lines[index]);
+      if (!option) {
+        break;
+      }
+      options.push(option);
+      if (options.length === 4) {
+        break;
+      }
+    }
+
+    if (options.length !== 4) {
+      return { prompt: text, options: [] };
+    }
+
+    return {
+      prompt: lines.slice(0, firstOptionIndex).join(' ').trim() || text,
+      options
+    };
+  }
+
+  private matchInlineQuestionOption(line: string): string | null {
+    const match = line.match(/^[\-\*\u2022]?\s*(?:(?:option|choice|الخيار)\s*)?(?:[A-Da-d]|[1-4]|[أابجدهـهو])\s*[\)\].:-]\s*(.+)$/iu);
+    if (!match?.[1]) {
+      return null;
+    }
+
+    const cleaned = this.cleanOptionText(match[1]);
+    return cleaned || null;
+  }
+
+  private resolveQuestionAnswerIndex(
+    question: QuizQuestion | QuizQuestionCandidate | null | undefined,
+    options: string[],
+    type: QuizQuestionType
+  ): number {
+    const candidate = (question || {}) as QuizQuestionCandidate;
+    const textualFields = [
+      candidate.answer,
+      candidate.correctAnswer,
+      candidate.correct_option,
+      candidate.correctOption,
+      candidate.correct_choice,
+      candidate.correctChoice
+    ];
+
+    for (const value of textualFields) {
+      const resolved = this.resolveQuestionAnswerFromText(value, options, type);
+      if (resolved !== null) {
+        return resolved;
+      }
+    }
+
+    const numericFields = [candidate.a, candidate.answerIndex, candidate.correctIndex, candidate.correctOptionIndex];
+    for (const value of numericFields) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.max(0, Math.min(options.length - 1, Math.floor(value)));
+      }
+
+      if (typeof value === 'string' && /^-?\d+$/.test(value.trim())) {
+        const parsed = Number(value.trim());
+        if (Number.isFinite(parsed)) {
+          return Math.max(0, Math.min(options.length - 1, Math.floor(parsed)));
+        }
+      }
+    }
+
+    return 0;
+  }
+
+  private resolveQuestionAnswerFromText(value: unknown, options: string[], type: QuizQuestionType): number | null {
+    const answer = this.coerceQuestionAnswerText(value);
+    if (!answer) {
+      return null;
+    }
+
+    const optionIndex = options.findIndex((option) => option.toLowerCase() === answer.toLowerCase());
+    if (optionIndex >= 0) {
+      return optionIndex;
+    }
+
+    const labelIndex = this.parseQuestionAnswerLabel(answer, options.length);
+    if (labelIndex !== null) {
+      return labelIndex;
+    }
+
+    if (type === 'true_false') {
+      if (/^(?:true|صح|صحيح)$/i.test(answer)) return 0;
+      if (/^(?:false|خطأ|غلط)$/i.test(answer)) return 1;
+    }
+
+    return null;
+  }
+
+  private coerceQuestionAnswerText(value: unknown): string {
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value).trim();
+    }
+
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      for (const key of ['text', 'label', 'value', 'answer', 'option']) {
+        const nested = record[key];
+        if (typeof nested === 'string' && nested.trim()) {
+          return nested.trim();
+        }
+      }
+    }
+
+    return '';
+  }
+
+  private parseQuestionAnswerLabel(value: string, optionCount: number): number | null {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (/^[A-D]$/i.test(trimmed)) {
+      return Math.min(optionCount - 1, trimmed.toUpperCase().charCodeAt(0) - 65);
+    }
+
+    const arabicLabelMap: Record<string, number> = {
+      'أ': 0,
+      'ا': 0,
+      'ب': 1,
+      'ج': 2,
+      'د': 3,
+      'ه': 4,
+      'هـ': 4,
+      'و': 5
+    };
+    if (trimmed in arabicLabelMap) {
+      return Math.min(optionCount - 1, arabicLabelMap[trimmed]);
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = Number(trimmed);
+      if (parsed >= 1 && parsed <= optionCount) {
+        return parsed - 1;
+      }
+      if (parsed >= 0 && parsed < optionCount) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
+
   selectAnswer(index: number) {
     this.userAnswers.update((answers) => {
       const next = [...answers];
@@ -474,7 +1055,7 @@ export class QuizPage {
     this.clearTimer();
 
     const answers = [...this.userAnswers()];
-    const questionSnapshot = this.questions().map((question) => ({ ...question, o: [...question.o] }));
+    const questionSnapshot = this.questions().map((question, index) => this.normalizeQuestionRecord(question, index, this.quizType()));
     const correctCount = questionSnapshot.reduce((count, question, index) => count + (question.a === answers[index] ? 1 : 0), 0);
     const score = Math.round((correctCount / questionSnapshot.length) * 100);
     const xpDelta = score >= 50 ? correctCount * 5 : -(questionSnapshot.length - correctCount) * 2;
@@ -482,17 +1063,22 @@ export class QuizPage {
     this.finalScore.set(score);
     this.xpChange.set(xpDelta);
     this.ai.quizzesCompleted.update((count) => count + 1);
-    this.ai.addXP(xpDelta);
+    const attemptId = crypto.randomUUID();
+    const subjectName = this.activeSubject();
+    this.ai.awardXPForAction('quizAttempt', xpDelta, {
+      fingerprint: `quiz:${subjectName}:${attemptId}`,
+      allowNegative: xpDelta < 0
+    });
     this.ai.addPerformanceRecord({
       date: new Date().toISOString(),
       score,
       type: 'quiz',
-      subject: this.activeSubject(),
+      subject: subjectName,
       grade: this.ai.getGrade(score)
     });
 
     const attempt: QuizAttempt = {
-      id: crypto.randomUUID(),
+      id: attemptId,
       date: Date.now(),
       score,
       xpChange: xpDelta,
@@ -500,7 +1086,6 @@ export class QuizPage {
       userAnswers: answers
     };
 
-    const subjectName = this.activeSubject();
     const existingMaterial = this.savedMaterials().find((material) => material.name === subjectName);
     if (existingMaterial) {
       this.savedMaterials.update((materials) => materials.map((material) => material.id === existingMaterial.id
@@ -536,7 +1121,7 @@ export class QuizPage {
   }
 
   openAiHelp(question: QuizQuestion, answer: number | null) {
-    this.aiHelpContext.set({ q: { ...question, o: [...question.o] }, a: answer });
+    this.aiHelpContext.set({ q: this.normalizeQuestionRecord(question, 0, this.quizType()), a: answer });
     this.aiHelpHistory.set([]);
   }
 

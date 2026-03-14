@@ -65,8 +65,8 @@
               <div class="mindmap-fullscreen-toolbar">
                 <div class="mindmap-fullscreen-toolbar-inner">
                   <span class="rounded-2xl border border-white/10 bg-slate-950/75 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100">{{ zoomPercent() }}</span>
-                  <button (click)="zoomOut()" [disabled]="scale() <= 0.58" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/75 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تصغير' : 'Zoom Out'"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-                  <button (click)="zoomIn()" [disabled]="scale() >= 2.2" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/75 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تكبير' : 'Zoom In'"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                  <button (click)="zoomOut()" [disabled]="scale() <= minScale" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/75 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تصغير' : 'Zoom Out'"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                  <button (click)="zoomIn()" [disabled]="scale() >= maxScale" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/75 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تكبير' : 'Zoom In'"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
                   <button (click)="fitMapToScreen()" class="rounded-2xl border border-white/10 bg-slate-950/75 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'ملاءمة' : 'Fit' }}</button>
                   <button (click)="toggleFullScreen()" class="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-rose-100 transition hover:bg-rose-500 hover:text-white">{{ ai.currentLanguage() === 'ar' ? 'خروج من الملء' : 'Exit Full Screen' }}</button>
                 </div>
@@ -126,9 +126,9 @@
                   <button (click)="hideMapDetails()" [disabled]="!hasMap()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'إخفاء التفاصيل' : 'Hide Details' }}</button>
                   <button (click)="showMapDetails()" [disabled]="!hasMap()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-sky-400/30 hover:text-sky-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'إظهار التفاصيل' : 'Show Details' }}</button>
                   <div class="ml-auto flex flex-wrap items-center gap-2">
-                    <button (click)="zoomOut()" [disabled]="scale() <= 0.58" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تصغير' : 'Zoom Out'"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                    <button (click)="zoomOut()" [disabled]="scale() <= minScale" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تصغير' : 'Zoom Out'"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
                     <span class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-200">{{ zoomPercent() }}</span>
-                    <button (click)="zoomIn()" [disabled]="scale() >= 2.2" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تكبير' : 'Zoom In'"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                    <button (click)="zoomIn()" [disabled]="scale() >= maxScale" class="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:border-cyan-400/30 disabled:opacity-40" [attr.title]="ai.currentLanguage() === 'ar' ? 'تكبير' : 'Zoom In'"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
                     <button (click)="fitMapToScreen()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100">{{ ai.currentLanguage() === 'ar' ? 'ملاءمة' : 'Fit Map' }}</button>
                     <button (click)="centerSelectedNode()" [disabled]="!selectedNodeId()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'تمركز التحديد' : 'Center Selected' }}</button>
                     <button (click)="centerRoot()" [disabled]="!hasMap()" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-slate-100 transition hover:border-cyan-400/30 hover:text-cyan-100 disabled:opacity-40">{{ ai.currentLanguage() === 'ar' ? 'تمركز الجذر' : 'Center Root' }}</button>
@@ -247,9 +247,9 @@
               }
               }
 
-              <div #mapViewport class="mindmap-canvas-viewport no-scrollbar" [class.knowledge-viewport]="isKnowledgeSurface()" (pointerdown)="onCanvasPointerDown($event)" (pointermove)="onCanvasPointerMove($event)" (pointerup)="onCanvasPointerUp($event)" (pointerleave)="onCanvasPointerUp($event)" (wheel)="onCanvasWheel($event)">
+              <div #mapViewport class="mindmap-canvas-viewport no-scrollbar" [class.knowledge-viewport]="isKnowledgeSurface()" (pointerdown)="onCanvasPointerDown($event)" (pointermove)="onCanvasPointerMove($event)" (pointerup)="onCanvasPointerUp($event)" (pointercancel)="onCanvasPointerUp($event)" (wheel)="onCanvasWheel($event)">
                 <div class="mindmap-ambient-glow"></div>
-                <div #mapCanvas class="mindmap-canvas" [class]="canvasClass()" [attr.data-layout]="layoutPreset()" [attr.data-line-style]="currentCustomization().lineStyle" [attr.data-visual-mode]="currentCustomization().visualMode" [attr.data-node-size]="currentCustomization().nodeSize" [style.transform]="canvasTransform()" [ngStyle]="isKnowledgeSurface() ? knowledgeBoardCanvasStyle() : null">
+                <div #mapCanvas class="mindmap-canvas" [class]="canvasClass()" [attr.data-layout]="layoutPreset()" [attr.data-line-style]="currentCustomization().lineStyle" [attr.data-visual-mode]="currentCustomization().visualMode" [attr.data-node-size]="currentCustomization().nodeSize" [ngStyle]="isKnowledgeSurface() ? knowledgeBoardCanvasStyle() : null">
                   @if (isKnowledgeSurface()) {
                     <div class="knowledge-board-surface" [ngStyle]="knowledgeBoardCanvasStyle()">
                       <svg class="knowledge-board-connections" [attr.viewBox]="'0 0 ' + knowledgeBoardCanvasStyle().width.replace('px', '') + ' ' + knowledgeBoardCanvasStyle().height.replace('px', '')" preserveAspectRatio="none">
@@ -273,7 +273,7 @@
 
                       @for (node of knowledgeNodes(); track node.id) {
                         <article class="knowledge-node-shell" [class]="knowledgeNodeShellClass(node)" [style.transform]="'translate(' + node.x + 'px, ' + node.y + 'px)'" [attr.data-node-id]="node.id">
-                          <div class="knowledge-node-card" [ngStyle]="knowledgeNodeStyle(node)" (click)="selectKnowledgeNode(node.id, $event)">
+                          <div class="knowledge-node-card" [ngStyle]="knowledgeNodeStyle(node)">
                             <div class="knowledge-node-card-top">
                               <button class="knowledge-node-grip" (pointerdown)="startKnowledgeNodeDrag(node.id, $event)">
                                 <i class="fa-solid fa-grip"></i>
@@ -344,7 +344,7 @@
                       <ng-template #nodeTemplate let-node>
                         <li class="mind-branch" [attr.data-level]="node.level">
                           <div class="mind-node-shell" [class]="nodeShellClass(node)" [attr.data-node-id]="node.id" [attr.data-node-type]="node.type">
-                            <article class="mind-node-card" [ngStyle]="nodeStyle(node)" (click)="selectNode(node.id, $event)" (dblclick)="startNodeEdit(node, $event)" [attr.dir]="resolveTextDirection(node.title + ' ' + (node.summary || ''), currentMap()?.language || ai.currentLanguage())" [attr.title]="nodeSummary(node) || node.title">
+                            <article class="mind-node-card" [ngStyle]="nodeStyle(node)" (dblclick)="startNodeEdit(node, $event)" [attr.dir]="resolveTextDirection(node.title + ' ' + (node.summary || ''), currentMap()?.language || ai.currentLanguage())" [attr.title]="nodeSummary(node) || node.title">
                               <div class="mind-node-sheen"></div>
                               <div class="mind-node-head">
                                 <span class="mind-node-kind">
@@ -406,6 +406,24 @@
                       <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: root }"></ng-container>
                     </ul>
                   }
+                </div>
+
+                <div class="mindmap-viewport-controls" [class.is-knowledge-surface]="isKnowledgeSurface()">
+                  <div class="mindmap-viewport-controls-group">
+                    <button (click)="zoomIn()" [disabled]="scale() >= maxScale" class="mindmap-viewport-control" [attr.title]="ai.currentLanguage() === 'ar' ? 'تكبير' : 'Zoom In'">
+                      <i class="fa-solid fa-magnifying-glass-plus"></i>
+                    </button>
+                    <button (click)="zoomOut()" [disabled]="scale() <= minScale" class="mindmap-viewport-control" [attr.title]="ai.currentLanguage() === 'ar' ? 'تصغير' : 'Zoom Out'">
+                      <i class="fa-solid fa-magnifying-glass-minus"></i>
+                    </button>
+                    <button (click)="fitMapToScreen()" class="mindmap-viewport-control" [attr.title]="ai.currentLanguage() === 'ar' ? 'ملاءمة الشاشة' : 'Fit To Screen'">
+                      <i class="fa-solid fa-expand"></i>
+                    </button>
+                    <button (click)="resetViewport()" class="mindmap-viewport-control" [attr.title]="ai.currentLanguage() === 'ar' ? 'إعادة العرض' : 'Reset View'">
+                      <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                  </div>
+                  <span class="mindmap-viewport-zoom-badge">{{ zoomPercent() }}</span>
                 </div>
 
                 @if (isKnowledgeStudyMode() && currentKnowledgeStudyNode(); as studyNode) {

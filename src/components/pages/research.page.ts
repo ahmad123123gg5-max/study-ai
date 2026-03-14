@@ -467,7 +467,8 @@ export class ResearchPage {
 
       this.searchResult.set(result);
       this.ai.incrementUsage('academicResearch');
-      this.ai.addXP(15);
+      const fingerprint = `research:${normalizedQuery.slice(0, 60)}:${this.selectedLevel()}:${this.selectedLang()}`;
+      this.ai.awardXPForAction('academicResearch', 15, { fingerprint });
 
       const endTime = performance.now();
       this.searchTime.set(((endTime - startTime) / 1000).toFixed(2));

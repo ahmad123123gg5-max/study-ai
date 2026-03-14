@@ -103,6 +103,7 @@ export interface HybridChatRequest {
   systemInstruction: string;
   jsonMode: boolean;
   model: string;
+  temperature?: number;
   maxTokens?: number;
   historyMessages: HybridChatMessage[];
   attachmentText?: string;

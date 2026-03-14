@@ -24,6 +24,7 @@ import { SimulationReportService } from './simulation-report.service';
 import { SpecialtyProfile, SpecialtyProfileService } from './specialty-profile.service';
 import { VirtualLabTimerService } from './timer.service';
 import { VirtualLabSessionService } from './virtual-lab-session.service';
+import { LiveMonitorService } from './live-monitor.service';
 
 @Injectable({ providedIn: 'root' })
 export class SimulationEngineService {
@@ -37,6 +38,7 @@ export class SimulationEngineService {
   private readonly actionParser = inject(SimulationActionParserService);
   private readonly reports = inject(SimulationReportService);
   private readonly session = inject(VirtualLabSessionService);
+  private readonly liveMonitor = inject(LiveMonitorService);
   readonly timer = inject(VirtualLabTimerService);
 
   readonly status = signal<SimulationStatus>('idle');
@@ -83,6 +85,16 @@ export class SimulationEngineService {
         this.caseSummary.set(summary);
       }
     });
+
+    effect(() => {
+      if (this.isMedicalSession()) {
+        return;
+      }
+      const livePanel = this.liveMonitor.panelConfig();
+      if (livePanel) {
+        this.panelConfig.set(livePanel);
+      }
+    });
   }
 
   async startSession(config: SimulationScenarioConfig) {
@@ -98,6 +110,7 @@ export class SimulationEngineService {
     const usesMedicalRuntime = this.profiles.shouldUseMedicalRuntime(config, this.activeProfile) && !config.clinicalCase;
 
     if (usesMedicalRuntime) {
+      this.liveMonitor.reset();
       this.isMedicalSession.set(true);
       const start = this.medicalRuntime.startCase(config);
 
@@ -189,6 +202,7 @@ export class SimulationEngineService {
     const requestType = action.wantsOptions ? 'options' : 'decision';
     this.quickOptions.set([]);
     this.appendUserMessage(normalizedInput);
+    this.liveMonitor.applyAction(action, normalizedInput, config.language);
     if (requestType === 'options') {
       this.serveLocalOptions(config);
       return;
@@ -266,6 +280,7 @@ export class SimulationEngineService {
     this.clearStreamingPreview();
     this.timer.clear();
     this.medicalRuntime.reset();
+    this.liveMonitor.reset();
     this.status.set('idle');
     this.messages.set([]);
     this.sessionMeta.set(null);
@@ -627,7 +642,12 @@ export class SimulationEngineService {
     }
 
     this.appendAssistantMessage(effectiveAssistantText, requestType === 'start' ? 'intro' : 'prompt');
-    this.panelConfig.set(resolvedPanel);
+    if (this.isMedicalSession()) {
+      this.panelConfig.set(resolvedPanel);
+    } else {
+      this.liveMonitor.setPanel(resolvedPanel, { forceReset: requestType === 'start' });
+      this.panelConfig.set(this.liveMonitor.panelConfig());
+    }
     this.quickOptions.set(requestType === 'options' ? turn.options.slice(0, 4) : []);
     this.sessionMeta.set(this.decorateSessionMeta({
       title: turn.sessionTitle,

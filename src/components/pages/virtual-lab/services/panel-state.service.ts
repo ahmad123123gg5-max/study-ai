@@ -1,6 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import {
   ConsoleLine,
+  ClinicalDashboardPanelData,
+  ClinicalExamSectionData,
+  ClinicalPatientChartData,
   EcgPanelData,
   EvidenceItem,
   InsightCard,
@@ -13,7 +16,7 @@ import {
   PanelConfig,
   PanelType,
   ProgrammingConsolePanelData,
-  ScenarioConfig,
+  SimulationScenarioConfig,
   ScienceDatum,
   SpecialtyCategory
 } from '../models/virtual-lab.models';
@@ -28,7 +31,7 @@ export class PanelStateService {
   }
 
   resolvePanel(
-    config: ScenarioConfig,
+    config: SimulationScenarioConfig,
     rawPanel: unknown,
     previousPanel: PanelConfig | null,
     lastUserMessage: string = ''
@@ -76,20 +79,22 @@ export class PanelStateService {
     return this.buildGenericPanel(config, candidate, previousPanel);
   }
 
-  private buildMedicalMonitorPanel(config: ScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
+  private buildMedicalMonitorPanel(config: SimulationScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
     const previousMonitor = previousPanel?.monitor;
     const rawMonitor = candidate['monitor'] && typeof candidate['monitor'] === 'object'
       ? candidate['monitor'] as Record<string, unknown>
       : candidate;
+    const clinicalVitals = this.extractClinicalVitals(config);
+    const clinicalDashboard = this.buildClinicalDashboard(config, previousPanel?.clinical);
 
     const monitor: MedicalMonitorPanelData = {
-      heartRate: this.numberValue(rawMonitor['heartRate'], previousMonitor?.heartRate ?? 96, 30, 190),
-      bloodPressure: this.stringValue(rawMonitor['bloodPressure'], previousMonitor?.bloodPressure ?? '124/78'),
-      bloodPressureSystolic: this.numberValue(rawMonitor['bloodPressureSystolic'], previousMonitor?.bloodPressureSystolic ?? 124, 40, 220),
-      bloodPressureDiastolic: this.numberValue(rawMonitor['bloodPressureDiastolic'], previousMonitor?.bloodPressureDiastolic ?? 78, 20, 140),
-      oxygenSaturation: this.numberValue(rawMonitor['oxygenSaturation'], previousMonitor?.oxygenSaturation ?? 97, 60, 100),
-      respiratoryRate: this.numberValue(rawMonitor['respiratoryRate'], previousMonitor?.respiratoryRate ?? 18, 6, 40),
-      temperatureCelsius: this.numberValue(rawMonitor['temperatureCelsius'], previousMonitor?.temperatureCelsius ?? 37.0, 34, 42),
+      heartRate: this.numberValue(rawMonitor['heartRate'], previousMonitor?.heartRate ?? clinicalVitals.heartRate ?? 96, 30, 190),
+      bloodPressure: this.stringValue(rawMonitor['bloodPressure'], previousMonitor?.bloodPressure ?? clinicalVitals.bloodPressure ?? '124/78'),
+      bloodPressureSystolic: this.numberValue(rawMonitor['bloodPressureSystolic'], previousMonitor?.bloodPressureSystolic ?? clinicalVitals.systolic ?? 124, 40, 220),
+      bloodPressureDiastolic: this.numberValue(rawMonitor['bloodPressureDiastolic'], previousMonitor?.bloodPressureDiastolic ?? clinicalVitals.diastolic ?? 78, 20, 140),
+      oxygenSaturation: this.numberValue(rawMonitor['oxygenSaturation'], previousMonitor?.oxygenSaturation ?? clinicalVitals.oxygenSaturation ?? 97, 60, 100),
+      respiratoryRate: this.numberValue(rawMonitor['respiratoryRate'], previousMonitor?.respiratoryRate ?? clinicalVitals.respiratoryRate ?? 18, 6, 40),
+      temperatureCelsius: this.numberValue(rawMonitor['temperatureCelsius'], previousMonitor?.temperatureCelsius ?? clinicalVitals.temperatureCelsius ?? 37.0, 34, 42),
       alertLevel: this.normalizeAlertLevel(rawMonitor['alertLevel'], previousMonitor?.alertLevel ?? 'watch'),
       ecgPreset: this.normalizeEcgPreset(rawMonitor['ecgPreset'], previousMonitor?.ecgPreset ?? 'normal'),
       severity: this.normalizeSeverity(rawMonitor['severity'], previousMonitor?.severity ?? 'concerning'),
@@ -114,11 +119,12 @@ export class PanelStateService {
       subtitle: this.stringValue(candidate['subtitle'], config.specialty),
       summary: this.stringValue(candidate['summary'], `Live vitals responding to each decision in ${config.scenario}.`),
       specialtyCategory: 'medical',
-      monitor
+      monitor,
+      clinical: clinicalDashboard
     };
   }
 
-  private buildMedicalEcgPanel(config: ScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
+  private buildMedicalEcgPanel(config: SimulationScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
     const previousPreset = previousPanel?.ecg?.preset || previousPanel?.monitor?.ecgPreset || 'normal';
     const rawEcg = candidate['ecg'] && typeof candidate['ecg'] === 'object'
       ? candidate['ecg'] as Record<string, unknown>
@@ -138,7 +144,7 @@ export class PanelStateService {
     };
   }
 
-  private buildProgrammingPanel(config: ScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
+  private buildProgrammingPanel(config: SimulationScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
     const previousConsole = previousPanel?.console;
     const rawConsole = candidate['console'] && typeof candidate['console'] === 'object'
       ? candidate['console'] as Record<string, unknown>
@@ -172,7 +178,7 @@ export class PanelStateService {
     };
   }
 
-  private buildBusinessPanel(config: ScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
+  private buildBusinessPanel(config: SimulationScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
     const previousMetrics = previousPanel?.metrics;
     const rawMetrics = candidate['metrics'] && typeof candidate['metrics'] === 'object'
       ? candidate['metrics'] as Record<string, unknown>
@@ -204,7 +210,7 @@ export class PanelStateService {
     };
   }
 
-  private buildLawPanel(config: ScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
+  private buildLawPanel(config: SimulationScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
     const previousEvidence = previousPanel?.evidence;
     const rawEvidence = candidate['evidence'] && typeof candidate['evidence'] === 'object'
       ? candidate['evidence'] as Record<string, unknown>
@@ -241,7 +247,7 @@ export class PanelStateService {
     };
   }
 
-  private buildSciencePanel(config: ScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
+  private buildSciencePanel(config: SimulationScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
     const previousChart = previousPanel?.chart;
     const rawChart = candidate['chart'] && typeof candidate['chart'] === 'object'
       ? candidate['chart'] as Record<string, unknown>
@@ -274,7 +280,7 @@ export class PanelStateService {
     };
   }
 
-  private buildGenericPanel(config: ScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
+  private buildGenericPanel(config: SimulationScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
     const previousCards = previousPanel?.insights?.cards;
     const rawInsights = candidate['insights'] && typeof candidate['insights'] === 'object'
       ? candidate['insights'] as Record<string, unknown>
@@ -301,7 +307,7 @@ export class PanelStateService {
     };
   }
 
-  private buildOperationsPanel(config: ScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
+  private buildOperationsPanel(config: SimulationScenarioConfig, candidate: Record<string, unknown>, previousPanel: PanelConfig | null): PanelConfig {
     const previousOps = previousPanel?.operations;
     const rawOperations = candidate['operations'] && typeof candidate['operations'] === 'object'
       ? candidate['operations'] as Record<string, unknown>
@@ -452,7 +458,91 @@ export class PanelStateService {
     return Math.max(min, Math.min(max, Math.round(numeric * 10) / 10));
   }
 
-  private defaultConsoleLogs(config: ScenarioConfig): ConsoleLine[] {
+  private extractClinicalVitals(config: SimulationScenarioConfig) {
+    const caseVitals = config.clinicalCase?.vitalSigns;
+    const bloodPressure = caseVitals?.bloodPressure ? String(caseVitals.bloodPressure) : null;
+    const bpMatch = bloodPressure?.match(/(\d{2,3})\s*\/\s*(\d{2,3})/);
+    const systolic = bpMatch ? Number.parseInt(bpMatch[1], 10) : null;
+    const diastolic = bpMatch ? Number.parseInt(bpMatch[2], 10) : null;
+
+    return {
+      heartRate: this.parseNumber(caseVitals?.heartRate),
+      respiratoryRate: this.parseNumber(caseVitals?.respiratoryRate),
+      oxygenSaturation: this.parseNumber(caseVitals?.oxygenSaturation),
+      temperatureCelsius: this.parseNumber(caseVitals?.temperature),
+      bloodPressure,
+      systolic: Number.isFinite(systolic) ? systolic : null,
+      diastolic: Number.isFinite(diastolic) ? diastolic : null
+    };
+  }
+
+  private buildClinicalDashboard(config: SimulationScenarioConfig, fallback?: ClinicalDashboardPanelData | null): ClinicalDashboardPanelData | null {
+    if (!config.clinicalCase) {
+      return fallback || null;
+    }
+
+    const clinicalCase = config.clinicalCase;
+    const patientChart: ClinicalPatientChartData = {
+      patientName: clinicalCase.patient.name || 'Patient',
+      age: clinicalCase.patient.age ? `${clinicalCase.patient.age}` : '',
+      sex: clinicalCase.patient.gender || '',
+      specialtyFocus: config.specialty,
+      caseTitle: clinicalCase.title,
+      chiefComplaint: clinicalCase.chiefComplaint,
+      triageNote: clinicalCase.setting.context || clinicalCase.setting.urgencyLevel || clinicalCase.initialClues[0] || '',
+      historyOfPresentIllness: this.toSentenceList(clinicalCase.historyOfPresentIllness),
+      pastHistory: clinicalCase.pastMedicalHistory || [],
+      medicationHistory: clinicalCase.medications || [],
+      allergies: clinicalCase.allergies || [],
+      socialHistory: [],
+      riskFlags: clinicalCase.redFlags || []
+    };
+
+    const examSummary = clinicalCase.physicalExam?.generalAppearance || '';
+    const examFindings = clinicalCase.physicalExam?.systemFindings || [];
+    const highlightedExams: ClinicalExamSectionData[] = examFindings.length || examSummary
+      ? [{
+        id: crypto.randomUUID(),
+        label: config.language === 'ar' ? 'الفحص السريري' : 'Physical Exam',
+        summary: examSummary || (config.language === 'ar' ? 'لا توجد تفاصيل إضافية بعد.' : 'No additional details yet.'),
+        findings: examFindings,
+        status: 'baseline'
+      }]
+      : [];
+
+    return {
+      patientChart,
+      highlightedExams,
+      results: [],
+      featuredResultId: null,
+      differentials: [],
+      timeline: [],
+      alerts: clinicalCase.redFlags || [],
+      learningFocus: clinicalCase.learningObjectives || [],
+      scoreCards: []
+    };
+  }
+
+  private parseNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    const parsed = Number.parseFloat(String(value ?? ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private toSentenceList(value: string): string[] {
+    if (!value) {
+      return [];
+    }
+    const parts = value
+      .split(/[\.\n]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return parts.length > 0 ? parts : [value.trim()];
+  }
+
+  private defaultConsoleLogs(config: SimulationScenarioConfig): ConsoleLine[] {
     return [
       { level: 'error', text: `Unhandled failure while processing ${config.scenario}.` },
       { level: 'warn', text: 'Recent deployment introduced a timing regression.' },
@@ -469,7 +559,7 @@ export class PanelStateService {
     ];
   }
 
-  private defaultEvidenceItems(config: ScenarioConfig): EvidenceItem[] {
+  private defaultEvidenceItems(config: SimulationScenarioConfig): EvidenceItem[] {
     return [
       { title: 'Primary testimony', detail: `Key witness account related to ${config.scenario}.`, weight: 'high' },
       { title: 'Timeline note', detail: 'Sequence of events includes one contested gap.', weight: 'medium' },
@@ -477,7 +567,7 @@ export class PanelStateService {
     ];
   }
 
-  private defaultSciencePoints(config: ScenarioConfig): ScienceDatum[] {
+  private defaultSciencePoints(config: SimulationScenarioConfig): ScienceDatum[] {
     return [
       { label: 'Baseline', value: 42 },
       { label: 'Observed shift', value: 68, emphasis: config.scenario },
@@ -486,7 +576,7 @@ export class PanelStateService {
     ];
   }
 
-  private defaultInsightCards(config: ScenarioConfig): InsightCard[] {
+  private defaultInsightCards(config: SimulationScenarioConfig): InsightCard[] {
     return [
       { label: 'Focus', value: config.specialty },
       { label: 'Scenario', value: config.scenario },
@@ -495,7 +585,7 @@ export class PanelStateService {
     ];
   }
 
-  private defaultOperationsPriorities(config: ScenarioConfig): OperationsPriorityItem[] {
+  private defaultOperationsPriorities(config: SimulationScenarioConfig): OperationsPriorityItem[] {
     return [
       { label: 'Primary risk', detail: `The core pressure point inside ${config.scenario}.`, status: 'critical' },
       { label: 'Next verification', detail: 'Identify the missing fact that should shape the next step.', status: 'watch' },
@@ -503,7 +593,7 @@ export class PanelStateService {
     ];
   }
 
-  private defaultOperationsActors(config: ScenarioConfig): OperationsActorItem[] {
+  private defaultOperationsActors(config: SimulationScenarioConfig): OperationsActorItem[] {
     return [
       { role: 'Lead learner', status: `Responsible for the next ${config.specialty} decision` },
       { role: 'Stakeholder', status: `Affected directly by ${config.scenario}` },

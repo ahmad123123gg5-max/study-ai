@@ -10,6 +10,7 @@ import { FlashcardsService } from '../../services/flashcards.service';
 import { LocalizationService } from '../../services/localization.service';
 import { MindMapService } from '../../services/mindmap.service';
 import { NotificationService } from '../../services/notification.service';
+import { containsArabicScript, normalizeExtractedStudyText, reconstructPdfPageText } from '../../utils/extracted-text';
 import { UpgradeModal } from '../shared/upgrade-modal.component';
 
 interface TransformHistory {
@@ -61,6 +62,8 @@ interface SourcePayload {
                 [value]="sourceDraft()"
                 (input)="sourceDraft.set($any($event.target).value)"
                 class="w-full min-h-[320px] bg-transparent outline-none resize-none text-base leading-7 placeholder:text-slate-700"
+                [attr.dir]="sourceTextDirection()"
+                [attr.lang]="sourceTextLanguage()"
                 [placeholder]="t('Paste text here or type your idea...')"
               ></textarea>
               @if (uploadedFiles().length) {
@@ -144,7 +147,12 @@ interface SourcePayload {
                           <p class="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-300">{{ t('Converted Content') }}</p>
                           <h3 class="text-xl font-black text-white mt-2">{{ buildResultTitle() }}</h3>
                         </div>
-                        <div class="whitespace-pre-wrap leading-8 text-slate-300">{{ resultText() }}</div>
+                        <div
+                          class="result-copy whitespace-pre-wrap leading-8 text-slate-300"
+                          [class.result-copy-ar]="resultTextDirection() === 'rtl'"
+                          [attr.dir]="resultTextDirection()"
+                          [attr.lang]="resultTextLanguage()"
+                        >{{ resultText() }}</div>
                       </div>
                     </div>
                   } @else {
@@ -203,7 +211,30 @@ interface SourcePayload {
       </div>
     </div>
   `,
-  styles: [':host{display:block}']
+  styles: [`
+    :host { display: block; }
+
+    textarea[lang="ar"] {
+      font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Noto Naskh Arabic', sans-serif;
+    }
+
+    .result-copy {
+      unicode-bidi: plaintext;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1, "rlig" 1;
+    }
+
+    .result-copy-ar {
+      direction: rtl;
+      text-align: right;
+      letter-spacing: 0;
+      overflow-wrap: break-word;
+      word-break: normal;
+      line-break: auto;
+      font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Noto Naskh Arabic', sans-serif;
+      font-feature-settings: "kern" 1, "liga" 1, "rlig" 1, "calt" 1;
+    }
+  `]
 })
 export class ContentTransformPage {
   private readonly ai = inject(AIService);
@@ -235,6 +266,10 @@ export class ContentTransformPage {
   readonly uploadedFiles = signal<File[]>([]);
   readonly history = signal<TransformHistory[]>(this.loadHistory());
   readonly resultText = computed(() => this.result().trim());
+  readonly sourceTextDirection = computed(() => containsArabicScript(this.sourceDraft()) || this.isRtl() ? 'rtl' : 'ltr');
+  readonly sourceTextLanguage = computed(() => this.sourceTextDirection() === 'rtl' ? 'ar' : 'en');
+  readonly resultTextDirection = computed(() => containsArabicScript(this.resultText()) || this.isRtl() ? 'rtl' : 'ltr');
+  readonly resultTextLanguage = computed(() => this.resultTextDirection() === 'rtl' ? 'ar' : 'en');
   readonly transformTypes = computed(() => [
     { id: 'transcribe', label: this.getLabelForType('transcribe'), icon: this.getIconForType('transcribe') },
     { id: 'summary', label: this.getLabelForType('summary'), icon: this.getIconForType('summary') }
@@ -574,10 +609,7 @@ export class ContentTransformPage {
       for (let index = 1; index <= document.numPages; index += 1) {
         const page = await document.getPage(index);
         const content = await page.getTextContent();
-        const text = content.items
-          .map((item) => ('str' in item ? item.str : ''))
-          .filter(Boolean)
-          .join(' ');
+        const text = reconstructPdfPageText(content.items);
         pages.push(text);
       }
       return pages.join('\n\n');
@@ -594,7 +626,7 @@ export class ContentTransformPage {
   }
 
   private normalizeText(value: string) {
-    return value.replace(/\r/g, '').replace(/\u0000/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    return normalizeExtractedStudyText(value);
   }
 
   private async blobToBase64(blob: Blob): Promise<string> {

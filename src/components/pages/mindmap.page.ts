@@ -32,6 +32,13 @@ import {
 import { NotificationService } from '../../services/notification.service';
 import { UpgradeModal } from '../shared/upgrade-modal.component';
 import { LanguageCode } from '../../i18n/language-config';
+import {
+  ViewportBounds,
+  ViewportPoint,
+  clampNumber,
+  distanceBetweenPoints,
+  midpointBetweenPoints
+} from './mindmap-viewport.utils';
 
 interface MindMapThemeDefinition {
   id: MindMapThemeId;
@@ -69,6 +76,28 @@ interface SmartKnowledgeNodeDraft {
   icon: string;
   sourceLabel: string;
   accentColor: string;
+}
+
+interface CanvasPointerState {
+  pointerId: number;
+  clientX: number;
+  clientY: number;
+  startX: number;
+  startY: number;
+  target: 'background' | 'mind-node' | 'knowledge-node';
+  nodeId: string | null;
+}
+
+interface CanvasTapCandidate {
+  pointerId: number;
+  target: 'mind-node' | 'knowledge-node';
+  nodeId: string;
+}
+
+interface PinchGestureState {
+  anchorLocal: ViewportPoint;
+  startDistance: number;
+  startScale: number;
 }
 
 type MindMapLayoutPreset = 'center' | 'top_down' | 'rtl_academic' | 'compact_study';
@@ -207,9 +236,13 @@ export class MindMapPage {
   readonly mindmaps = inject(MindMapService);
   private readonly flashcards = inject(FlashcardsService);
   private readonly ns = inject(NotificationService);
-  private readonly MIN_SCALE = 0.58;
-  private readonly MAX_SCALE = 2.2;
-  private readonly ZOOM_STEP = 0.12;
+  private readonly MIN_SCALE = 0.36;
+  private readonly MAX_SCALE = 2.8;
+  private readonly ZOOM_STEP = 0.14;
+  private readonly PAN_START_THRESHOLD = 8;
+  private readonly TAP_MAX_DISTANCE = 10;
+  readonly minScale = this.MIN_SCALE;
+  readonly maxScale = this.MAX_SCALE;
 
   @ViewChild('mapStage') mapStage?: ElementRef<HTMLDivElement>;
   @ViewChild('mapCanvas') mapCanvas?: ElementRef<HTMLDivElement>;
@@ -251,8 +284,6 @@ export class MindMapPage {
   studyShowConnections = signal(true);
   studyFocusCurrentNode = signal(true);
   scale = signal(1);
-  offsetX = signal(0);
-  offsetY = signal(0);
   isPanning = signal(false);
   isNativeFullscreen = signal(false);
   isFallbackFullscreen = signal(false);
@@ -263,8 +294,21 @@ export class MindMapPage {
   private bodyOverflowBeforeFullscreen: string | null = null;
   private isCompletingQuiz = false;
   private readonly emptyKnowledgeBoard = this.mindmaps.createEmptyKnowledgeBoard();
-  private panState: { active: boolean; startX: number; startY: number; baseX: number; baseY: number } = {
+  private viewportScale = 1;
+  private viewportOffsetX = 0;
+  private viewportOffsetY = 0;
+  private renderedViewportScale = 1;
+  private renderedViewportOffsetX = 0;
+  private renderedViewportOffsetY = 0;
+  private viewportFrame: number | null = null;
+  private hasManualViewportOverride = false;
+  private activeCanvasBounds: ViewportBounds | null = null;
+  private activeCanvasPointers = new Map<number, CanvasPointerState>();
+  private tapCandidate: CanvasTapCandidate | null = null;
+  private pinchGesture: PinchGestureState | null = null;
+  private panState: { active: boolean; pointerId: number | null; startX: number; startY: number; baseX: number; baseY: number } = {
     active: false,
+    pointerId: null,
     startX: 0,
     startY: 0,
     baseX: 0,
@@ -468,6 +512,20 @@ export class MindMapPage {
     this.handleFullscreenChange();
   }
 
+  @HostListener('window:resize')
+  handleWindowResize() {
+    if (!this.hasMap()) return;
+    window.requestAnimationFrame(() => {
+      if (this.hasManualViewportOverride) {
+        this.flushViewportTransform();
+        this.clampViewportOffsets();
+        this.renderViewportTransform(true);
+        return;
+      }
+      this.fitMapToScreen();
+    });
+  }
+
   @HostListener('document:keydown.arrowright', ['$event'])
   handleArrowRight(event: KeyboardEvent) {
     if (this.shouldIgnoreKeyboard(event)) return;
@@ -502,8 +560,8 @@ export class MindMapPage {
   @HostListener('document:pointermove', ['$event'])
   handleDocumentPointerMove(event: PointerEvent) {
     if (this.knowledgeDragState) {
-      const nextX = this.knowledgeDragState.baseX + ((event.clientX - this.knowledgeDragState.startX) / this.scale());
-      const nextY = this.knowledgeDragState.baseY + ((event.clientY - this.knowledgeDragState.startY) / this.scale());
+      const nextX = this.knowledgeDragState.baseX + ((event.clientX - this.knowledgeDragState.startX) / this.currentScale());
+      const nextY = this.knowledgeDragState.baseY + ((event.clientY - this.knowledgeDragState.startY) / this.currentScale());
       this.updateKnowledgeNode(this.knowledgeDragState.nodeId, node => ({
         ...node,
         x: Math.max(48, Number(nextX.toFixed(1))),
@@ -513,8 +571,8 @@ export class MindMapPage {
     }
 
     if (this.knowledgeResizeState) {
-      const nextWidth = this.knowledgeResizeState.baseWidth + ((event.clientX - this.knowledgeResizeState.startX) / this.scale());
-      const nextHeight = this.knowledgeResizeState.baseHeight + ((event.clientY - this.knowledgeResizeState.startY) / this.scale());
+      const nextWidth = this.knowledgeResizeState.baseWidth + ((event.clientX - this.knowledgeResizeState.startX) / this.currentScale());
+      const nextHeight = this.knowledgeResizeState.baseHeight + ((event.clientY - this.knowledgeResizeState.startY) / this.currentScale());
       this.updateKnowledgeNode(this.knowledgeResizeState.nodeId, node => ({
         ...node,
         width: Math.max(250, Math.min(520, Number(nextWidth.toFixed(1)))),
@@ -535,9 +593,11 @@ export class MindMapPage {
   ngOnDestroy() {
     this.stopBusy();
     this.unlockBodyScroll();
+    this.cancelViewportRender();
   }
 
   ngAfterViewInit() {
+    this.renderViewportTransform(true);
     if (this.hasMap()) {
       window.requestAnimationFrame(() => this.fitMapToScreen());
     }
@@ -589,10 +649,6 @@ export class MindMapPage {
     };
   }
 
-  canvasTransform() {
-    return `translate(${this.offsetX()}px, ${this.offsetY()}px) scale(${this.scale()})`;
-  }
-
   canvasClass() {
     if (this.isKnowledgeSurface()) {
       return [
@@ -640,7 +696,7 @@ export class MindMapPage {
     return this.editingNodeId() === nodeId;
   }
 
-  selectNode(nodeId: string, event?: Event) {
+  selectNode(nodeId: string, event?: Event, options?: { center?: boolean }) {
     event?.stopPropagation();
     this.selectedNodeId.set(nodeId);
     const map = this.currentMap();
@@ -649,7 +705,9 @@ export class MindMapPage {
       ...map,
       progress: this.mindmaps.createProgress(map.root, nodeId)
     }, true);
-    window.requestAnimationFrame(() => this.centerSelectedNode());
+    if (options?.center !== false) {
+      window.requestAnimationFrame(() => this.centerSelectedNode());
+    }
   }
 
   startNodeEdit(node: MindMapNode, event?: Event) {
@@ -1327,7 +1385,7 @@ Source title: ${this.currentMap()?.sourceTitle || this.currentMap()?.name || 'Mi
     }), true);
     const currentId = this.knowledgeStudyNodeId();
     if (!currentId) return;
-    this.setScale(Math.max(this.scale(), 1.05));
+    this.setScale(Math.max(this.currentScale(), 1.05));
     window.requestAnimationFrame(() => this.centerOnNode(currentId));
   }
 
@@ -1440,73 +1498,44 @@ Source title: ${this.currentMap()?.sourceTitle || this.currentMap()?.name || 'Mi
   }
 
   resetViewport() {
-    this.scale.set(1);
-    this.offsetX.set(0);
-    this.offsetY.set(0);
+    const bounds = this.getCanvasContentBoundsLocal();
+    if (!bounds) {
+      this.viewportScale = 1;
+      this.viewportOffsetX = 0;
+      this.viewportOffsetY = 0;
+      this.syncScaleSignal();
+      this.renderViewportTransform(true);
+      this.hasManualViewportOverride = false;
+      return;
+    }
+
+    this.viewportScale = 1;
+    this.centerBoundsInViewport(bounds, this.viewportScale);
+    this.clampViewportOffsets(bounds);
+    this.syncScaleSignal();
+    this.renderViewportTransform(true);
+    this.hasManualViewportOverride = false;
   }
 
   fitMapToScreen() {
     const viewport = this.mapViewport?.nativeElement;
-    const canvas = this.mapCanvas?.nativeElement;
-    if (!viewport || !canvas) return;
+    if (!viewport) return;
 
-    this.resetViewport();
-    window.requestAnimationFrame(() => {
-      const nodeElements = Array.from(canvas.querySelectorAll<HTMLElement>('.mind-node-shell, .knowledge-node-shell'));
-      if (!nodeElements.length) return;
+    const bounds = this.getCanvasContentBoundsLocal();
+    if (!bounds) return;
 
-      const viewportRect = viewport.getBoundingClientRect();
-      const bounds = nodeElements.reduce((acc, node) => {
-        const rect = node.getBoundingClientRect();
-        return {
-          left: Math.min(acc.left, rect.left),
-          top: Math.min(acc.top, rect.top),
-          right: Math.max(acc.right, rect.right),
-          bottom: Math.max(acc.bottom, rect.bottom)
-        };
-      }, {
-        left: Number.POSITIVE_INFINITY,
-        top: Number.POSITIVE_INFINITY,
-        right: Number.NEGATIVE_INFINITY,
-        bottom: Number.NEGATIVE_INFINITY
-      });
+    const paddingX = clampNumber(viewport.clientWidth * 0.08, 24, 104);
+    const paddingY = clampNumber(viewport.clientHeight * 0.08, 24, 104);
+    const widthScale = (viewport.clientWidth - (paddingX * 2)) / Math.max(bounds.width, 240);
+    const heightScale = (viewport.clientHeight - (paddingY * 2)) / Math.max(bounds.height, 200);
+    const nextScale = clampNumber(Math.min(widthScale, heightScale), this.MIN_SCALE, Math.min(this.MAX_SCALE, 1.6));
 
-      const mapWidth = Math.max(240, bounds.right - bounds.left);
-      const mapHeight = Math.max(200, bounds.bottom - bounds.top);
-      const padding = 120;
-      const widthScale = (viewportRect.width - padding) / mapWidth;
-      const heightScale = (viewportRect.height - padding) / mapHeight;
-      const nextScale = Math.min(1.45, Math.max(0.58, Number(Math.min(widthScale, heightScale).toFixed(2))));
-      this.scale.set(nextScale);
-
-      window.requestAnimationFrame(() => {
-        const refreshedNodes = Array.from(canvas.querySelectorAll<HTMLElement>('.mind-node-shell, .knowledge-node-shell'));
-        if (!refreshedNodes.length) return;
-        const refreshedBounds = refreshedNodes.reduce((acc, node) => {
-          const rect = node.getBoundingClientRect();
-          return {
-            left: Math.min(acc.left, rect.left),
-            top: Math.min(acc.top, rect.top),
-            right: Math.max(acc.right, rect.right),
-            bottom: Math.max(acc.bottom, rect.bottom)
-          };
-        }, {
-          left: Number.POSITIVE_INFINITY,
-          top: Number.POSITIVE_INFINITY,
-          right: Number.NEGATIVE_INFINITY,
-          bottom: Number.NEGATIVE_INFINITY
-        });
-
-        const currentViewportRect = viewport.getBoundingClientRect();
-        const mapCenterX = refreshedBounds.left + ((refreshedBounds.right - refreshedBounds.left) / 2);
-        const mapCenterY = refreshedBounds.top + ((refreshedBounds.bottom - refreshedBounds.top) / 2);
-        const viewportCenterX = currentViewportRect.left + (currentViewportRect.width / 2);
-        const viewportCenterY = currentViewportRect.top + (currentViewportRect.height / 2);
-
-        this.offsetX.update(value => value + (viewportCenterX - mapCenterX));
-        this.offsetY.update(value => value + (viewportCenterY - mapCenterY));
-      });
-    });
+    this.viewportScale = Number(nextScale.toFixed(3));
+    this.centerBoundsInViewport(bounds, this.viewportScale);
+    this.clampViewportOffsets(bounds);
+    this.syncScaleSignal();
+    this.renderViewportTransform(true);
+    this.hasManualViewportOverride = false;
   }
 
   centerRoot() {
@@ -1522,11 +1551,11 @@ Source title: ${this.currentMap()?.sourceTitle || this.currentMap()?.name || 'Mi
   }
 
   zoomIn() {
-    this.setScale(this.scale() + this.ZOOM_STEP);
+    this.setScale(this.currentScale() + this.ZOOM_STEP);
   }
 
   zoomOut() {
-    this.setScale(this.scale() - this.ZOOM_STEP);
+    this.setScale(this.currentScale() - this.ZOOM_STEP);
   }
 
   reorganizeLayout() {
@@ -1698,38 +1727,130 @@ ${quizNodes.map(node => `NODE_ID: ${node.id}\nTITLE: ${node.title}\nSUMMARY: ${t
 
   onCanvasPointerDown(event: PointerEvent) {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.mind-node-shell, .knowledge-node-shell, button, input, select, textarea')) {
+    if (!this.shouldHandleCanvasPointer(event, target)) {
       return;
     }
 
-    (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+    this.captureCanvasPointer(event);
 
-    this.panState = {
-      active: true,
-      startX: event.clientX,
-      startY: event.clientY,
-      baseX: this.offsetX(),
-      baseY: this.offsetY()
-    };
-    this.isPanning.set(true);
+    const pointer = this.createCanvasPointerState(event, target);
+    this.activeCanvasPointers.set(event.pointerId, pointer);
+    this.activeCanvasBounds = this.activeCanvasBounds || this.getCanvasContentBoundsLocal();
+
+    if (this.activeCanvasPointers.size >= 2) {
+      this.beginPinchGesture();
+      return;
+    }
+
+    if (pointer.target === 'background') {
+      this.beginCanvasPan(pointer);
+      return;
+    }
+
+    if (pointer.nodeId) {
+      this.tapCandidate = {
+        pointerId: pointer.pointerId,
+        target: pointer.target,
+        nodeId: pointer.nodeId
+      };
+    }
   }
 
   onCanvasPointerMove(event: PointerEvent) {
-    if (!this.panState.active) return;
-    this.offsetX.set(this.panState.baseX + (event.clientX - this.panState.startX));
-    this.offsetY.set(this.panState.baseY + (event.clientY - this.panState.startY));
+    const pointer = this.activeCanvasPointers.get(event.pointerId);
+    if (!pointer) return;
+
+    pointer.clientX = event.clientX;
+    pointer.clientY = event.clientY;
+
+    if (this.activeCanvasPointers.size >= 2) {
+      event.preventDefault();
+      this.updatePinchGesture();
+      return;
+    }
+
+    if (this.tapCandidate && this.tapCandidate.pointerId === pointer.pointerId) {
+      const distance = distanceBetweenPoints(
+        { x: pointer.startX, y: pointer.startY },
+        { x: pointer.clientX, y: pointer.clientY }
+      );
+      if (distance >= this.PAN_START_THRESHOLD) {
+        this.tapCandidate = null;
+        this.beginCanvasPan(pointer);
+      }
+    }
+
+    if (!this.panState.active || this.panState.pointerId !== pointer.pointerId) return;
+
+    event.preventDefault();
+    this.viewportOffsetX = this.panState.baseX + (pointer.clientX - this.panState.startX);
+    this.viewportOffsetY = this.panState.baseY + (pointer.clientY - this.panState.startY);
+    this.clampViewportOffsets(this.activeCanvasBounds);
+    this.renderViewportTransform();
   }
 
   onCanvasPointerUp(event?: PointerEvent) {
-    (event?.currentTarget as HTMLElement | null)?.releasePointerCapture?.(event.pointerId);
-    this.panState.active = false;
-    this.isPanning.set(false);
+    if (!event) {
+      this.resetCanvasGestureState();
+      return;
+    }
+
+    const isCanceled = event.type === 'pointercancel';
+    this.releaseCanvasPointer(event);
+    const pointer = this.activeCanvasPointers.get(event.pointerId);
+
+    if (pointer) {
+      pointer.clientX = event.clientX;
+      pointer.clientY = event.clientY;
+    }
+
+    const shouldSelectNode = Boolean(
+      !isCanceled
+      && pointer
+      && this.tapCandidate
+      && this.tapCandidate.pointerId === pointer.pointerId
+      && distanceBetweenPoints(
+        { x: pointer.startX, y: pointer.startY },
+        { x: pointer.clientX, y: pointer.clientY }
+      ) <= this.TAP_MAX_DISTANCE
+    );
+
+    this.activeCanvasPointers.delete(event.pointerId);
+
+    if (this.pinchGesture && this.activeCanvasPointers.size < 2) {
+      this.pinchGesture = null;
+      const remainingPointer = Array.from(this.activeCanvasPointers.values())[0];
+      if (remainingPointer) {
+        this.beginCanvasPan(remainingPointer);
+      }
+    }
+
+    if (this.panState.pointerId === event.pointerId) {
+      this.panState = {
+        active: false,
+        pointerId: null,
+        startX: 0,
+        startY: 0,
+        baseX: 0,
+        baseY: 0
+      };
+    }
+
+    if (shouldSelectNode && this.tapCandidate) {
+      this.commitTapSelection(this.tapCandidate);
+    }
+
+    if (this.activeCanvasPointers.size === 0) {
+      this.resetCanvasGestureState();
+    }
   }
 
   onCanvasWheel(event: WheelEvent) {
     event.preventDefault();
-    const direction = event.deltaY > 0 ? -0.08 : 0.08;
-    this.setScale(this.scale() + direction);
+    const direction = clampNumber((-event.deltaY) / 420, -0.24, 0.24);
+    if (direction === 0) return;
+    this.setScale(this.currentScale() + direction, { x: event.clientX, y: event.clientY });
   }
 
   nodeTypeLabel(type: MindMapNodeType) {
@@ -2029,7 +2150,9 @@ ${quizNodes.map(node => `NODE_ID: ${node.id}\nTITLE: ${node.title}\nSUMMARY: ${t
       this.artifactTitle.set('');
       this.artifactContent.set('');
       this.ai.incrementUsage('aiTeacherQuestions');
-      this.ai.addXP(mode === 'standard' ? 20 : 10);
+      this.ai.awardXPForAction('mindmap', mode === 'standard' ? 18 : 12, {
+        fingerprint: `mindmap:${nextMap.id}`
+      });
       this.resetViewport();
       window.requestAnimationFrame(() => this.fitMapToScreen());
     } catch (error) {
@@ -2385,9 +2508,336 @@ ${quizNodes.map(node => `NODE_ID: ${node.id}\nTITLE: ${node.title}\nSUMMARY: ${t
     return lineStyle;
   }
 
-  private setScale(nextScale: number) {
-    const clamped = Math.min(this.MAX_SCALE, Math.max(this.MIN_SCALE, Number(nextScale.toFixed(2))));
-    this.scale.set(clamped);
+  private currentScale() {
+    return this.viewportScale;
+  }
+
+  private syncScaleSignal() {
+    const roundedScale = Number(this.viewportScale.toFixed(2));
+    if (this.scale() !== roundedScale) {
+      this.scale.set(roundedScale);
+    }
+  }
+
+  private cancelViewportRender() {
+    if (this.viewportFrame === null) return;
+    window.cancelAnimationFrame(this.viewportFrame);
+    this.viewportFrame = null;
+  }
+
+  private renderViewportTransform(immediate = false) {
+    if (immediate) {
+      this.cancelViewportRender();
+      this.flushViewportTransform();
+      return;
+    }
+
+    if (this.viewportFrame !== null) return;
+    this.viewportFrame = window.requestAnimationFrame(() => {
+      this.viewportFrame = null;
+      this.flushViewportTransform();
+    });
+  }
+
+  private flushViewportTransform() {
+    const roundedOffsetX = Number(this.viewportOffsetX.toFixed(2));
+    const roundedOffsetY = Number(this.viewportOffsetY.toFixed(2));
+    const roundedScale = Number(this.viewportScale.toFixed(3));
+    const canvas = this.mapCanvas?.nativeElement;
+
+    if (canvas) {
+      canvas.style.transform = `translate3d(${roundedOffsetX}px, ${roundedOffsetY}px, 0) scale(${roundedScale})`;
+    }
+
+    this.renderedViewportOffsetX = roundedOffsetX;
+    this.renderedViewportOffsetY = roundedOffsetY;
+    this.renderedViewportScale = roundedScale;
+    this.syncScaleSignal();
+  }
+
+  private shouldHandleCanvasPointer(event: PointerEvent, target: HTMLElement | null) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return false;
+    return !target?.closest(
+      'button, input, select, textarea, a, label, [contenteditable="true"], .mind-node-toolbar, .knowledge-node-toolbar, .knowledge-study-toolbar, .knowledge-study-panel, .mindmap-viewport-controls, .mindmap-viewport-controls-group'
+    );
+  }
+
+  private captureCanvasPointer(event: PointerEvent) {
+    try {
+      (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture can fail on some touch stacks; gestures still continue.
+    }
+  }
+
+  private releaseCanvasPointer(event: PointerEvent) {
+    try {
+      (event.currentTarget as HTMLElement | null)?.releasePointerCapture?.(event.pointerId);
+    } catch {
+      // Ignore release failures when the pointer was not captured.
+    }
+  }
+
+  private createCanvasPointerState(event: PointerEvent, target: HTMLElement | null): CanvasPointerState {
+    const knowledgeNode = target?.closest<HTMLElement>('.knowledge-node-shell[data-node-id]');
+    if (knowledgeNode?.dataset['nodeId']) {
+      return {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        startX: event.clientX,
+        startY: event.clientY,
+        target: 'knowledge-node',
+        nodeId: knowledgeNode.dataset['nodeId']
+      };
+    }
+
+    const mindNode = target?.closest<HTMLElement>('.mind-node-shell[data-node-id]');
+    if (mindNode?.dataset['nodeId']) {
+      return {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        startX: event.clientX,
+        startY: event.clientY,
+        target: 'mind-node',
+        nodeId: mindNode.dataset['nodeId']
+      };
+    }
+
+    return {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      target: 'background',
+      nodeId: null
+    };
+  }
+
+  private beginCanvasPan(pointer: CanvasPointerState) {
+    this.panState = {
+      active: true,
+      pointerId: pointer.pointerId,
+      startX: pointer.clientX,
+      startY: pointer.clientY,
+      baseX: this.viewportOffsetX,
+      baseY: this.viewportOffsetY
+    };
+    this.isPanning.set(true);
+    this.hasManualViewportOverride = true;
+  }
+
+  private beginPinchGesture() {
+    const [first, second] = Array.from(this.activeCanvasPointers.values());
+    if (!first || !second) return;
+
+    const firstPoint = { x: first.clientX, y: first.clientY };
+    const secondPoint = { x: second.clientX, y: second.clientY };
+    const midpoint = midpointBetweenPoints(firstPoint, secondPoint);
+    this.pinchGesture = {
+      anchorLocal: this.getLocalPointFromClient(midpoint),
+      startDistance: Math.max(distanceBetweenPoints(firstPoint, secondPoint), 1),
+      startScale: this.viewportScale
+    };
+    this.tapCandidate = null;
+    this.panState = {
+      active: false,
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      baseX: 0,
+      baseY: 0
+    };
+    this.isPanning.set(true);
+    this.hasManualViewportOverride = true;
+    this.activeCanvasBounds = this.activeCanvasBounds || this.getCanvasContentBoundsLocal();
+  }
+
+  private updatePinchGesture() {
+    if (!this.pinchGesture) return;
+    const [first, second] = Array.from(this.activeCanvasPointers.values());
+    if (!first || !second) return;
+
+    const firstPoint = { x: first.clientX, y: first.clientY };
+    const secondPoint = { x: second.clientX, y: second.clientY };
+    const midpoint = midpointBetweenPoints(firstPoint, secondPoint);
+    const distance = Math.max(distanceBetweenPoints(firstPoint, secondPoint), 1);
+    const nextScale = clampNumber(
+      this.pinchGesture.startScale * (distance / this.pinchGesture.startDistance),
+      this.MIN_SCALE,
+      this.MAX_SCALE
+    );
+
+    this.viewportScale = Number(nextScale.toFixed(3));
+    this.positionLocalPointAtClient(this.pinchGesture.anchorLocal, midpoint);
+    this.clampViewportOffsets(this.activeCanvasBounds);
+    this.syncScaleSignal();
+    this.renderViewportTransform();
+  }
+
+  private commitTapSelection(candidate: CanvasTapCandidate) {
+    if (candidate.target === 'mind-node') {
+      this.selectNode(candidate.nodeId, undefined, { center: false });
+      return;
+    }
+
+    this.selectKnowledgeNode(candidate.nodeId);
+  }
+
+  private resetCanvasGestureState() {
+    this.activeCanvasPointers.clear();
+    this.tapCandidate = null;
+    this.pinchGesture = null;
+    this.activeCanvasBounds = null;
+    this.panState = {
+      active: false,
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      baseX: 0,
+      baseY: 0
+    };
+    this.isPanning.set(false);
+    this.renderViewportTransform();
+  }
+
+  private centerBoundsInViewport(bounds: ViewportBounds, scale = this.viewportScale) {
+    const viewport = this.mapViewport?.nativeElement;
+    if (!viewport) return;
+
+    this.viewportOffsetX = ((viewport.clientWidth - (bounds.width * scale)) / 2) - (bounds.left * scale);
+    this.viewportOffsetY = ((viewport.clientHeight - (bounds.height * scale)) / 2) - (bounds.top * scale);
+  }
+
+  private clampViewportOffsets(bounds: ViewportBounds | null = this.activeCanvasBounds || this.getCanvasContentBoundsLocal()) {
+    const viewport = this.mapViewport?.nativeElement;
+    if (!viewport || !bounds) return;
+
+    const paddingX = clampNumber(viewport.clientWidth * 0.08, 18, 72);
+    const paddingY = clampNumber(viewport.clientHeight * 0.08, 18, 72);
+    const scaledWidth = bounds.width * this.viewportScale;
+    const scaledHeight = bounds.height * this.viewportScale;
+
+    if (scaledWidth + (paddingX * 2) <= viewport.clientWidth) {
+      this.viewportOffsetX = ((viewport.clientWidth - scaledWidth) / 2) - (bounds.left * this.viewportScale);
+    } else {
+      const minOffsetX = viewport.clientWidth - paddingX - (bounds.right * this.viewportScale);
+      const maxOffsetX = paddingX - (bounds.left * this.viewportScale);
+      this.viewportOffsetX = clampNumber(this.viewportOffsetX, minOffsetX, maxOffsetX);
+    }
+
+    if (scaledHeight + (paddingY * 2) <= viewport.clientHeight) {
+      this.viewportOffsetY = ((viewport.clientHeight - scaledHeight) / 2) - (bounds.top * this.viewportScale);
+    } else {
+      const minOffsetY = viewport.clientHeight - paddingY - (bounds.bottom * this.viewportScale);
+      const maxOffsetY = paddingY - (bounds.top * this.viewportScale);
+      this.viewportOffsetY = clampNumber(this.viewportOffsetY, minOffsetY, maxOffsetY);
+    }
+  }
+
+  // Convert the rendered DOM boxes back into unscaled canvas coordinates.
+  private getCanvasContentBoundsLocal() {
+    this.flushViewportTransform();
+
+    const viewport = this.mapViewport?.nativeElement;
+    const canvas = this.mapCanvas?.nativeElement;
+    if (!viewport || !canvas) return null;
+
+    const nodeElements = Array.from(canvas.querySelectorAll<HTMLElement>('.mind-node-shell, .knowledge-node-shell'));
+    if (!nodeElements.length) return null;
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const scale = this.renderedViewportScale || 1;
+    let left = Number.POSITIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let right = Number.NEGATIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+
+    for (const node of nodeElements) {
+      const rect = node.getBoundingClientRect();
+      left = Math.min(left, (rect.left - viewportRect.left - this.renderedViewportOffsetX) / scale);
+      top = Math.min(top, (rect.top - viewportRect.top - this.renderedViewportOffsetY) / scale);
+      right = Math.max(right, (rect.right - viewportRect.left - this.renderedViewportOffsetX) / scale);
+      bottom = Math.max(bottom, (rect.bottom - viewportRect.top - this.renderedViewportOffsetY) / scale);
+    }
+
+    return {
+      left,
+      top,
+      right,
+      bottom,
+      width: Math.max(right - left, 1),
+      height: Math.max(bottom - top, 1)
+    } satisfies ViewportBounds;
+  }
+
+  private getElementLocalBounds(element: HTMLElement): ViewportBounds | null {
+    this.flushViewportTransform();
+
+    const viewport = this.mapViewport?.nativeElement;
+    if (!viewport) return null;
+
+    const rect = element.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    const scale = this.renderedViewportScale || 1;
+    const left = (rect.left - viewportRect.left - this.renderedViewportOffsetX) / scale;
+    const top = (rect.top - viewportRect.top - this.renderedViewportOffsetY) / scale;
+    const right = (rect.right - viewportRect.left - this.renderedViewportOffsetX) / scale;
+    const bottom = (rect.bottom - viewportRect.top - this.renderedViewportOffsetY) / scale;
+
+    return {
+      left,
+      top,
+      right,
+      bottom,
+      width: Math.max(right - left, 1),
+      height: Math.max(bottom - top, 1)
+    };
+  }
+
+  private getViewportClientCenter(): ViewportPoint {
+    const viewport = this.mapViewport?.nativeElement;
+    if (!viewport) return { x: 0, y: 0 };
+    const rect = viewport.getBoundingClientRect();
+    return {
+      x: rect.left + (rect.width / 2),
+      y: rect.top + (rect.height / 2)
+    };
+  }
+
+  private getLocalPointFromClient(clientPoint: ViewportPoint): ViewportPoint {
+    const viewport = this.mapViewport?.nativeElement;
+    if (!viewport) return { x: 0, y: 0 };
+    const rect = viewport.getBoundingClientRect();
+    const scale = Math.max(this.viewportScale, 0.001);
+    return {
+      x: (clientPoint.x - rect.left - this.viewportOffsetX) / scale,
+      y: (clientPoint.y - rect.top - this.viewportOffsetY) / scale
+    };
+  }
+
+  private positionLocalPointAtClient(localPoint: ViewportPoint, clientPoint: ViewportPoint) {
+    const viewport = this.mapViewport?.nativeElement;
+    if (!viewport) return;
+
+    const rect = viewport.getBoundingClientRect();
+    this.viewportOffsetX = (clientPoint.x - rect.left) - (localPoint.x * this.viewportScale);
+    this.viewportOffsetY = (clientPoint.y - rect.top) - (localPoint.y * this.viewportScale);
+  }
+
+  private setScale(nextScale: number, anchorClientPoint?: ViewportPoint) {
+    const bounds = this.activeCanvasBounds || this.getCanvasContentBoundsLocal();
+    const anchor = anchorClientPoint || this.getViewportClientCenter();
+    const anchorLocal = this.getLocalPointFromClient(anchor);
+
+    this.viewportScale = Number(clampNumber(nextScale, this.MIN_SCALE, this.MAX_SCALE).toFixed(3));
+    this.positionLocalPointAtClient(anchorLocal, anchor);
+    this.clampViewportOffsets(bounds);
+    this.syncScaleSignal();
+    this.renderViewportTransform();
+    this.hasManualViewportOverride = true;
   }
 
   private async enterFullScreen() {
@@ -2509,21 +2959,22 @@ ${quizNodes.map(node => `NODE_ID: ${node.id}\nTITLE: ${node.title}\nSUMMARY: ${t
     const canvas = this.mapCanvas?.nativeElement;
     if (!viewport || !canvas) return;
 
+    this.flushViewportTransform();
     const selector = typeof CSS !== 'undefined' && 'escape' in CSS
       ? `[data-node-id="${CSS.escape(nodeId)}"]`
       : `[data-node-id="${nodeId.replace(/"/g, '\\"')}"]`;
     const nodeElement = canvas.querySelector<HTMLElement>(selector);
     if (!nodeElement) return;
 
-    const viewportRect = viewport.getBoundingClientRect();
-    const nodeRect = nodeElement.getBoundingClientRect();
-    const nodeCenterX = nodeRect.left + (nodeRect.width / 2);
-    const nodeCenterY = nodeRect.top + (nodeRect.height / 2);
-    const viewportCenterX = viewportRect.left + (viewportRect.width / 2);
-    const viewportCenterY = viewportRect.top + (viewportRect.height / 2);
+    const nodeBounds = this.getElementLocalBounds(nodeElement);
+    if (!nodeBounds) return;
 
-    this.offsetX.update(value => value + (viewportCenterX - nodeCenterX));
-    this.offsetY.update(value => value + (viewportCenterY - nodeCenterY));
+    const viewportRect = viewport.getBoundingClientRect();
+    this.viewportOffsetX = (viewportRect.width / 2) - ((nodeBounds.left + (nodeBounds.width / 2)) * this.viewportScale);
+    this.viewportOffsetY = (viewportRect.height / 2) - ((nodeBounds.top + (nodeBounds.height / 2)) * this.viewportScale);
+    this.clampViewportOffsets(this.getCanvasContentBoundsLocal());
+    this.renderViewportTransform();
+    this.hasManualViewportOverride = true;
   }
 
   private findPathToNode(root: MindMapNode | null, nodeId: string | null, path: MindMapNode[] = []): MindMapNode[] {

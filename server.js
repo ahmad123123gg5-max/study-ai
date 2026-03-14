@@ -966,7 +966,7 @@ const normalizeForMatch = (value) => value
     .replace(/\s+/g, ' ')
     .trim();
 const buildHybridChatRequest = (body) => {
-    const { message, systemInstruction, history, jsonMode = false, model, files, maxTokens, preferBackground = false, featureHint, knowledgeMode } = (body || {});
+    const { message, systemInstruction, history, jsonMode = false, model, files, temperature, maxTokens, preferBackground = false, featureHint, knowledgeMode } = (body || {});
     if (!message || typeof message !== 'string') {
         return {
             preferBackground: false,
@@ -986,6 +986,9 @@ const buildHybridChatRequest = (body) => {
     const parsedMaxTokens = typeof maxTokens === 'number' && Number.isFinite(maxTokens)
         ? Math.min(Math.max(64, Math.floor(maxTokens)), 4096)
         : undefined;
+    const parsedTemperature = typeof temperature === 'number' && Number.isFinite(temperature)
+        ? Math.min(Math.max(0, temperature), 2)
+        : undefined;
     return {
         preferBackground: preferBackground === true,
         request: {
@@ -993,6 +996,7 @@ const buildHybridChatRequest = (body) => {
             systemInstruction: typeof systemInstruction === 'string' ? systemInstruction.trim() : '',
             jsonMode,
             model: typeof model === 'string' && model.trim() ? model.trim() : OPENAI_MODEL,
+            temperature: parsedTemperature,
             maxTokens: parsedMaxTokens,
             historyMessages: historyMessages,
             attachmentText: parsedAttachments.extractedText,

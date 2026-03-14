@@ -72,7 +72,7 @@ export class TimerService {
         const newSeconds = s + 1;
         // Award 1 XP for every 60 seconds
         if (newSeconds % 60 === 0) {
-          this.ai.addXP(1);
+          this.ai.awardXPForAction('smartTimerMinute', 1);
         }
         return newSeconds;
       });

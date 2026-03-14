@@ -81,7 +81,7 @@ export class AIHyperOptimizationEngine {
         type: 'text',
         text: [
           'Attached source text:',
-          request.attachmentText.slice(0, 22000)
+          request.attachmentText
         ].join('\n')
       });
     }
@@ -100,6 +100,17 @@ export class AIHyperOptimizationEngine {
     return parts.length === 1 ? userMessagePart.text : parts;
   }
 
+  private buildAttachmentFingerprint(request: HybridChatRequest): string {
+    return createHash('sha1')
+      .update(JSON.stringify({
+        rawFilesCount: request.rawFilesCount || 0,
+        attachmentText: request.attachmentText ? normalizeText(request.attachmentText) : '',
+        attachmentNotes: (request.attachmentNotes || []).map((note) => normalizeText(note)),
+        attachmentImages: (request.attachmentImages || []).map((part) => part.image_url?.url || '')
+      }))
+      .digest('hex');
+  }
+
   selectModel(requestedModel: string, decision: HybridRoutingDecision, fastModel: string): string {
     if (decision.complexity === 'simple' || decision.route === 'rag') {
       return fastModel;
@@ -109,6 +120,10 @@ export class AIHyperOptimizationEngine {
   }
 
   createResponseCacheKey(request: HybridChatRequest, decision: HybridRoutingDecision): string {
+    const historyFingerprint = createHash('sha1')
+      .update(JSON.stringify(this.compactHistory(request.historyMessages)))
+      .digest('hex');
+    const attachmentFingerprint = this.buildAttachmentFingerprint(request);
     const fingerprint = createHash('sha1')
       .update(JSON.stringify({
         route: decision.route,
@@ -119,7 +134,9 @@ export class AIHyperOptimizationEngine {
         featureHint: request.featureHint,
         knowledgeMode: request.knowledgeMode,
         systemInstruction: normalizeText(request.systemInstruction),
-        message: normalizeText(request.message)
+        message: normalizeText(request.message),
+        historyFingerprint,
+        attachmentFingerprint
       }))
       .digest('hex');
 

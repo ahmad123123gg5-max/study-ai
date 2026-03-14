@@ -35,7 +35,7 @@ export class AIEngine {
             apiKey: this.apiKey,
             model,
             messages: prepared.messages,
-            temperature: request.jsonMode ? 0.1 : 0.45,
+            temperature: typeof request.temperature === 'number' ? request.temperature : (request.jsonMode ? 0.1 : 0.45),
             maxTokens: request.maxTokens
         });
         const text = completion.text;
@@ -81,7 +81,7 @@ export class AIEngine {
             apiKey: this.apiKey,
             model,
             messages: prepared.messages,
-            temperature: request.jsonMode ? 0.1 : 0.45,
+            temperature: typeof request.temperature === 'number' ? request.temperature : (request.jsonMode ? 0.1 : 0.45),
             maxTokens: request.maxTokens
         })) {
             if (event.type === 'delta' && event.text) {

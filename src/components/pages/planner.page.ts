@@ -440,9 +440,12 @@ export class PlannerPage {
             const updated = currentTasks.map(t => {
               if (t.id === completedId) {
                 const hours = t.originalDuration / 60;
+                const studyXp = Math.floor(t.originalDuration / 2);
                 this.ai.totalStudyHours.update(h => h + hours);
-                this.ai.addXP(Math.floor(t.originalDuration / 2));
-                this.ai.updateSubjectXP(t.subject, Math.floor(t.originalDuration / 2));
+                this.ai.awardXPForAction('studyPlan', studyXp, {
+                  fingerprint: `study:${t.id}:${t.subject}`
+                });
+                this.ai.updateSubjectXP(t.subject, studyXp);
                 this.ai.addPerformanceRecord({
                   date: new Date().toISOString(),
                   score: 100,

@@ -1314,6 +1314,7 @@ const buildHybridChatRequest = (body: unknown): {
     jsonMode = false,
     model,
     files,
+    temperature,
     maxTokens,
     preferBackground = false,
     featureHint,
@@ -1325,6 +1326,7 @@ const buildHybridChatRequest = (body: unknown): {
     jsonMode?: boolean;
     model?: string;
     files?: unknown;
+    temperature?: unknown;
     maxTokens?: unknown;
     preferBackground?: boolean;
     featureHint?: string;
@@ -1353,6 +1355,10 @@ const buildHybridChatRequest = (body: unknown): {
     typeof maxTokens === 'number' && Number.isFinite(maxTokens)
       ? Math.min(Math.max(64, Math.floor(maxTokens)), 4096)
       : undefined;
+  const parsedTemperature =
+    typeof temperature === 'number' && Number.isFinite(temperature)
+      ? Math.min(Math.max(0, temperature), 2)
+      : undefined;
 
   return {
     preferBackground: preferBackground === true,
@@ -1361,6 +1367,7 @@ const buildHybridChatRequest = (body: unknown): {
       systemInstruction: typeof systemInstruction === 'string' ? systemInstruction.trim() : '',
       jsonMode,
       model: typeof model === 'string' && model.trim() ? model.trim() : OPENAI_MODEL,
+      temperature: parsedTemperature,
       maxTokens: parsedMaxTokens,
       historyMessages: historyMessages as HybridChatRequest['historyMessages'],
       attachmentText: parsedAttachments.extractedText,

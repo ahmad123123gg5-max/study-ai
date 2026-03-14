@@ -1,19 +1,20 @@
 
 import { Injectable, signal, effect, inject } from '@angular/core';
 import { AuthService } from './auth.service';
-import { NotificationService } from './notification.service';
 import {
+  GroundingMetadata,
   AIChatRequestOptions,
-  AIChatResponsePayload,
-  GroundingMetadata
+  AIChatResponsePayload
 } from './grounding.models';
 import {
-  DEFAULT_LANGUAGE,
-  LanguageCode,
   getLanguageName,
   getSpeechRecognitionLocale,
-  normalizeLanguageCode
+  normalizeLanguageCode,
+  LanguageCode,
+  DEFAULT_LANGUAGE
 } from '../i18n/language-config';
+
+import { NotificationService } from '../services/notification.service';
 
 export interface BookMetadata {
   id: string;
@@ -112,6 +113,7 @@ export interface QuizQuestion {
   o: string[];
   a: number;
   e: string;
+  t?: QuizQuestionType;
 }
 
 export type LabScenarioDifficulty = 'easy' | 'medium' | 'hard';
@@ -191,6 +193,25 @@ export interface UsageStats {
   academicResearch: number;
   contentLabConversions: number;
   lastResetDate: string;
+}
+
+export type FeatureFlag = 'aiExam';
+
+export type XPActionType =
+  | 'aiTutorChat'
+  | 'flashcards'
+  | 'mindmap'
+  | 'studyPlan'
+  | 'virtualLabSimulation'
+  | 'academicResearch'
+  | 'contentLab'
+  | 'quizAttempt'
+  | 'smartTimerMinute';
+
+export interface XPRewardOptions {
+  fingerprint?: string;
+  cooldownMs?: number;
+  allowNegative?: boolean;
 }
 
 export type UserPlan = 'free' | 'pro';
@@ -292,7 +313,25 @@ export class AIService {
     lastResetDate: new Date().toDateString()
   });
 
-  private levelThresholds = [0, 50, 150, 350, 750, 1750, 3750, 7750, 15750, 31750];
+  private readonly legacyLevelXp = [0, 50, 150, 350, 750, 1750, 3750, 7750, 15750, 31750];
+  private readonly xpThresholdCache = new Map<number, number>();
+  private readonly xpFingerprintTtlMs = 5 * 60 * 1000;
+  private readonly xpActionCooldowns: Record<XPActionType, number> = {
+    aiTutorChat: 20_000,
+    flashcards: 12_000,
+    mindmap: 12_000,
+    studyPlan: 15_000,
+    virtualLabSimulation: 5_000,
+    academicResearch: 10_000,
+    contentLab: 8_000,
+    quizAttempt: 10_000,
+    smartTimerMinute: 55_000
+  };
+  private xpActionTimestamps = new Map<XPActionType, number>();
+  private xpFingerprintHistory = new Map<string, number>();
+  private readonly featureFlags: Record<FeatureFlag, boolean> = {
+    aiExam: false
+  };
 
   constructor() {
     // Load local data as fallback
@@ -436,30 +475,109 @@ export class AIService {
     });
   }
 
-  getNextLevelXP(): number {
-    const lvl = this.userLevel();
-    if (lvl < this.levelThresholds.length) {
-      return this.levelThresholds[lvl];
+  getXPRequiredForLevel(level: number): number {
+    const normalizedLevel = Math.max(1, Math.floor(level));
+    const legacyIndex = normalizedLevel - 1;
+    if (legacyIndex < this.legacyLevelXp.length) {
+      return this.legacyLevelXp[legacyIndex];
     }
-    return lvl * 5000;
+
+    const cached = this.xpThresholdCache.get(normalizedLevel);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const lastLegacyLevel = this.legacyLevelXp.length;
+    let xp = this.legacyLevelXp[lastLegacyLevel - 1];
+    const extraLevels = normalizedLevel - lastLegacyLevel;
+    for (let offset = 1; offset <= extraLevels; offset += 1) {
+      xp += this.computeExtraLevelIncrement(offset);
+    }
+
+    this.xpThresholdCache.set(normalizedLevel, xp);
+    return xp;
   }
 
-  addXP(amount: number) {
-    this.userXP.update(xp => {
+  getNextLevelXP(): number {
+    return this.getXPRequiredForLevel(this.userLevel() + 1);
+  }
+
+  getProgressToNextLevel(): number {
+    const currentLevel = this.userLevel();
+    const currentXp = this.getXPRequiredForLevel(currentLevel);
+    const nextXp = this.getXPRequiredForLevel(currentLevel + 1);
+    const delta = Math.max(1, nextXp - currentXp);
+    const progress = (this.userXP() - currentXp) / delta;
+    return Math.min(1, Math.max(0, progress));
+  }
+
+  private addXP(amount: number) {
+    if (!Number.isFinite(amount) || amount === 0) {
+      return;
+    }
+
+    this.userXP.update((xp) => {
       const newXP = xp + amount;
-      let nextThreshold = this.getNextLevelXP();
-      
-      // Check if we reached the next level threshold
-      // Note: nextThreshold is the XP needed for the NEXT level
+      let nextLevel = this.userLevel();
+      let nextThreshold = this.getXPRequiredForLevel(nextLevel + 1);
+
       while (newXP >= nextThreshold) {
-        const nextLvl = this.userLevel() + 1;
-        this.userLevel.set(nextLvl);
-        this.lastLevelUp.set(nextLvl);
+        nextLevel += 1;
+        this.userLevel.set(nextLevel);
+        this.lastLevelUp.set(nextLevel);
         setTimeout(() => this.lastLevelUp.set(null), 5000);
-        nextThreshold = this.getNextLevelXP();
+        nextThreshold = this.getXPRequiredForLevel(nextLevel + 1);
       }
+
       return newXP;
     });
+  }
+
+  awardXPForAction(action: XPActionType, amount: number, options: XPRewardOptions = {}): boolean {
+    if (!Number.isFinite(amount) || amount === 0) {
+      return false;
+    }
+
+    if (amount < 0 && !options.allowNegative) {
+      return false;
+    }
+
+    const now = Date.now();
+    const cooldown = Math.max(0, options.cooldownMs ?? this.xpActionCooldowns[action] ?? 0);
+    const lastAction = this.xpActionTimestamps.get(action) || 0;
+    if (now - lastAction < cooldown) {
+      return false;
+    }
+
+    const fingerprint = options.fingerprint;
+    if (fingerprint) {
+      const lastFingerprint = this.xpFingerprintHistory.get(fingerprint);
+      if (lastFingerprint && now - lastFingerprint < this.xpFingerprintTtlMs) {
+        return false;
+      }
+      this.xpFingerprintHistory.set(fingerprint, now);
+    }
+
+    this.xpActionTimestamps.set(action, now);
+    this.pruneExpiredFingerprints();
+    this.addXP(amount);
+    return true;
+  }
+
+  private pruneExpiredFingerprints() {
+    const now = Date.now();
+    for (const [key, timestamp] of this.xpFingerprintHistory.entries()) {
+      if (now - timestamp > this.xpFingerprintTtlMs) {
+        this.xpFingerprintHistory.delete(key);
+      }
+    }
+  }
+
+  private computeExtraLevelIncrement(offset: number): number {
+    const base = 850;
+    const curve = 1.18;
+    const earlyBoost = Math.max(0, 380 - offset * 18);
+    return Math.floor(base * Math.pow(offset, curve) + earlyBoost);
   }
 
   resetProgress() {
@@ -473,6 +591,10 @@ export class AIService {
 
   hasUnlimitedUsageAccess(): boolean {
     return UNLIMITED_USAGE_EMAILS.has(normalizeEmail(this.userEmail()));
+  }
+
+  isFeatureEnabled(flag: FeatureFlag): boolean {
+    return Boolean(this.featureFlags[flag]);
   }
 
   getRemainingAttempts(feature: keyof Omit<UsageStats, 'lastResetDate'>): number {
@@ -666,6 +788,7 @@ export class AIService {
         model,
         files,
         maxTokens: requestOptions.maxTokens ?? maxTokens,
+        temperature: requestOptions.temperature,
         featureHint: requestOptions.featureHint,
         knowledgeMode: requestOptions.knowledgeMode
       })
@@ -935,6 +1058,9 @@ export class AIService {
     const normalizedLanguage = normalizeLanguageCode(language);
     const safeCount = Math.max(1, Math.min(50, Math.round(count || 10)));
     const humanLanguage = this.getLanguageName(normalizedLanguage);
+    const difficultyGuidance = this.buildQuizDifficultyGuidance(difficulty);
+    const sourceGuidance = this.buildQuizSourceGuidance(files.length);
+    const generationNonce = crypto.randomUUID();
 
     try {
       const payload = await this.retry(async () => this.jsonViaSiteAIEndpoint<{ questions?: unknown[] }>(
@@ -942,10 +1068,13 @@ export class AIService {
           `Create a ${type === 'true_false' ? 'true/false' : 'multiple-choice'} test for the topic "${topic}".`,
           `Generate exactly ${safeCount} questions.`,
           `Difficulty level: ${difficulty}.`,
+          `Variation seed: ${generationNonce}. Use it only to diversify question selection and wording. Do not mention it in the output.`,
+          difficultyGuidance,
           type === 'true_false'
             ? 'Each question must be objectively answerable as true or false.'
             : 'Each question must include exactly 4 distinct options with one correct answer.',
           'Questions must be faithful to the source/topic and avoid duplicates.',
+          sourceGuidance,
           type === 'mcq'
             ? 'Vary the question stems naturally. Rotate across first action, priority intervention, next best step, most concerning finding, what should be done first, and most appropriate response. Avoid repeating the same opening wording across consecutive questions.'
             : 'Vary the wording and do not repeat the same statement structure across consecutive questions.',
@@ -969,12 +1098,15 @@ Rules:
 - Do not repeat the same prompt or same option set.
 - For true_false, options must be the localized equivalents of true and false only.
 - For mcq, options length must be exactly 4.
+- If files are attached, ground every question and explanation in the attached source content, not generic background knowledge.
+- If multiple files are attached, cover the meaningful content across all of them rather than repeating one narrow section.
+- Do not ask about facts that are absent from the provided source material.
 - Keep user-facing content directly in ${humanLanguage}.`,
         undefined,
         files,
         undefined,
         humanLanguage,
-        { featureHint: 'quiz', knowledgeMode: 'strict' }
+        { featureHint: 'quiz', knowledgeMode: 'strict', temperature: 0.6 }
       ));
 
       return this.normalizeQuizQuestions(payload?.questions, topic, safeCount, normalizedLanguage, type, difficulty);
@@ -982,6 +1114,34 @@ Rules:
       console.error('Quiz generation failed, using fallback questions', error);
       return this.buildFallbackQuizQuestions(topic, safeCount, normalizedLanguage, type, difficulty);
     }
+  }
+
+  private buildQuizDifficultyGuidance(difficulty: QuizDifficulty): string {
+    switch (difficulty) {
+      case 'easy':
+        return 'Easy means clear, normal, accessible questions for an average student. They should be straightforward, but not trivial or childish.';
+      case 'hard':
+        return 'Hard means high-level questions that demand precise comprehension, close reading of the source, and strong distinction between similar ideas.';
+      case 'legendary':
+        return 'Legendary means elite difficulty: subtle distractors, multi-step reasoning, and very strong source comprehension while remaining fully grounded in the material.';
+      case 'medium':
+      default:
+        return 'Medium means questions for a student who studied the material once or twice and can handle moderate conceptual depth.';
+    }
+  }
+
+  private buildQuizSourceGuidance(fileCount: number): string {
+    if (fileCount <= 0) {
+      return 'If no attachments exist, derive the exam from the topic itself.';
+    }
+
+    return [
+      'Treat the attached files as the source of truth for the exam.',
+      'Read every attachment before writing the final questions.',
+      'Build the exam from the content inside the files, not from the topic name alone.',
+      'If several attachments exist, distribute the questions across the main ideas found in all readable files.',
+      'Do not ignore a file just because another file is longer.'
+    ].join(' ');
   }
 
   async analyzeQuizErrors(
@@ -1064,8 +1224,9 @@ Write user-facing content directly in ${humanLanguage}.`,
       const candidate = rawQuestions[index];
       const parsed = candidate && typeof candidate === 'object' ? candidate as Record<string, unknown> : {};
       const fallback = this.buildFallbackQuizQuestion(topic, index, requestedCount, language, type, difficulty);
-      const prompt = this.pickQuizPrompt(parsed, fallback.q);
-      const options = this.normalizeQuizOptions(parsed, fallback.o, language, type);
+      const extractedPrompt = this.extractQuizPromptAndInlineOptions(this.pickQuizPrompt(parsed, fallback.q), type);
+      const prompt = extractedPrompt.prompt || fallback.q;
+      const options = this.normalizeQuizOptions(parsed, extractedPrompt.options, fallback.o, language, type);
       const answerIndex = this.normalizeQuizAnswerIndex(parsed, options, fallback.a, language, type);
       const explanation = this.pickQuizExplanation(parsed, fallback.e);
 
@@ -1074,7 +1235,8 @@ Write user-facing content directly in ${humanLanguage}.`,
         q: prompt,
         o: options.map((option) => `${option}`),
         a: answerIndex,
-        e: explanation
+        e: explanation,
+        t: type
       };
 
       const signature = this.buildQuizQuestionSignature(question);
@@ -1113,8 +1275,66 @@ Write user-facing content directly in ${humanLanguage}.`,
     return explanation || fallback;
   }
 
+  private extractQuizPromptAndInlineOptions(prompt: string, type: QuizQuestionType): { prompt: string; options: string[] } {
+    const text = typeof prompt === 'string' ? prompt.trim() : '';
+    if (!text || type === 'true_false') {
+      return { prompt: text, options: [] };
+    }
+
+    const lines = text
+      .split(/\r?\n/g)
+      .map((line) => this.sanitizeQuizTextFragment(line))
+      .filter(Boolean);
+    const firstOptionIndex = lines.findIndex((line) => this.matchInlineQuizOptionLine(line) !== null);
+    if (firstOptionIndex < 0) {
+      return { prompt: text, options: [] };
+    }
+
+    const options: string[] = [];
+    for (let index = firstOptionIndex; index < lines.length; index += 1) {
+      const option = this.matchInlineQuizOptionLine(lines[index]);
+      if (!option) {
+        break;
+      }
+      options.push(option);
+      if (options.length === 4) {
+        break;
+      }
+    }
+
+    if (options.length !== 4) {
+      return { prompt: text, options: [] };
+    }
+
+    const promptLines = lines.slice(0, firstOptionIndex);
+    return {
+      prompt: promptLines.join(' ').trim() || text,
+      options
+    };
+  }
+
+  private matchInlineQuizOptionLine(line: string): string | null {
+    const patterns = [
+      /^[\-\*\u2022]?\s*(?:(?:option|choice)\s*)?([A-Da-d]|[1-4]|[أابجدهـهو])\s*[\)\].:-]\s*(.+)$/iu,
+      /^[\-\*\u2022]?\s*(?:الخيار\s*)?([1-4]|[أابجدهـهو])\s*[\)\].:-]\s*(.+)$/iu
+    ];
+
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match?.[2]) {
+        const cleaned = this.stripQuizOptionPrefix(match[2]);
+        if (cleaned) {
+          return cleaned;
+        }
+      }
+    }
+
+    return null;
+  }
+
   private normalizeQuizOptions(
     candidate: Record<string, unknown>,
+    inlineOptions: string[],
     fallback: string[],
     language: LanguageCode,
     type: QuizQuestionType
@@ -1123,19 +1343,19 @@ Write user-facing content directly in ${humanLanguage}.`,
       return [...this.buildTrueFalseOptions(language)];
     }
 
-    const rawOptions = Array.isArray(candidate.o)
-      ? candidate.o
-      : Array.isArray(candidate.options)
-        ? candidate.options
-        : [];
-    const options = rawOptions
-      .filter((option): option is string => typeof option === 'string')
-      .map((option) => option.trim())
-      .filter(Boolean)
-      .slice(0, 4);
+    const directOptions = this.cleanQuizOptionList(this.collectQuizStructuredOptions(candidate));
+    if (this.hasValidQuizOptionSet(directOptions)) {
+      return [...directOptions];
+    }
 
-    if (options.length === 4 && new Set(options.map((option) => this.normalizeQuizTextKey(option))).size === 4) {
-      return [...options];
+    const extractedOptions = this.cleanQuizOptionList(inlineOptions);
+    if (this.hasValidQuizOptionSet(extractedOptions)) {
+      return [...extractedOptions];
+    }
+
+    const mergedOptions = this.cleanQuizOptionList([...directOptions, ...extractedOptions]);
+    if (this.hasValidQuizOptionSet(mergedOptions)) {
+      return [...mergedOptions];
     }
 
     return [...fallback];
@@ -1148,38 +1368,32 @@ Write user-facing content directly in ${humanLanguage}.`,
     language: LanguageCode,
     type: QuizQuestionType
   ): number {
-    if (typeof candidate.a === 'number' && Number.isFinite(candidate.a)) {
-      return Math.max(0, Math.min(options.length - 1, Math.floor(candidate.a)));
-    }
-
-    if (typeof candidate.answerIndex === 'number' && Number.isFinite(candidate.answerIndex)) {
-      return Math.max(0, Math.min(options.length - 1, Math.floor(candidate.answerIndex)));
-    }
-
-    const answerText = typeof candidate.answer === 'string' && candidate.answer.trim()
-      ? candidate.answer.trim()
-      : typeof candidate.correctAnswer === 'string' && candidate.correctAnswer.trim()
-        ? candidate.correctAnswer.trim()
-        : '';
-
-    if (answerText) {
-      const normalizedAnswer = this.normalizeQuizTextKey(answerText);
-      const optionIndex = options.findIndex((option) => this.normalizeQuizTextKey(option) === normalizedAnswer);
-      if (optionIndex >= 0) {
-        return optionIndex;
+    const textualAnswerFields = [
+      candidate.answer,
+      candidate.correctAnswer,
+      candidate.correct_option,
+      candidate.correctOption,
+      candidate.correct_choice,
+      candidate.correctChoice,
+      candidate.solution
+    ];
+    for (const field of textualAnswerFields) {
+      const resolved = this.resolveQuizAnswerFromText(field, options, language, type);
+      if (resolved !== null) {
+        return resolved;
       }
+    }
 
-      if (type === 'true_false') {
-        const trueValues = new Set(
-          [this.buildTrueFalseOptions(language)[0], 'true', 'صح', 'صحيح']
-            .map((value) => this.normalizeQuizTextKey(value))
-        );
-        const falseValues = new Set(
-          [this.buildTrueFalseOptions(language)[1], 'false', 'خطأ', 'غلط']
-            .map((value) => this.normalizeQuizTextKey(value))
-        );
-        if (trueValues.has(normalizedAnswer)) return 0;
-        if (falseValues.has(normalizedAnswer)) return 1;
+    const numericAnswerFields = [
+      candidate.a,
+      candidate.answerIndex,
+      candidate.correctIndex,
+      candidate.correctOptionIndex
+    ];
+    for (const field of numericAnswerFields) {
+      const resolved = this.resolveZeroBasedQuizAnswer(field, options.length);
+      if (resolved !== null) {
+        return resolved;
       }
     }
 
@@ -1206,11 +1420,7 @@ Write user-facing content directly in ${humanLanguage}.`,
   ): QuizQuestion {
     const stepLabel = language === 'ar' ? `السؤال ${index + 1}` : `Question ${index + 1}`;
     const trueFalseOptions = this.buildTrueFalseOptions(language);
-    const difficultyTone = difficulty === 'hard'
-      ? (language === 'ar' ? 'بمستوى ضغط مرتفع' : 'under higher pressure')
-      : difficulty === 'easy'
-        ? (language === 'ar' ? 'بإشارات أوضح' : 'with clearer signals')
-        : (language === 'ar' ? 'بضغط متوازن' : 'under balanced pressure');
+    const difficultyTone = this.buildFallbackQuizDifficultyTone(difficulty, language);
 
     if (type === 'true_false') {
       const statements = language === 'ar'
@@ -1234,6 +1444,7 @@ Write user-facing content directly in ${humanLanguage}.`,
         q: statement,
         o: [...trueFalseOptions],
         a: answerIndex,
+        t: 'true_false',
         e: language === 'ar'
           ? `هذا السؤال يراجع مبدأًا أساسيًا في ${topic} ضمن ${stepLabel} من ${total}.`
           : `This question reviews a core principle of ${topic} in ${stepLabel} of ${total}.`
@@ -1256,6 +1467,7 @@ Write user-facing content directly in ${humanLanguage}.`,
       q: questionPrompt,
       o: options,
       a: answerIndex,
+      t: 'mcq',
       e: language === 'ar'
         ? `الإجابة الصحيحة في ${stepLabel} تؤكد أن القرار الأقوى يبدأ دائمًا بتحديد الأولوية الأخطر في ${topic} ثم التحرك عليها مباشرة.`
         : `The correct answer in ${stepLabel} shows that the strongest move in ${topic} starts by identifying the top priority and acting on it directly.`
@@ -1269,11 +1481,13 @@ Write user-facing content directly in ${humanLanguage}.`,
     language: LanguageCode,
     difficulty: QuizDifficulty
   ): string {
-    const hardTag = difficulty === 'hard'
-      ? (language === 'ar' ? 'في موقف عالي الضغط' : 'in a high-pressure scene')
-      : difficulty === 'easy'
-        ? (language === 'ar' ? 'في موقف واضح المعالم' : 'in a clearer scene')
-        : (language === 'ar' ? 'في موقف واقعي متوازن' : 'in a balanced realistic scene');
+    const hardTag = difficulty === 'legendary'
+      ? (language === 'ar' ? 'في موقف شديد التعقيد والدقة' : 'in a highly complex, precision-heavy scenario')
+      : difficulty === 'hard'
+        ? (language === 'ar' ? 'في موقف عالي الضغط' : 'in a high-pressure scene')
+        : difficulty === 'easy'
+          ? (language === 'ar' ? 'في موقف واضح المعالم' : 'in a clearer scene')
+          : (language === 'ar' ? 'في موقف واقعي متوازن' : 'in a balanced realistic scene');
     const stems = language === 'ar'
       ? [
         `ما الإجراء الأول الأكثر ملاءمة في ${topic} ${hardTag} ضمن السؤال ${index + 1} من ${total}؟`,
@@ -1297,6 +1511,14 @@ Write user-facing content directly in ${humanLanguage}.`,
 
   private buildFallbackQuizDistractors(topic: string, difficulty: QuizDifficulty, arabic: boolean): string[] {
     if (arabic) {
+      if (difficulty === 'legendary') {
+        return [
+          `اختيار خطوة تبدو دقيقة في ${topic} لكنها تتجاهل تفصيلاً حاسماً غيّر معنى المعطيات الأصلية.`,
+          `بناء قرار متقدم في ${topic} على استنتاج غير مدعوم نصاً رغم أن الملف يوجّه إلى خيار آخر.`,
+          `الانشغال بتفصيل ثانوي معقّد في ${topic} قبل تثبيت الأساس الأكثر تأثيراً في الحكم النهائي.`
+        ];
+      }
+
       if (difficulty === 'hard') {
         return [
           `التحرك مباشرة إلى خطوة جذابة في ${topic} قبل إعادة ترتيب الأولويات الحقيقية.`,
@@ -1317,6 +1539,14 @@ Write user-facing content directly in ${humanLanguage}.`,
         `التركيز على خطوة ثانوية في ${topic} قبل معالجة الخطر الرئيسي.`,
         `تأجيل الحسم في ${topic} رغم أن المؤشرات الحالية تكفي لاتخاذ قرار أولي.`,
         `اختيار تصرف يبدو نشطًا في ${topic} لكنه لا يعالج أصل المشكلة.`
+      ];
+    }
+
+    if (difficulty === 'legendary') {
+      return [
+        `Choosing a highly technical move in ${topic} that ignores the decisive detail in the source.`,
+        `Building an advanced response in ${topic} on an inference the file never actually supports.`,
+        `Focusing on a sophisticated but secondary detail in ${topic} before securing the core judgment.`
       ];
     }
 
@@ -1341,6 +1571,22 @@ Write user-facing content directly in ${humanLanguage}.`,
       `Delay committing in ${topic} even though the current signals support an initial decision.`,
       `Pick an action that looks active in ${topic} but does not address the actual problem.`
     ];
+  }
+
+  private buildFallbackQuizDifficultyTone(difficulty: QuizDifficulty, language: LanguageCode): string {
+    if (difficulty === 'legendary') {
+      return language === 'ar' ? 'بمستوى نخبوي شديد الدقة' : 'at an elite precision-heavy level';
+    }
+
+    if (difficulty === 'hard') {
+      return language === 'ar' ? 'بمستوى ضغط مرتفع' : 'under higher pressure';
+    }
+
+    if (difficulty === 'easy') {
+      return language === 'ar' ? 'بإشارات أوضح' : 'with clearer signals';
+    }
+
+    return language === 'ar' ? 'بضغط متوازن' : 'under balanced pressure';
   }
 
   private buildFallbackQuizImprovementPlan(
@@ -1381,6 +1627,218 @@ Write user-facing content directly in ${humanLanguage}.`,
 
   private buildTrueFalseOptions(language: LanguageCode): [string, string] {
     return language === 'ar' ? ['صح', 'خطأ'] : ['True', 'False'];
+  }
+
+  private collectQuizStructuredOptions(candidate: Record<string, unknown>): unknown[] {
+    const collected: unknown[] = [];
+    const arrayLikeSources = [
+      candidate.o,
+      candidate.options,
+      candidate.choices,
+      candidate.answers,
+      candidate.items,
+      candidate.alternatives
+    ];
+
+    for (const source of arrayLikeSources) {
+      if (Array.isArray(source)) {
+        collected.push(...source);
+      } else if (source && typeof source === 'object') {
+        collected.push(...this.collectQuizOptionsFromObject(source as Record<string, unknown>));
+      }
+    }
+
+    collected.push(...this.collectQuizOptionsFromObject(candidate, true));
+    return collected;
+  }
+
+  private collectQuizOptionsFromObject(
+    candidate: Record<string, unknown>,
+    topLevel: boolean = false
+  ): unknown[] {
+    const orderedKeys = topLevel
+      ? ['optionA', 'optionB', 'optionC', 'optionD', 'choiceA', 'choiceB', 'choiceC', 'choiceD', 'option1', 'option2', 'option3', 'option4']
+      : ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd', '1', '2', '3', '4', 'optionA', 'optionB', 'optionC', 'optionD', 'choiceA', 'choiceB', 'choiceC', 'choiceD', 'option1', 'option2', 'option3', 'option4'];
+
+    return orderedKeys
+      .map((key) => candidate[key])
+      .filter((value) => value !== undefined && value !== null);
+  }
+
+  private cleanQuizOptionList(values: unknown[]): string[] {
+    const cleaned: string[] = [];
+    const seen = new Set<string>();
+
+    for (const value of values) {
+      const option = this.coerceQuizOptionText(value);
+      if (!option) {
+        continue;
+      }
+
+      const key = this.normalizeQuizTextKey(option);
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      cleaned.push(option);
+      if (cleaned.length === 4) {
+        break;
+      }
+    }
+
+    return cleaned;
+  }
+
+  private hasValidQuizOptionSet(options: string[]): boolean {
+    return options.length === 4;
+  }
+
+  private coerceQuizOptionText(value: unknown): string {
+    if (typeof value === 'string') {
+      return this.stripQuizOptionPrefix(value);
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return this.stripQuizOptionPrefix(String(value));
+    }
+
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      for (const key of ['text', 'label', 'option', 'value', 'content', 'answer', 'title', 'name']) {
+        const nested = record[key];
+        if (typeof nested === 'string' && nested.trim()) {
+          return this.stripQuizOptionPrefix(nested);
+        }
+      }
+    }
+
+    return '';
+  }
+
+  private resolveQuizAnswerFromText(
+    value: unknown,
+    options: string[],
+    language: LanguageCode,
+    type: QuizQuestionType
+  ): number | null {
+    const answerText = this.coerceQuizAnswerText(value);
+    if (!answerText) {
+      return null;
+    }
+
+    const normalizedAnswer = this.normalizeQuizTextKey(answerText);
+    const optionIndex = options.findIndex((option) => this.normalizeQuizTextKey(option) === normalizedAnswer);
+    if (optionIndex >= 0) {
+      return optionIndex;
+    }
+
+    const labeledIndex = this.parseQuizAnswerLabel(answerText, options.length);
+    if (labeledIndex !== null) {
+      return labeledIndex;
+    }
+
+    if (type === 'true_false') {
+      const trueValues = new Set(
+        [this.buildTrueFalseOptions(language)[0], 'true', 'صح', 'صحيح']
+          .map((item) => this.normalizeQuizTextKey(item))
+      );
+      const falseValues = new Set(
+        [this.buildTrueFalseOptions(language)[1], 'false', 'خطأ', 'غلط']
+          .map((item) => this.normalizeQuizTextKey(item))
+      );
+      if (trueValues.has(normalizedAnswer)) return 0;
+      if (falseValues.has(normalizedAnswer)) return 1;
+    }
+
+    return null;
+  }
+
+  private resolveZeroBasedQuizAnswer(value: unknown, optionCount: number): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(optionCount - 1, Math.floor(value)));
+    }
+
+    if (typeof value === 'string' && /^-?\d+$/.test(value.trim())) {
+      const parsed = Number(value.trim());
+      if (Number.isFinite(parsed)) {
+        return Math.max(0, Math.min(optionCount - 1, Math.floor(parsed)));
+      }
+    }
+
+    return null;
+  }
+
+  private coerceQuizAnswerText(value: unknown): string {
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value).trim();
+    }
+
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      for (const key of ['text', 'label', 'value', 'answer', 'option']) {
+        const nested = record[key];
+        if (typeof nested === 'string' && nested.trim()) {
+          return nested.trim();
+        }
+      }
+    }
+
+    return '';
+  }
+
+  private parseQuizAnswerLabel(value: string, optionCount: number): number | null {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (/^[A-D]$/i.test(trimmed)) {
+      return Math.min(optionCount - 1, trimmed.toUpperCase().charCodeAt(0) - 65);
+    }
+
+    const arabicLabelMap: Record<string, number> = {
+      'أ': 0,
+      'ا': 0,
+      'ب': 1,
+      'ج': 2,
+      'د': 3,
+      'ه': 4,
+      'هـ': 4,
+      'و': 5
+    };
+    if (trimmed in arabicLabelMap) {
+      return Math.min(optionCount - 1, arabicLabelMap[trimmed]);
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = Number(trimmed);
+      if (parsed >= 1 && parsed <= optionCount) {
+        return parsed - 1;
+      }
+      if (parsed >= 0 && parsed < optionCount) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
+
+  private stripQuizOptionPrefix(value: string): string {
+    return this.sanitizeQuizTextFragment(
+      value.replace(/^[\-\*\u2022]?\s*(?:(?:option|choice|الخيار)\s*)?(?:[A-Da-d]|[1-4]|[أابجدهـهو])\s*[\)\].:-]\s*/iu, '')
+    );
+  }
+
+  private sanitizeQuizTextFragment(value: string): string {
+    return value
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private buildQuizQuestionSignature(question: QuizQuestion): string {
@@ -2169,9 +2627,9 @@ Write user-facing content directly in ${humanLanguage}.`,
         label: label || (language === 'ar' ? `مؤشر ${index + 1}` : `Indicator ${index + 1}`),
         value,
         note: note || undefined,
-        status: this.normalizeLabReadingStatus(candidate.status)
-      } satisfies LabScenarioReading;
-    }).filter((reading) => reading.label && reading.value);
+        status: this.normalizeLabReadingStatus(candidate.status) || 'watch'
+      };
+    });
 
     if (normalized.length >= 3 && normalized.filter((reading) => /\d/.test(reading.value)).length >= 2) {
       return normalized.slice(0, 5);
@@ -3038,6 +3496,7 @@ Write user-facing content directly in ${humanLanguage}.`,
     ];
   }
 
+  // ...existing code...
   private buildDefaultResearchSummary(query: string, level: string, language: string) {
     if (language === 'ar') {
       return `يقدم هذا البحث عرضًا منظمًا لموضوع ${query} بحسب مستوى ${level}، مع إبراز الفكرة الأساسية، أوجه التطبيق، وأهم النقاط التي يجب على الطالب فهمها بوضوح.`;
@@ -3045,14 +3504,15 @@ Write user-facing content directly in ${humanLanguage}.`,
     return `This research provides a structured treatment of ${query} at the ${level} level, highlighting the core idea, applications, and the main points a student should understand clearly.`;
   }
 
-  private buildDefaultResearchConclusion(query: string, language: string) {
+  private buildDefaultResearchConclusion(query: string, language: string): string {
     if (language === 'ar') {
-      return `ختامًا، يظل موضوع ${query} مجالًا مهمًا للدراسة والتحليل، ويحتاج فهمه إلى ربط الجانب النظري بالتطبيق العملي والمراجعة النقدية للمصادر المعتمدة.`;
+      return `خاتمة هذا البحث حول ${query} تؤكد أهمية استمرار الدراسة والمراجعة التطبيقية، مع التركيز على النقاط الرئيسية والاستنتاجات العملية.`;
     }
-    return `In conclusion, ${query} remains an important subject for study and analysis, and understanding it requires linking theory with practice and reviewing the available sources critically.`;
+
+    return `Conclusion for ${query} emphasizes the value of continued study and practical application, summarizing the core insights and next steps for learners.`;
   }
 
-  private isLikelyValidResearchUrl(uri: string) {
+  private isLikelyValidResearchUrl(uri: string): boolean {
     if (!/^https?:\/\//i.test(uri)) {
       return false;
     }

@@ -405,6 +405,7 @@ export class FlashcardsPage {
   filterDifficulty = signal<FlashcardFilterDifficulty>('all');
   filterType = signal<FlashcardFilterType>('all');
   filterTag = signal<string>('all');
+  currentFace = signal<FlashcardFace>('front');
   isFlipped = signal(false);
   showAnswer = signal(false);
   showHint = signal(false);
@@ -418,6 +419,7 @@ export class FlashcardsPage {
   showQuizModal = signal(false);
   quizSelections = signal<Record<string, number>>({});
   speakingCardId = signal<string | null>(null);
+  activeCardRenderTimestamp = signal(Date.now());
   upgradeMessage = signal('');
   showUpgradeModal = signal(false);
   showCustomizationDrawer = signal(false);
@@ -495,12 +497,18 @@ export class FlashcardsPage {
 
   readonly currentCard = computed(() => {
     const set = this.currentSet();
-    if (!set) return null;
-    const queue = this.filteredQueueIds();
-    if (queue.length === 0) return null;
-    const preferredId = this.activeCardId() || set.progress.currentCardId;
-    const resolvedId = preferredId && queue.includes(preferredId) ? preferredId : queue[0];
-    return set.cards.find(card => card.id === resolvedId) || null;
+    const activeCardId = this.activeCardId();
+    if (!set || !activeCardId) return null;
+    return this.findCardById(set.cards, activeCardId);
+  });
+
+  readonly sidebarCards = computed(() => {
+    const set = this.currentSet();
+    if (!set) return [];
+
+    return this.filteredQueueIds()
+      .map(cardId => this.findCardById(set.cards, cardId))
+      .filter((card): card is FlashcardItem => card !== null);
   });
 
   readonly currentCardIndex = computed(() => {
@@ -508,6 +516,8 @@ export class FlashcardsPage {
     if (!card) return -1;
     return this.filteredQueueIds().findIndex(id => id === card.id);
   });
+
+  readonly activeCardRenderKey = computed(() => `${this.activeCardId() || 'none'}:${this.activeCardRenderTimestamp()}`);
 
   readonly visibleCardCount = computed(() => this.filteredCards().length);
   readonly totalCardCount = computed(() => this.currentSet()?.cards.length || 0);
@@ -630,19 +640,11 @@ export class FlashcardsPage {
     this.bootstrapPage();
 
     effect(() => {
-      const queue = this.filteredQueueIds();
-      const preferredId = this.activeCardId() || this.currentSet()?.progress.currentCardId || null;
-      const nextId = preferredId && queue.includes(preferredId) ? preferredId : queue[0] || null;
-      if (this.activeCardId() !== nextId) {
-        this.activeCardId.set(nextId);
-      }
+      this.synchronizeActiveCardSelection();
     });
 
     effect(() => {
       const cardId = this.currentCard()?.id;
-      this.isFlipped.set(false);
-      this.showAnswer.set(false);
-      this.showHint.set(false);
       if (!cardId) return;
 
       const set = this.currentSet();
@@ -659,6 +661,21 @@ export class FlashcardsPage {
           }
         }, true);
       }
+    });
+
+    effect(() => {
+      const activeCardId = this.activeCardId();
+      const renderedCardId = this.currentCard()?.id || null;
+      if (!activeCardId && !renderedCardId) {
+        return;
+      }
+
+      console.debug('[flashcards] active-card-sync', {
+        activeCardId,
+        renderedCardId,
+        currentFace: this.currentFace(),
+        renderKey: this.activeCardRenderKey()
+      });
     });
 
     effect(() => {
@@ -710,9 +727,7 @@ export class FlashcardsPage {
 
   setDisplayMode(mode: FlashcardDisplayMode) {
     this.displayMode.set(mode);
-    this.isFlipped.set(false);
-    this.showAnswer.set(false);
-    this.showHint.set(false);
+    this.resetActiveCardPresentation('display-mode');
   }
 
   setFilterDifficulty(value: FlashcardFilterDifficulty) {
@@ -725,6 +740,10 @@ export class FlashcardsPage {
 
   setFilterTag(value: string) {
     this.filterTag.set(value);
+  }
+
+  selectSidebarCard(cardId: string) {
+    this.selectActiveCardById(cardId, 'sidebar');
   }
 
   canGenerate() {
@@ -749,6 +768,104 @@ export class FlashcardsPage {
 
   currentSetLanguage() {
     return this.currentSet()?.language || this.ai.currentLanguage();
+  }
+
+  private synchronizeActiveCardSelection() {
+    const set = this.currentSet();
+    const nextId = this.resolvePreferredCardId(set, this.activeCardId(), this.filteredQueueIds());
+    if (this.activeCardId() !== nextId) {
+      this.selectActiveCardById(nextId, 'sync', false);
+    }
+  }
+
+  private selectActiveCardById(cardId: string | null, source: string, persist = true) {
+    const set = this.currentSet();
+    const resolvedId = this.resolvePreferredCardId(set, cardId, this.filteredQueueIds());
+    const previousActiveCardId = this.activeCardId();
+    const displayedBefore = this.currentCard()?.id || null;
+    const shouldRefreshView = previousActiveCardId !== resolvedId || source !== 'sync';
+
+    if (previousActiveCardId !== resolvedId) {
+      this.activeCardId.set(resolvedId);
+    }
+
+    if (shouldRefreshView) {
+      this.resetActiveCardPresentation(source);
+    }
+
+    if (persist && set && set.progress.currentCardId !== resolvedId) {
+      this.patchCurrentSet({
+        progress: {
+          ...set.progress,
+          currentCardId: resolvedId
+        }
+      }, true);
+    }
+
+    console.debug('[flashcards] select-active-card', {
+      source,
+      requestedCardId: cardId,
+      resolvedCardId: resolvedId,
+      previousActiveCardId,
+      displayedBefore,
+      displayedAfter: resolvedId
+    });
+  }
+
+  private resetActiveCardPresentation(source: string) {
+    this.isFlipped.set(false);
+    this.showAnswer.set(false);
+    this.showHint.set(false);
+    this.currentFace.set('front');
+    this.activeCardRenderTimestamp.set(this.nextRenderTimestamp());
+
+    console.debug('[flashcards] reset-card-presentation', {
+      source,
+      activeCardId: this.activeCardId(),
+      currentFace: this.currentFace(),
+      renderKey: this.activeCardRenderKey()
+    });
+  }
+
+  private nextRenderTimestamp() {
+    const current = this.activeCardRenderTimestamp();
+    const next = Date.now();
+    return next > current ? next : current + 1;
+  }
+
+  private resolvePreferredCardId(
+    set: SavedFlashcardSet | null,
+    preferredId: string | null | undefined,
+    candidateIds?: string[] | null
+  ): string | null {
+    if (!set || set.cards.length === 0) {
+      return null;
+    }
+
+    const sourceIds = candidateIds !== undefined && candidateIds !== null
+      ? candidateIds
+      : set.progress.queue;
+    const availableIds = sourceIds
+      .filter(id => this.findCardById(set.cards, id) !== null);
+
+    if (availableIds.length === 0 && candidateIds !== undefined && candidateIds !== null) {
+      return null;
+    }
+
+    if (preferredId && availableIds.includes(preferredId)) {
+      return preferredId;
+    }
+
+    if (set.progress.currentCardId && availableIds.includes(set.progress.currentCardId)) {
+      return set.progress.currentCardId;
+    }
+
+    return availableIds.find(id => !!id) || set.cards.find(card => !!card.id)?.id || null;
+  }
+
+  private findCardById(cards: FlashcardItem[], cardId: string | null | undefined) {
+    if (!cardId) return null;
+    return cards.find(card => card.id === cardId) || null;
   }
 
   resolveBackTarget() {
@@ -887,7 +1004,7 @@ export class FlashcardsPage {
 
   cardModeCaption() {
     if (this.displayMode() === 'classic') {
-      return this.cardSectionLabel(this.isFlipped() ? 'back' : 'front');
+      return this.cardSectionLabel(this.currentFace());
     }
     if (this.displayMode() === 'rapid') {
       return this.ai.currentLanguage() === 'ar' ? 'الدراسة السريعة' : 'Rapid Study';
@@ -1089,6 +1206,7 @@ export class FlashcardsPage {
   clearEditor() {
     this.sourceEditorText.set('');
     if (!this.currentSet()?.cards.length) {
+      this.selectActiveCardById(null, 'clear-editor', false);
       this.currentSet.set(null);
     }
   }
@@ -1098,6 +1216,7 @@ export class FlashcardsPage {
     if (!saved) return;
     this.flashcards.setActiveSet(saved.id);
     this.currentSet.set(this.cloneSet(saved));
+    this.selectActiveCardById(saved.progress.currentCardId || null, 'load-saved-set', false);
     this.sourceEditorText.set(saved.sourceText);
     this.errorMessage.set('');
   }
@@ -1109,8 +1228,10 @@ export class FlashcardsPage {
       const fallback = this.flashcards.activeSet();
       if (fallback) {
         this.currentSet.set(this.cloneSet(fallback));
+        this.selectActiveCardById(fallback.progress.currentCardId || null, 'delete-saved-set-fallback', false);
         this.sourceEditorText.set(fallback.sourceText);
       } else {
+        this.selectActiveCardById(null, 'delete-saved-set-empty', false);
         this.currentSet.set(null);
         this.sourceEditorText.set('');
       }
@@ -1121,22 +1242,30 @@ export class FlashcardsPage {
     const queue = this.filteredQueueIds();
     const currentIndex = this.currentCardIndex();
     if (currentIndex <= 0) return;
-    this.setCurrentCardId(queue[currentIndex - 1]);
+    this.selectActiveCardById(queue[currentIndex - 1], 'previous-card');
   }
 
   goToNextCard() {
     const queue = this.filteredQueueIds();
     const currentIndex = this.currentCardIndex();
     if (currentIndex < 0 || currentIndex >= queue.length - 1) return;
-    this.setCurrentCardId(queue[currentIndex + 1]);
+    this.selectActiveCardById(queue[currentIndex + 1], 'next-card');
   }
 
   toggleCardFace() {
-    this.isFlipped.update(value => !value);
+    this.isFlipped.update(value => {
+      const next = !value;
+      this.currentFace.set(next ? 'back' : 'front');
+      return next;
+    });
   }
 
   revealAnswer() {
-    this.showAnswer.update(value => !value);
+    this.showAnswer.update(value => {
+      const next = !value;
+      this.currentFace.set(next ? 'back' : 'front');
+      return next;
+    });
   }
 
   toggleHint() {
@@ -1151,10 +1280,34 @@ export class FlashcardsPage {
     this.revealAnswer();
   }
 
+  interactWithCardStage() {
+    this.togglePrimaryReveal();
+  }
+
+  interactWithPreviewStage() {
+    this.togglePreviewFlip();
+  }
+
+  handleStageKeydown(event: KeyboardEvent, preview = false) {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    if (preview) {
+      this.interactWithPreviewStage();
+      return;
+    }
+
+    this.interactWithCardStage();
+  }
+
   async rateCurrentCard(reviewState: Exclude<FlashcardReviewState, null>) {
     const set = this.currentSet();
     const currentCard = this.currentCard();
     if (!set || !currentCard) return;
+    const visibleQueue = this.filteredQueueIds();
+    const visibleIndex = visibleQueue.findIndex(id => id === currentCard.id);
 
     const cards = set.cards.map(card => card.id === currentCard.id
       ? { ...card, reviewState, mastered: reviewState === 'easy' }
@@ -1172,13 +1325,16 @@ export class FlashcardsPage {
     const completedCardIds = set.progress.completedCardIds.includes(currentCard.id)
       ? set.progress.completedCardIds
       : [...set.progress.completedCardIds, currentCard.id];
+    const nextVisibleId = visibleIndex >= 0
+      ? visibleQueue[visibleIndex + 1] || visibleQueue[visibleIndex - 1] || null
+      : null;
 
     this.patchCurrentSet({
       cards,
       progress: {
         ...set.progress,
         queue: nextQueue,
-        currentCardId: queueWithoutCurrent[0] || nextQueue[0] || null,
+        currentCardId: nextVisibleId || queueWithoutCurrent[0] || nextQueue[0] || null,
         completedCardIds
       }
     }, true);
@@ -1388,6 +1544,7 @@ export class FlashcardsPage {
     if (launchContext?.sourceText?.trim()) {
       const starterSet = this.flashcards.createEmptySet(launchContext);
       this.currentSet.set(starterSet);
+      this.selectActiveCardById(starterSet.progress.currentCardId || null, 'bootstrap-launch-context', false);
       this.sourceEditorText.set(launchContext.sourceText);
       void this.generateCards(launchContext, 'standard');
       return;
@@ -1396,10 +1553,12 @@ export class FlashcardsPage {
     const activeSet = this.flashcards.activeSet();
     if (activeSet) {
       this.currentSet.set(this.cloneSet(activeSet));
+      this.selectActiveCardById(activeSet.progress.currentCardId || null, 'bootstrap-active-set', false);
       this.sourceEditorText.set(activeSet.sourceText);
       return;
     }
 
+    this.selectActiveCardById(null, 'bootstrap-empty', false);
     this.currentSet.set(null);
     this.sourceEditorText.set('');
   }
@@ -1432,12 +1591,15 @@ export class FlashcardsPage {
       };
 
       this.currentSet.set(this.flashcards.saveSet(this.normalizedCurrentSet(nextSet), { silent: true }));
+      this.selectActiveCardById(nextSet.progress.currentCardId || null, 'generate-cards', false);
       this.sourceEditorText.set(result.sourceText);
       this.artifactContent.set('');
       this.artifactTitle.set('');
       this.flashcards.setActiveSet(nextSet.id);
       this.ai.incrementUsage('aiTeacherQuestions');
-      this.ai.addXP(mode === 'standard' ? 20 : 10);
+      this.ai.awardXPForAction('flashcards', mode === 'standard' ? 18 : 12, {
+        fingerprint: `flashcards:${nextSet.id}`
+      });
     } catch (error) {
       console.error('Flashcard generation failed:', error);
       const errorCode = error instanceof Error ? error.message : '';
@@ -1473,27 +1635,14 @@ export class FlashcardsPage {
   private mergeProgress(set: SavedFlashcardSet, cards: FlashcardItem[]) {
     const currentQueue = set.progress.queue.filter(id => cards.some(card => card.id === id));
     const newIds = cards.map(card => card.id).filter(id => !currentQueue.includes(id));
+    const nextProgressQueue = [...currentQueue, ...newIds];
     return {
       ...set.progress,
-      currentCardId: set.progress.currentCardId && cards.some(card => card.id === set.progress.currentCardId)
-        ? set.progress.currentCardId
-        : cards[0]?.id || null,
+      currentCardId: this.resolvePreferredCardId({ ...set, cards, progress: { ...set.progress, queue: nextProgressQueue } }, set.progress.currentCardId, nextProgressQueue),
       completedCardIds: set.progress.completedCardIds.filter(id => cards.some(card => card.id === id)),
       viewedCardIds: set.progress.viewedCardIds.filter(id => cards.some(card => card.id === id)),
-      queue: [...currentQueue, ...newIds]
+      queue: nextProgressQueue
     };
-  }
-
-  private setCurrentCardId(cardId: string) {
-    const set = this.currentSet();
-    if (!set) return;
-    this.activeCardId.set(cardId);
-    this.patchCurrentSet({
-      progress: {
-        ...set.progress,
-        currentCardId: cardId
-      }
-    }, true);
   }
 
   private guardUsage() {
@@ -1598,9 +1747,7 @@ export class FlashcardsPage {
       cards,
       progress: {
         ...set.progress,
-        currentCardId: set.progress.currentCardId && cards.some(card => card.id === set.progress.currentCardId)
-          ? set.progress.currentCardId
-          : cards[0]?.id || null,
+        currentCardId: this.resolvePreferredCardId({ ...set, cards, progress: { ...set.progress, queue: [...queue, ...missingIds] } }, set.progress.currentCardId, [...queue, ...missingIds]),
         completedCardIds: set.progress.completedCardIds.filter(id => cards.some(card => card.id === id)),
         viewedCardIds: set.progress.viewedCardIds.filter(id => cards.some(card => card.id === id)),
         queue: [...queue, ...missingIds]

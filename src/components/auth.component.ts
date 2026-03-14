@@ -6,6 +6,14 @@ import { AuthService } from '../services/auth.service';
 import { NotificationService } from '../services/notification.service';
 import { LocalizationService } from '../services/localization.service';
 
+interface PromoFeedback {
+  type: 'success' | 'error';
+  message: string;
+  activationDate?: string;
+  expirationDate?: string;
+  durationDays?: number;
+}
+
 @Component({
   selector: 'app-auth',
   standalone: true,
@@ -47,6 +55,11 @@ import { LocalizationService } from '../services/localization.service';
             <div class="text-center mb-16">
               <h3 class="text-5xl font-black text-white mb-4 tracking-tighter">{{ isLogin() ? t('Sign In') : t('Create a New Account') }}</h3>
               <p class="text-slate-500 text-xl font-bold">{{ isLogin() ? t('If you are not registered yet, click "Create Account" first.') : t('Create your account once and keep all your progress and levels.') }}</p>
+              <div class="mt-6">
+                <button (click)="openPromoModal()" class="text-indigo-400 font-black text-sm uppercase tracking-[0.5em] hover:underline">
+                  تفعيل كود
+                </button>
+              </div>
             </div>
 
             <div class="space-y-8 text-right">
@@ -118,6 +131,72 @@ import { LocalizationService } from '../services/localization.service';
           }
         </div>
       </div>
+      @if (promoModalOpen()) {
+        <div class="fixed inset-0 bg-black/80 backdrop-blur-2xl z-[400] flex items-center justify-center p-6">
+          <div class="bg-slate-900 w-full max-w-xl rounded-[2.5rem] border border-white/10 shadow-3xl overflow-hidden animate-in zoom-in-95 duration-500">
+            <div class="p-6 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <p class="text-xs font-black text-slate-500 uppercase tracking-[0.4em]">كود PRO</p>
+                <h3 class="text-2xl font-black text-white">تفعيل كود مجاني</h3>
+              </div>
+              <button (click)="closePromoModal()" class="w-10 h-10 rounded-full flex items-center justify-center text-white bg-white/10 hover:bg-white/20 transition">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div class="p-6 space-y-4 text-right">
+              <p class="text-sm text-slate-400">
+                أدخل الكود الذي تلقيته لتفعيل اشتراك PRO لمدة 14 يوماً بدءاً من لحظة التفعيل.
+              </p>
+              <div class="space-y-2">
+                <label class="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">الكود</label>
+                <input
+                  type="text"
+                  [(ngModel)]="promoCodeInput"
+                  class="w-full p-4 rounded-2xl bg-slate-950 border border-white/10 focus:ring-4 ring-indigo-600/20 text-white text-sm outline-none"
+                  placeholder="FREE14-XXXXXX"
+                >
+              </div>
+              <button
+                (click)="redeemPromoCode()"
+                [disabled]="promoBusy()"
+                class="w-full py-4 rounded-2xl font-black text-lg transition border border-white/20 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                @if (promoBusy()) {
+                  <i class="fa-solid fa-spinner animate-spin"></i>
+                } @else {
+                  تفعيل الكود
+                }
+              </button>
+              @if (promoFeedback()) {
+                <p
+                  [class.text-emerald-400]="promoFeedback()?.type === 'success'"
+                  [class.text-rose-400]="promoFeedback()?.type === 'error'"
+                  class="text-sm font-black uppercase tracking-[0.3em]"
+                >
+                  {{ promoFeedback()?.message }}
+                </p>
+              }
+              @if (promoFeedback() && promoFeedback()?.type === 'success') {
+                <div class="space-y-1 text-sm text-slate-200">
+                  <p class="font-black text-white">{{ promoFeedback()?.durationDays || 14 }} يوماً كاملة من PRO تم منحها.</p>
+                  <p>تاريخ بدء الاشتراك: {{ formatPromoDate(promoFeedback()?.activationDate) }}</p>
+                  <p>تاريخ انتهاء الاشتراك: {{ formatPromoDate(promoFeedback()?.expirationDate) }}</p>
+                  @if (promoFeedback()?.expirationDate) {
+                    <p class="text-xs text-slate-400">
+                      {{ formatPromoRemainingDays(promoFeedback()?.expirationDate) }}
+                    </p>
+                  }
+                </div>
+              }
+              @if (!auth.currentUser()) {
+                <p class="text-xs font-black text-amber-300">
+                  يجب تسجيل الدخول أولاً لتفعيل الكود. لا تقلق، سيُبقي النظام هذه النافذة مفتوحة بعد الانتهاء.
+                </p>
+              }
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`:host { display: block; } .shadow-3xl { box-shadow: 0 80px 160px rgba(0,0,0,0.7); }`]
@@ -131,6 +210,10 @@ export class AuthComponent {
   isLogin = signal(true);
   isBusy = signal(false);
   step = signal<'form' | 'verify'>('form');
+  promoModalOpen = signal(false);
+  promoBusy = signal(false);
+  promoCodeInput = '';
+  promoFeedback = signal<PromoFeedback | null>(null);
   
   fullName = '';
   email = '';
@@ -221,6 +304,104 @@ export class AuthComponent {
     } finally {
       this.isBusy.set(false);
     }
+  }
+
+  openPromoModal() {
+    this.promoCodeInput = '';
+    this.promoFeedback.set(null);
+    this.promoModalOpen.set(true);
+  }
+
+  closePromoModal() {
+    this.promoModalOpen.set(false);
+  }
+
+  // هذه الطريقة تتحقق من الكود وتستدعي واجهة التفعيل ثم تعرض التواريخ والرسائل المناسبة
+  async redeemPromoCode() {
+    if (this.promoBusy()) {
+      return;
+    }
+
+    const trimmedCode = this.promoCodeInput.trim();
+    if (!trimmedCode) {
+      this.promoFeedback.set({ type: 'error', message: 'الرجاء إدخال الكود قبل المتابعة.' });
+      return;
+    }
+
+    if (!this.auth.currentUser()) {
+      this.promoFeedback.set({ type: 'error', message: 'يجب تسجيل الدخول أولاً لتفعيل الكود' });
+      return;
+    }
+
+    this.promoBusy.set(true);
+    this.promoFeedback.set(null);
+
+    try {
+      const response = await fetch('/api/promo/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: trimmedCode })
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message =
+          payload && typeof payload.error === 'string'
+            ? payload.error
+            : response.status === 401
+              ? 'يجب تسجيل الدخول أولاً لتفعيل الكود'
+              : 'فشل التفعيل. حاول مرة أخرى';
+        this.promoFeedback.set({ type: 'error', message });
+        return;
+      }
+
+      const message =
+        payload && typeof payload.message === 'string'
+          ? payload.message
+          : 'تم تفعيل الكود بنجاح';
+      this.promoFeedback.set({
+        type: 'success',
+        message,
+        activationDate: typeof payload.activationDate === 'string' ? payload.activationDate : undefined,
+        expirationDate: typeof payload.expirationDate === 'string' ? payload.expirationDate : undefined,
+        durationDays: typeof payload.durationDays === 'number' ? payload.durationDays : undefined
+      });
+      this.promoCodeInput = '';
+      await this.auth.refreshSession();
+    } catch (error) {
+      console.error('Promo redeem failed', error);
+      const message = error instanceof Error ? error.message : 'فشل التفعيل. حاول مرة أخرى';
+      this.promoFeedback.set({ type: 'error', message });
+    } finally {
+      this.promoBusy.set(false);
+    }
+  }
+
+  private formatPromoDate(value?: string | null): string {
+    if (!value) {
+      return '';
+    }
+    return new Date(value).toLocaleString('ar-EG', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  private formatPromoRemainingDays(value?: string | null): string {
+    if (!value) {
+      return '';
+    }
+    const target = Date.parse(value);
+    if (!Number.isFinite(target)) {
+      return '';
+    }
+    const diff = Math.max(0, Math.ceil((target - Date.now()) / (24 * 60 * 60 * 1000)));
+    if (diff === 1) {
+      return 'يوماً واحداً متبقياً';
+    }
+    return `${diff} أيام متبقية`;
   }
 
   async resendVerification() {

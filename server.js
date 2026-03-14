@@ -39,6 +39,7 @@ const DIST_DIR = path.join(__dirname, 'dist');
 const staticCandidates = [path.join(DIST_DIR, 'browser'), DIST_DIR];
 const STATIC_DIR = staticCandidates.find((candidate) => fs.existsSync(candidate));
 const INDEX_FILE = STATIC_DIR ? path.join(STATIC_DIR, 'index.html') : '';
+const promoRedemptionLocks = new Set();
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const groundingEngine = new GroundingEngine();
 const hybridPlatform = new HybridAIPlatform(OPENAI_API_KEY);
@@ -50,7 +51,8 @@ const MAX_TEXT_PER_ATTACHMENT = 14000;
 const MAX_TOTAL_ATTACHMENT_TEXT = 80000;
 const MIN_TEXT_BUDGET_PER_ATTACHMENT = 700;
 const getDefaultData = () => ({
-    users: []
+    users: [],
+    promoCodes: []
 });
 const sanitizeUser = (user) => ({
     id: user.id,
@@ -61,7 +63,14 @@ const sanitizeUser = (user) => ({
     plan: user.plan,
     unlockedAchievements: user.unlockedAchievements,
     history: user.history,
-    preferredLanguage: user.preferredLanguage
+    preferredLanguage: user.preferredLanguage,
+    subscriptionPlan: user.subscriptionPlan,
+    subscriptionStatus: user.subscriptionStatus,
+    premiumSource: user.premiumSource,
+    proAccessStartAt: user.proAccessStartAt,
+    proAccessEndAt: user.proAccessEndAt,
+    hasUsedPromoTrial: user.hasUsedPromoTrial,
+    promoCodeUsed: user.promoCodeUsed
 });
 const hashPassword = (password) => createHash('sha256').update(password).digest('hex');
 const normalizeEmail = (email) => email.trim().toLowerCase();
@@ -96,6 +105,109 @@ const LANGUAGE_NAME_BY_CODE = {
 const normalizePreferredLanguage = (value) => typeof value === 'string' && SUPPORTED_LANGUAGE_CODES.has(value.trim().toLowerCase())
     ? value.trim().toLowerCase()
     : 'ar';
+const normalizePromoCode = (raw) => {
+    if (!raw || typeof raw !== 'object') {
+        return null;
+    }
+    const obj = raw;
+    const code = typeof obj.code === 'string' ? obj.code.trim().toUpperCase() : '';
+    if (!code) {
+        return null;
+    }
+    const durationDays = typeof obj.durationDays === 'number' && Number.isFinite(obj.durationDays) && obj.durationDays > 0
+        ? Math.floor(obj.durationDays)
+        : 14;
+    const maxUses = typeof obj.maxUses === 'number' && Number.isFinite(obj.maxUses) && obj.maxUses > 0
+        ? Math.floor(obj.maxUses)
+        : 1;
+    return {
+        code,
+        type: 'pro_trial',
+        durationDays,
+        maxUses,
+        usedCount: typeof obj.usedCount === 'number' && Number.isFinite(obj.usedCount) && obj.usedCount >= 0
+            ? Math.floor(obj.usedCount)
+            : 0,
+        isActive: typeof obj.isActive === 'boolean' ? obj.isActive : true,
+        createdAt: typeof obj.createdAt === 'string' && obj.createdAt ? obj.createdAt : new Date().toISOString(),
+        redeemedAt: typeof obj.redeemedAt === 'string' && obj.redeemedAt ? obj.redeemedAt : null,
+        redeemedByUserId: typeof obj.redeemedByUserId === 'string' && obj.redeemedByUserId ? obj.redeemedByUserId : null,
+        redeemedByEmail: typeof obj.redeemedByEmail === 'string' && obj.redeemedByEmail ? obj.redeemedByEmail : null
+    };
+};
+const normalizePromoCodeList = (raw) => {
+    if (!raw || !Array.isArray(raw)) {
+        return [];
+    }
+    const seen = new Set();
+    const normalized = [];
+    for (const entry of raw) {
+        const code = normalizePromoCode(entry);
+        if (code && !seen.has(code.code)) {
+            seen.add(code.code);
+            normalized.push(code);
+        }
+    }
+    return normalized;
+};
+const isPromoTrialStillActive = (user) => {
+    if (user.premiumSource !== 'promo_code' || !user.proAccessEndAt) {
+        return false;
+    }
+    const endAt = Date.parse(user.proAccessEndAt);
+    if (!Number.isFinite(endAt)) {
+        return false;
+    }
+    return endAt > Date.now();
+};
+const refreshSubscriptionState = (user) => {
+    // نتحقق من ما إذا كان المستخدم لديه وصول PRO حالي نتيجة اشتراك مدفوع، أو كود ترويجي، أو حساب دائم.
+    const nowMs = Date.now();
+    const trialActive = isPromoTrialStillActive(user);
+    const isPermanent = isPermanentProEmail(user.email);
+    const hasPaidSubscription = user.subscriptionPlan === 'pro' && user.subscriptionStatus === 'active' && user.premiumSource === 'paid';
+    const hasActivePro = isPermanent || trialActive || hasPaidSubscription;
+    let changed = false;
+    const desiredPlan = hasActivePro ? 'pro' : 'free';
+    const desiredSubscriptionPlan = hasActivePro ? 'pro' : 'free';
+    const desiredStatus = hasActivePro ? 'active' : 'inactive';
+    if (user.plan !== desiredPlan) {
+        user.plan = desiredPlan;
+        changed = true;
+    }
+    if (user.subscriptionPlan !== desiredSubscriptionPlan) {
+        user.subscriptionPlan = desiredSubscriptionPlan;
+        changed = true;
+    }
+    if (user.subscriptionStatus !== desiredStatus) {
+        user.subscriptionStatus = desiredStatus;
+        changed = true;
+    }
+    if (trialActive) {
+        if (user.premiumSource !== 'promo_code') {
+            user.premiumSource = 'promo_code';
+            changed = true;
+        }
+    }
+    else if (user.premiumSource === 'promo_code') {
+        user.premiumSource = null;
+        user.proAccessStartAt = null;
+        user.proAccessEndAt = null;
+        changed = true;
+    }
+    if (isPermanent && user.premiumSource !== 'permanent') {
+        user.premiumSource = 'permanent';
+        changed = true;
+    }
+    else if (!isPermanent && user.premiumSource === 'permanent') {
+        user.premiumSource = null;
+        changed = true;
+    }
+    if (changed) {
+        user.updatedAt = new Date().toISOString();
+    }
+    return changed;
+};
 const parseCsvEmails = (raw) => {
     if (!raw || typeof raw !== 'string') {
         return [];
@@ -113,13 +225,41 @@ const permanentProEmailSet = new Set([
 ]);
 const isPermanentProEmail = (email) => permanentProEmailSet.has(normalizeEmail(email));
 const enforcePermanentProPlan = (user) => {
-    const desiredPlan = isPermanentProEmail(user.email) ? 'pro' : normalizePlan(user.plan);
-    if (user.plan === desiredPlan) {
-        return false;
+    // إذا كان البريد من القائمة البيضاء، نمنحه وضع PRO دائم ونحدث الحقول المرتبطة.
+    const isPermanent = isPermanentProEmail(user.email);
+    const desiredPlan = isPermanent ? 'pro' : normalizePlan(user.plan);
+    let changed = false;
+    if (user.plan !== desiredPlan) {
+        user.plan = desiredPlan;
+        changed = true;
     }
-    user.plan = desiredPlan;
-    user.updatedAt = new Date().toISOString();
-    return true;
+    if (isPermanent) {
+        if (user.subscriptionPlan !== 'pro') {
+            user.subscriptionPlan = 'pro';
+            changed = true;
+        }
+        if (user.subscriptionStatus !== 'active') {
+            user.subscriptionStatus = 'active';
+            changed = true;
+        }
+        if (user.premiumSource !== 'permanent') {
+            user.premiumSource = 'permanent';
+            changed = true;
+        }
+        if (user.proAccessStartAt || user.proAccessEndAt) {
+            user.proAccessStartAt = null;
+            user.proAccessEndAt = null;
+            changed = true;
+        }
+    }
+    else if (user.premiumSource === 'permanent') {
+        user.premiumSource = null;
+        changed = true;
+    }
+    if (changed) {
+        user.updatedAt = new Date().toISOString();
+    }
+    return changed;
 };
 const cloneData = (data) => JSON.parse(JSON.stringify(data));
 const normalizeUser = (raw) => {
@@ -135,6 +275,21 @@ const normalizeUser = (raw) => {
     }
     const now = new Date().toISOString();
     const provider = obj['authProvider'] === 'google' ? 'google' : 'local';
+    const subscriptionPlan = obj['subscriptionPlan'] === 'pro' ? 'pro' : 'free';
+    const subscriptionStatus = obj['subscriptionStatus'] === 'active' ? 'active' : 'inactive';
+    const premiumSourceValue = typeof obj['premiumSource'] === 'string' && ['promo_code', 'paid', 'permanent'].includes(obj['premiumSource'])
+        ? obj['premiumSource']
+        : null;
+    const proAccessStartAt = typeof obj['proAccessStartAt'] === 'string' && obj['proAccessStartAt']
+        ? obj['proAccessStartAt']
+        : null;
+    const proAccessEndAt = typeof obj['proAccessEndAt'] === 'string' && obj['proAccessEndAt']
+        ? obj['proAccessEndAt']
+        : null;
+    const hasUsedPromoTrial = obj['hasUsedPromoTrial'] === true;
+    const promoCodeUsed = typeof obj['promoCodeUsed'] === 'string' && obj['promoCodeUsed']
+        ? obj['promoCodeUsed']
+        : null;
     const unlockedAchievements = Array.isArray(obj['unlockedAchievements'])
         ? obj['unlockedAchievements'].filter((entry) => typeof entry === 'string')
         : [];
@@ -156,6 +311,13 @@ const normalizeUser = (raw) => {
             ? Math.max(1, Math.floor(obj['level']))
             : 1,
         plan: normalizePlan(obj['plan']),
+        subscriptionPlan,
+        subscriptionStatus,
+        premiumSource: premiumSourceValue,
+        proAccessStartAt,
+        proAccessEndAt,
+        hasUsedPromoTrial,
+        promoCodeUsed,
         unlockedAchievements,
         history,
         preferredLanguage: normalizePreferredLanguage(obj['preferredLanguage']),
@@ -176,7 +338,8 @@ const normalizeData = (raw) => {
         ? obj['users'].map(normalizeUser).filter((user) => Boolean(user))
         : [];
     return {
-        users
+        users,
+        promoCodes: normalizePromoCodeList(obj['promoCodes'])
     };
 };
 const ensureDataFile = async () => {
@@ -193,7 +356,17 @@ const readDataSafe = async () => {
             return getDefaultData();
         }
         const parsed = JSON.parse(raw);
-        return normalizeData(parsed);
+        const data = normalizeData(parsed);
+        let mutated = false;
+        for (const user of data.users) {
+            if (refreshSubscriptionState(user)) {
+                mutated = true;
+            }
+        }
+        if (mutated) {
+            await writeDataSafe(data);
+        }
+        return data;
     }
     catch (error) {
         console.error('Failed to read user_data.json:', error);
@@ -317,6 +490,7 @@ const upsertOAuthUser = async (provider, email, name) => {
     const now = new Date().toISOString();
     const normalizedEmail = normalizeEmail(email);
     const displayName = name.trim() || normalizedEmail.split('@')[0] || `${provider} user`;
+    const isPermanent = isPermanentProEmail(normalizedEmail);
     let user = data.users.find((entry) => entry.email === normalizedEmail);
     if (!user) {
         user = {
@@ -325,7 +499,14 @@ const upsertOAuthUser = async (provider, email, name) => {
             name: displayName,
             xp: 0,
             level: 1,
-            plan: isPermanentProEmail(normalizedEmail) ? 'pro' : 'free',
+            plan: isPermanent ? 'pro' : 'free',
+            subscriptionPlan: isPermanent ? 'pro' : 'free',
+            subscriptionStatus: isPermanent ? 'active' : 'inactive',
+            premiumSource: isPermanent ? 'permanent' : null,
+            proAccessStartAt: null,
+            proAccessEndAt: null,
+            hasUsedPromoTrial: false,
+            promoCodeUsed: null,
             unlockedAchievements: [],
             history: [],
             clinicalCaseHistory: [],
@@ -432,13 +613,21 @@ app.post('/api/auth/signup', asyncHandler(async (req, res) => {
         return;
     }
     const now = new Date().toISOString();
+    const isPermanent = isPermanentProEmail(normalizedEmail);
     const newUser = {
         id: randomUUID(),
         email: normalizedEmail,
         name: normalizedName,
         xp: 0,
         level: 1,
-        plan: isPermanentProEmail(normalizedEmail) ? 'pro' : 'free',
+        plan: isPermanent ? 'pro' : 'free',
+        subscriptionPlan: isPermanent ? 'pro' : 'free',
+        subscriptionStatus: isPermanent ? 'active' : 'inactive',
+        premiumSource: isPermanent ? 'permanent' : null,
+        proAccessStartAt: null,
+        proAccessEndAt: null,
+        hasUsedPromoTrial: false,
+        promoCodeUsed: null,
         unlockedAchievements: [],
         history: [],
         clinicalCaseHistory: [],
@@ -1287,6 +1476,77 @@ app.post('/api/user/data', authenticate, asyncHandler(async (req, res) => {
     user.updatedAt = new Date().toISOString();
     await writeDataSafe(data);
     res.json({ user: sanitizeUser(user) });
+}));
+app.post('/api/promo/redeem', authenticate, asyncHandler(async (req, res) => {
+    const authReq = req;
+    const codeValue = typeof req.body?.code === 'string' ? req.body.code : '';
+    const normalizedCode = codeValue.trim().toUpperCase();
+    if (!normalizedCode) {
+        res.status(400).json({ error: 'هذا الكود غير صالح' });
+        return;
+    }
+    const lockKey = normalizedCode;
+    if (promoRedemptionLocks.has(lockKey)) {
+        res.status(409).json({ error: 'يتم معالجة هذا الكود حالياً. الرجاء المحاولة بعد لحظة' });
+        return;
+    }
+    promoRedemptionLocks.add(lockKey);
+    try {
+        const data = await readDataSafe();
+        const user = data.users.find((entry) => entry.id === authReq.user?.id);
+        if (!user) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        const promo = data.promoCodes.find((entry) => entry.code === normalizedCode);
+        if (!promo || !promo.isActive) {
+            res.status(400).json({ error: 'هذا الكود غير صالح' });
+            return;
+        }
+        if (promo.usedCount >= promo.maxUses) {
+            res.status(400).json({ error: 'تم استخدام هذا الكود مسبقاً' });
+            return;
+        }
+        if (promo.redeemedByEmail && promo.redeemedByEmail !== user.email) {
+            res.status(400).json({ error: 'تم استخدام هذا الكود مسبقاً' });
+            return;
+        }
+        if (user.hasUsedPromoTrial) {
+            res.status(400).json({ error: 'لقد استخدمت التجربة المجانية مسبقاً' });
+            return;
+        }
+        // نحدد نقطة البداية الحالية ونحسب انتهاء التجربة بعد عدد الأيام المحدد.
+        const now = new Date();
+        const activationDate = now.toISOString();
+        const expirationDate = new Date(now.getTime() + promo.durationDays * 24 * 60 * 60 * 1000).toISOString();
+        // نحجز الكود لهذا الحساب ونوقفه عن أي استخدام لاحق.
+        promo.usedCount = Math.min(promo.usedCount + 1, promo.maxUses);
+        promo.isActive = promo.usedCount < promo.maxUses;
+        promo.redeemedAt = activationDate;
+        promo.redeemedByUserId = user.id;
+        promo.redeemedByEmail = user.email;
+        // نمنح المستخدم وصول PRO التجريبي ونسجل مصدره ومدة صلاحيته.
+        user.plan = 'pro';
+        user.subscriptionPlan = 'pro';
+        user.subscriptionStatus = 'active';
+        user.premiumSource = 'promo_code';
+        user.proAccessStartAt = activationDate;
+        user.proAccessEndAt = expirationDate;
+        user.hasUsedPromoTrial = true;
+        user.promoCodeUsed = promo.code;
+        user.updatedAt = activationDate;
+        await writeDataSafe(data);
+        res.json({
+            success: true,
+            message: 'تم تفعيل الكود بنجاح',
+            activationDate,
+            expirationDate,
+            durationDays: promo.durationDays
+        });
+    }
+    finally {
+        promoRedemptionLocks.delete(lockKey);
+    }
 }));
 const normalizeClinicalDifficultyInput = (value) => value === 'easy' || value === 'medium' || value === 'hard' || value === 'expert'
     ? value

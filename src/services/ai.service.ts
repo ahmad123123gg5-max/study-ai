@@ -304,6 +304,9 @@ export class AIService {
 
   // Subscription State
   userPlan = signal<UserPlan>('free');
+  promoTrialStart = signal<string | null>(null);
+  promoTrialEnd = signal<string | null>(null);
+  premiumSource = signal<'promo_code' | 'paid' | 'permanent' | null>(null);
   usageStats = signal<UsageStats>({
     aiTeacherQuestions: 0,
     smartTests: 0,
@@ -414,6 +417,18 @@ export class AIService {
         if (profile.preferredLanguage && this.currentLanguage() !== profile.preferredLanguage) {
           this.currentLanguage.set(normalizeLanguageCode(profile.preferredLanguage));
         }
+        this.promoTrialStart.set(
+          typeof profile.proAccessStartAt === 'string' ? profile.proAccessStartAt : null
+        );
+        this.promoTrialEnd.set(
+          typeof profile.proAccessEndAt === 'string' ? profile.proAccessEndAt : null
+        );
+        this.premiumSource.set(profile.premiumSource || null);
+      }
+      else {
+        this.promoTrialStart.set(null);
+        this.promoTrialEnd.set(null);
+        this.premiumSource.set(null);
       }
     });
 

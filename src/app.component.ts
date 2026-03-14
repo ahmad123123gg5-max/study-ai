@@ -296,6 +296,7 @@ export class AppComponent {
 
   get filteredNavItems() {
     return this.navItemBlueprints.filter(item => {
+      if (!this.canAccessPage(item.id)) return false;
       if (item.id === 'admin') return this.ai.userRole() === 'admin';
       if (item.id === 'teacher') return this.ai.userRole() === 'teacher' || this.ai.userRole() === 'admin';
       return true;
@@ -448,6 +449,13 @@ export class AppComponent {
   }
 
   private isDashboardPage(value: string | null): value is DashboardPage {
+    if (!value) {
+      return false;
+    }
+    if (value === 'quiz' && !this.canAccessPage('quiz')) {
+      return false;
+    }
+
     return value === 'overview' ||
       value === 'tutor' ||
       value === 'research' ||
@@ -466,6 +474,13 @@ export class AppComponent {
       value === 'flashcards' ||
       value === 'mindmap' ||
       value === 'quiz';
+  }
+
+  private canAccessPage(page: DashboardPage): boolean {
+    if (page === 'quiz') {
+      return this.ai.isFeatureEnabled('aiExam');
+    }
+    return true;
   }
 
   private defaultFallbackFor(page: DashboardPage): DashboardPage {

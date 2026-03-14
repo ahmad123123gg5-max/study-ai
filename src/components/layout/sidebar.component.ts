@@ -79,10 +79,11 @@ export class SidebarComponent {
   }
 
   get filteredNavSections() {
-    return this.navSectionBlueprints.map(section => ({
+          return this.navSectionBlueprints.map(section => ({
       ...section,
       label: this.t(section.label),
       items: section.items.filter(item => {
+        if (!this.isItemVisible(item.id)) return false;
         if (item.id === 'admin') return this.ai.userRole() === 'admin';
         if (item.id === 'teacher') return this.ai.userRole() === 'teacher' || this.ai.userRole() === 'admin';
         return true;
@@ -91,6 +92,13 @@ export class SidebarComponent {
         label: this.t(item.label)
       }))
     })).filter(section => section.items.length > 0);
+  }
+ 
+  private isItemVisible(id: string): boolean {
+    if (id === 'quiz') {
+      return this.ai.isFeatureEnabled('aiExam');
+    }
+    return true;
   }
 
   private readonly navSectionBlueprints = [

@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { LanguageCode, normalizeLanguageCode } from '../i18n/language-config';
 
 type UserPlan = 'free' | 'pro';
+type PremiumSource = 'promo_code' | 'paid' | 'permanent' | null;
 
 export interface UserProfile {
   name?: string;
@@ -10,6 +11,13 @@ export interface UserProfile {
   level: number;
   role: 'student' | 'teacher' | 'admin';
   plan?: UserPlan;
+  subscriptionPlan?: UserPlan;
+  subscriptionStatus?: 'active' | 'inactive';
+  premiumSource?: PremiumSource;
+  proAccessStartAt?: string | null;
+  proAccessEndAt?: string | null;
+  hasUsedPromoTrial?: boolean;
+  promoCodeUsed?: string | null;
   createdAt?: string;
   preferredLanguage?: LanguageCode;
 }
@@ -21,6 +29,13 @@ interface ServerUser {
   xp: number;
   level: number;
   plan?: UserPlan;
+  subscriptionPlan?: UserPlan;
+  subscriptionStatus?: 'active' | 'inactive';
+  premiumSource?: PremiumSource;
+  proAccessStartAt?: string | null;
+  proAccessEndAt?: string | null;
+  hasUsedPromoTrial?: boolean;
+  promoCodeUsed?: string | null;
   unlockedAchievements: string[];
   history: unknown[];
   preferredLanguage?: LanguageCode;
@@ -86,6 +101,13 @@ export class AuthService {
       level: Number.isFinite(user.level) ? Math.max(1, user.level) : 1,
       role,
       plan,
+      subscriptionPlan: user.subscriptionPlan === 'pro' ? 'pro' : 'free',
+      subscriptionStatus: user.subscriptionStatus === 'active' ? 'active' : 'inactive',
+      premiumSource: user.premiumSource || null,
+      proAccessStartAt: user.proAccessStartAt || null,
+      proAccessEndAt: user.proAccessEndAt || null,
+      hasUsedPromoTrial: Boolean(user.hasUsedPromoTrial),
+      promoCodeUsed: user.promoCodeUsed || null,
       preferredLanguage: normalizeLanguageCode(user.preferredLanguage)
     });
   }

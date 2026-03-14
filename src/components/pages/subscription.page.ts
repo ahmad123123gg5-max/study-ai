@@ -4,6 +4,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AIService } from '../../services/ai.service';
 import { LocalizationService } from '../../services/localization.service';
+import { AuthService } from '../../services/auth.service';
+
+interface SubscriptionPromoFeedback {
+  type: 'success' | 'error';
+  message: string;
+  activationDate?: string;
+  expirationDate?: string;
+}
 
 @Component({
   selector: 'app-subscription-page',
@@ -21,6 +29,48 @@ import { LocalizationService } from '../../services/localization.service';
           <p class="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto">
             {{ t('Unlock new learning horizons with advanced AI features') }}
           </p>
+        </div>
+
+        <div class="bg-slate-900/50 border border-white/10 rounded-[2.5rem] p-6 space-y-6 max-w-4xl mx-auto text-right">
+          <div class="space-y-2">
+            <p class="text-xs font-black text-slate-500 uppercase tracking-[0.4em]">كود ترويجي</p>
+            <h3 class="text-xl font-black text-white">أدخل الكود لتفعيل PRO لمدة 14 يوماً</h3>
+          </div>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+            <input
+              type="text"
+              [(ngModel)]="promoCodeInput"
+              class="w-full rounded-2xl bg-slate-950 border border-white/10 p-4 text-white placeholder:text-slate-500 outline-none transition"
+              placeholder="FREE14-XXXXXX"
+            />
+            <button
+              (click)="redeemPromoCode()"
+              [disabled]="promoBusy()"
+              class="rounded-2xl bg-indigo-600 hover:bg-indigo-500 transition font-black px-6 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              @if (promoBusy()) {
+                <i class="fa-solid fa-spinner animate-spin"></i>
+              } @else {
+                تفعيل الكود
+              }
+            </button>
+          </div>
+          @if (promoFeedback()) {
+            <div class="text-xs font-black uppercase tracking-[0.3em]"
+                 [class.text-emerald-400]="promoFeedback()?.type === 'success'"
+                 [class.text-rose-400]="promoFeedback()?.type === 'error'">
+              {{ promoFeedback()?.message }}
+            </div>
+          }
+          @if (promoFeedback() && promoFeedback()?.type === 'success') {
+            <div class="text-slate-300 text-sm space-y-1">
+              <p>تاريخ بدء الاشتراك: {{ formatPromoDate(promoFeedback()?.activationDate) }}</p>
+              <p>تاريخ انتهاء الاشتراك: {{ formatPromoDate(promoFeedback()?.expirationDate) }}</p>
+            </div>
+          }
+          @if (!auth.currentUser()) {
+            <p class="text-xs text-amber-300 font-black">يجب تسجيل الدخول أولاً لتفعيل الكود.</p>
+          }
         </div>
 
         <!-- Plans Grid -->
@@ -185,9 +235,13 @@ export class SubscriptionPage {
   ai = inject(AIService);
   private readonly localization = inject(LocalizationService);
   readonly t = (text: string) => this.localization.phrase(text);
+  readonly auth = inject(AuthService);
   
   showPaymentForm = signal(false);
   isProcessing = signal(false);
+  promoCodeInput = '';
+  promoBusy = signal(false);
+  promoFeedback = signal<SubscriptionPromoFeedback | null>(null);
 
   async processPayment() {
     this.isProcessing.set(true);
@@ -216,5 +270,63 @@ export class SubscriptionPage {
     } finally {
       this.isProcessing.set(false);
     }
+  }
+
+  async redeemPromoCode() {
+    if (this.promoBusy()) {
+      return;
+    }
+
+    if (!this.auth.currentUser()) {
+      this.promoFeedback.set({ type: 'error', message: 'يجب تسجيل الدخول أولاً لتفعيل الكود.' });
+      return;
+    }
+
+    const trimmedCode = this.promoCodeInput.trim();
+    if (!trimmedCode) {
+      this.promoFeedback.set({ type: 'error', message: 'الرجاء إدخال الكود قبل الضغط.' });
+      return;
+    }
+
+    this.promoBusy.set(true);
+    this.promoFeedback.set(null);
+
+    try {
+      const response = await fetch('/api/promo/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: trimmedCode })
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message =
+          payload && typeof payload.error === 'string'
+            ? payload.error
+            : 'فشل التفعيل. حاول مرة أخرى';
+        this.promoFeedback.set({ type: 'error', message });
+        return;
+      }
+
+      this.promoFeedback.set({
+        type: 'success',
+        message: payload.message || 'تم تفعيل الكود بنجاح.',
+        activationDate: typeof payload.activationDate === 'string' ? payload.activationDate : undefined,
+        expirationDate: typeof payload.expirationDate === 'string' ? payload.expirationDate : undefined
+      });
+      this.promoCodeInput = '';
+      await this.auth.refreshSession();
+    } catch (error) {
+      console.error('Promo redeem failed', error);
+      const message = error instanceof Error ? error.message : 'فشل التفعيل. حاول مرة أخرى';
+      this.promoFeedback.set({ type: 'error', message });
+    } finally {
+      this.promoBusy.set(false);
+    }
+  }
+
+  formatPromoDate(value?: string | null): string {
+    if (!value) return '';
+    return this.ai.formatLocalDateTime(value);
   }
 }

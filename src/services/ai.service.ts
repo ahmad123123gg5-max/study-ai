@@ -734,6 +734,18 @@ export class AIService {
     return getSpeechRecognitionLocale(language);
   }
 
+  formatLocalDateTime(value?: string | null): string {
+    if (!value) {
+      return '';
+    }
+    return new Date(value).toLocaleString('ar-EG', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
   private async retry<T>(fn: () => Promise<T>, retries: number = 3, delay: number = 2000): Promise<T> {
     try {
       return await fn();

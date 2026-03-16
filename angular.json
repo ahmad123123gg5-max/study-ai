@@ -26,6 +26,11 @@
             "tsConfig": "tsconfig.json",
             "assets": [
               {
+              "glob": "sitemap.xml",
+              "input": "src/assets",
+              "output": "."
+             },
+              {
                 "glob": "**/*",
                 "input": "src/assets",
                 "output": "assets"
@@ -85,6 +90,7 @@
               "src/**/*.ts",
               "src/**/*.html"
             ]
+            
           }
         }
       }

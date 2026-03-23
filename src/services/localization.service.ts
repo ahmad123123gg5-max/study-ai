@@ -3,6 +3,8 @@ import { Injectable, computed, effect, inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { AIService } from './ai.service';
 import {
+  APP_LANGUAGE_STORAGE_KEY,
+  LEGACY_LANGUAGE_STORAGE_KEY,
   LanguageCode,
   SUPPORTED_LANGUAGES,
   SupportedLanguage,
@@ -11,7 +13,8 @@ import {
   getLanguageName,
   getSpeechRecognitionLocale,
   getSupportedLanguage,
-  normalizeLanguageCode
+  normalizeLanguageCode,
+  resolveInitialLanguage
 } from '../i18n/language-config';
 import { loadUiLocaleBundle } from '../i18n/locale-loader';
 import { normalizeUiLookupKey, UiLocaleBundle } from '../i18n/locales/shared-ui-catalog';
@@ -47,14 +50,15 @@ export class LocalizationService {
   readonly currentLanguageMeta = computed(() => getSupportedLanguage(this.currentLanguage()));
 
   constructor() {
-    const storedLanguage = normalizeLanguageCode(localStorage.getItem('smartedge_user_lang'));
+    const storedLanguage = resolveInitialLanguage();
     if (this.ai.currentLanguage() !== storedLanguage) {
       this.ai.currentLanguage.set(storedLanguage);
     }
 
     effect(() => {
       const language = this.currentLanguage();
-      localStorage.setItem('smartedge_user_lang', language);
+      localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, language);
+      localStorage.setItem(LEGACY_LANGUAGE_STORAGE_KEY, language);
       this.applyDocumentLanguage(language);
       void this.ensureLocaleBundle(language).finally(() => this.scheduleScan());
     });
@@ -193,6 +197,49 @@ export class LocalizationService {
     body.dir = direction;
     body.classList.toggle('locale-rtl', direction === 'rtl');
     body.classList.toggle('locale-ltr', direction === 'ltr');
+    this.applySeoMetadata(language);
+  }
+
+  private applySeoMetadata(language: LanguageCode): void {
+    const documentRef = this.documentRef;
+    if (!documentRef) {
+      return;
+    }
+
+    const isArabic = language === 'ar';
+    const title = isArabic
+      ? 'StudyVex AI | Smart AI Study Platform'
+      : 'StudyVex AI | Smart AI Study Platform';
+    const description = isArabic
+      ? 'StudyVex AI helps students worldwide learn faster with AI tools, quizzes, flashcards, summaries, and more.'
+      : 'StudyVex AI helps students worldwide learn faster with AI tools, quizzes, flashcards, summaries, and more.';
+    const socialDescription = isArabic
+      ? 'AI study platform for students worldwide'
+      : 'AI study platform for students worldwide';
+    const imageUrl = 'https://studyvex.ai/assets/studyvex-preview.png';
+    const siteUrl = 'https://studyvex.ai';
+
+    documentRef.title = title;
+    this.setMetaTag('name', 'description', description);
+    this.setMetaTag('property', 'og:type', 'website');
+    this.setMetaTag('property', 'og:title', 'StudyVex AI');
+    this.setMetaTag('property', 'og:description', socialDescription);
+    this.setMetaTag('property', 'og:site_name', 'StudyVex AI');
+    this.setMetaTag('property', 'og:image', imageUrl);
+    this.setMetaTag('property', 'og:url', siteUrl);
+    this.setMetaTag('name', 'twitter:card', 'summary_large_image');
+    this.setMetaTag('name', 'twitter:title', 'StudyVex AI');
+    this.setMetaTag('name', 'twitter:description', socialDescription);
+    this.setMetaTag('name', 'twitter:image', imageUrl);
+  }
+
+  private setMetaTag(attrName: 'name' | 'property', attrValue: string, content: string): void {
+    const selector = `meta[${attrName}="${attrValue}"]`;
+    const meta = this.documentRef?.querySelector(selector);
+    if (!meta) {
+      return;
+    }
+    meta.setAttribute('content', content);
   }
 
   private scheduleScan(delay = 24): void {

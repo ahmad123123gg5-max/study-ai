@@ -49,7 +49,7 @@ interface Course {
                   <div class="text-right space-y-8 max-w-3xl">
                      <div class="inline-flex items-center gap-3 bg-indigo-500/10 text-indigo-400 px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.4em] border border-indigo-500/20">
                         <span class="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></span>
-                        SmartEdge Academic Cloud: Online
+                        StudyVex Academic Cloud: Online
                      </div>
                      <h2 class="text-7xl md:text-9xl font-black text-white leading-[0.85] tracking-tighter">
                         اصنع <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-500">مستقبلك</span> بالمعرفة
@@ -158,7 +158,7 @@ interface Course {
                    <div class="space-y-10">
                       <div class="flex justify-end gap-4">
                          <span class="bg-indigo-600/10 text-indigo-400 px-8 py-3 rounded-full text-xs font-black uppercase tracking-widest border border-indigo-500/20">{{ selectedCourse()?.category }}</span>
-                         <span class="bg-emerald-600/10 text-emerald-400 px-8 py-3 rounded-full text-xs font-black uppercase tracking-widest border border-emerald-500/20">اعتماد SmartEdge</span>
+                         <span class="bg-emerald-600/10 text-emerald-400 px-8 py-3 rounded-full text-xs font-black uppercase tracking-widest border border-emerald-500/20">اعتماد StudyVex</span>
                       </div>
                       <h2 class="text-8xl font-black text-white tracking-tighter leading-[0.85]">{{ selectedCourse()?.title }}</h2>
                       <p class="text-4xl font-bold text-slate-400 leading-relaxed">{{ selectedCourse()?.subtitle }}</p>
@@ -218,7 +218,7 @@ interface Course {
                             <i class="fa-solid fa-bolt-lightning"></i> ابدأ التعلم الآن
                          </button>
                          <div class="space-y-6">
-                            <div class="flex items-center gap-4 justify-end text-slate-400 font-bold text-lg">شهادة معتمدة من SmartEdge <i class="fa-solid fa-certificate text-indigo-500"></i></div>
+                            <div class="flex items-center gap-4 justify-end text-slate-400 font-bold text-lg">شهادة معتمدة من StudyVex <i class="fa-solid fa-certificate text-indigo-500"></i></div>
                             <div class="flex items-center gap-4 justify-end text-slate-400 font-bold text-lg">تحديثات مدى الحياة <i class="fa-solid fa-infinity text-emerald-500"></i></div>
                             <div class="flex items-center gap-4 justify-end text-slate-400 font-bold text-lg">معلم ذكي خاص بكل وحدة <i class="fa-solid fa-brain text-purple-500"></i></div>
                          </div>

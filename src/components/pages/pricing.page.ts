@@ -57,7 +57,7 @@ import { CommonModule } from '@angular/common';
             </div>
             <h3 class="text-3xl font-black text-white">فترة تجريبية مجانية للمؤسسات التعليمية</h3>
             <p class="text-slate-400 font-bold text-lg leading-relaxed">
-              فعل العرض التجريبي لمؤسستك الآن لتمكين طلابك من الوصول إلى أدوات SmartEdge المتقدمة.
+              فعل العرض التجريبي لمؤسستك الآن لتمكين طلابك من الوصول إلى أدوات StudyVex المتقدمة.
             </p>
             <div class="flex flex-col sm:flex-row gap-4 max-w-xl ml-auto">
               <input #instEmail type="email" placeholder="البريد الإلكتروني للمؤسسة" 

@@ -42,6 +42,16 @@ export class VirtualLabSessionService {
     this.routeTo('simulation-session');
   }
 
+  prepareTutorTransfer(config: SimulationScenarioConfig) {
+    this.simulationConfig.set({
+      ...config,
+      tutorContext: config.tutorContext || null,
+      referenceImages: config.referenceImages || []
+    });
+    this.reviewRecordId.set(null);
+    this.routeTo('simulation-setup');
+  }
+
   resumeSimulationSession() {
     if (!this.simulationConfig()) {
       return;
@@ -161,6 +171,9 @@ export class VirtualLabSessionService {
       const clinicalCase = parsed.clinicalCase && typeof parsed.clinicalCase === 'object'
         ? parsed.clinicalCase as SimulationScenarioConfig['clinicalCase']
         : null;
+      const tutorContext = parsed.tutorContext && typeof parsed.tutorContext === 'object'
+        ? parsed.tutorContext as NonNullable<SimulationScenarioConfig['tutorContext']>
+        : null;
 
       if (!specialty) {
         return null;
@@ -174,6 +187,7 @@ export class VirtualLabSessionService {
         language,
         generatedCase,
         clinicalCase,
+        tutorContext,
         referenceImages: []
       };
     } catch {

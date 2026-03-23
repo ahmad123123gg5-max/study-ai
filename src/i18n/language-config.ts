@@ -31,6 +31,9 @@ export interface SupportedLanguage {
   speechLocale: string;
 }
 
+export const APP_LANGUAGE_STORAGE_KEY = 'app_language';
+export const LEGACY_LANGUAGE_STORAGE_KEY = 'smartedge_user_lang';
+
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { code: 'ar', nativeName: 'العربية', englishName: 'Arabic', aiName: 'Arabic', direction: 'rtl', speechLocale: 'ar-SA' },
   { code: 'en', nativeName: 'English', englishName: 'English', aiName: 'English', direction: 'ltr', speechLocale: 'en-US' },
@@ -58,7 +61,7 @@ const SUPPORTED_LANGUAGE_MAP = new Map<LanguageCode, SupportedLanguage>(
   SUPPORTED_LANGUAGES.map((language) => [language.code, language])
 );
 
-export const DEFAULT_LANGUAGE: LanguageCode = 'ar';
+export const DEFAULT_LANGUAGE: LanguageCode = 'en';
 
 export const CORE_UI_TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   ar: {
@@ -208,6 +211,30 @@ export const normalizeLanguageCode = (value: unknown): LanguageCode => {
   return SUPPORTED_LANGUAGE_MAP.has(normalized as LanguageCode)
     ? normalized as LanguageCode
     : DEFAULT_LANGUAGE;
+};
+
+export const detectFirstVisitLanguage = (): LanguageCode => {
+  if (typeof navigator === 'undefined') {
+    return DEFAULT_LANGUAGE;
+  }
+
+  const browserLanguage = navigator.languages?.[0] || navigator.language || '';
+  return browserLanguage.trim().toLowerCase().startsWith('ar') ? 'ar' : 'en';
+};
+
+export const resolveInitialLanguage = (): LanguageCode => {
+  if (typeof localStorage === 'undefined') {
+    return DEFAULT_LANGUAGE;
+  }
+
+  const storedLanguage = localStorage.getItem(APP_LANGUAGE_STORAGE_KEY)
+    || localStorage.getItem(LEGACY_LANGUAGE_STORAGE_KEY);
+
+  if (storedLanguage) {
+    return normalizeLanguageCode(storedLanguage);
+  }
+
+  return detectFirstVisitLanguage();
 };
 
 export const getSupportedLanguage = (code: LanguageCode | string | null | undefined): SupportedLanguage => {

@@ -7,7 +7,7 @@ export const DEFAULT_KNOWLEDGE_DOCUMENTS: KnowledgeDocument[] = [
     id: 'hybrid-ai-architecture',
     domain: 'general_academic',
     title: 'Hybrid AI architecture for educational platforms',
-    sourceTitle: 'SmartEdge Internal Architecture Guide',
+    sourceTitle: 'StudyVex Internal Architecture Guide',
     sourceFamily: 'Internal architecture guide',
     sourceType: 'internal',
     summaryAr: 'البنية الهجينة توزع الطلبات بين المنطق، قاعدة المعرفة، البحث الدلالي، والكاش، ثم تستخدم الذكاء الاصطناعي فقط عندما تكون هناك حاجة فعلية للشرح أو التحليل أو التوليد.',
@@ -32,10 +32,10 @@ Professional educational AI systems separate fast deterministic work from model-
     updatedAt
   },
   {
-    id: 'smartedge-platform-basics',
+    id: 'studyvex-platform-basics',
     domain: 'general_academic',
-    title: 'SmartEdge learning platform basics',
-    sourceTitle: 'SmartEdge Product Notes',
+    title: 'StudyVex learning platform basics',
+    sourceTitle: 'StudyVex Product Notes',
     sourceFamily: 'Internal product knowledge',
     sourceType: 'internal',
     summaryAr: 'المنصة تجمع بين التعليم الذكي، الاختبارات، المعلم التفاعلي، والمحاكاة العملية مع طبقات أداء تمنع الاعتماد الكامل على AI.',
@@ -51,12 +51,12 @@ Professional educational AI systems separate fast deterministic work from model-
       'Monitoring should track latency, AI usage, and cache-hit rate.'
     ],
     content: `Arabic:
-منصة SmartEdge التعليمية مصممة لتقديم تعلم سريع وقابل للتوسع. المسارات السريعة مثل الأسئلة المتكررة والبيانات الثابتة يجب أن تعالج بدون استدعاء النموذج في كل مرة. أما الشرح، التحليل، وتوليد الأسئلة فيمر عبر طبقة AI مقيّدة بمعرفة موثوقة.
+منصة StudyVex التعليمية مصممة لتقديم تعلم سريع وقابل للتوسع. المسارات السريعة مثل الأسئلة المتكررة والبيانات الثابتة يجب أن تعالج بدون استدعاء النموذج في كل مرة. أما الشرح، التحليل، وتوليد الأسئلة فيمر عبر طبقة AI مقيّدة بمعرفة موثوقة.
 
 English:
-SmartEdge is designed to support educational tutoring, assessments, and simulations. The highest-performing architecture serves deterministic content without an LLM call and escalates only the complex learning interactions to the AI layer.`,
+StudyVex is designed to support educational tutoring, assessments, and simulations. The highest-performing architecture serves deterministic content without an LLM call and escalates only the complex learning interactions to the AI layer.`,
     tags: ['platform', 'education', 'operations'],
-    keywords: ['smartedge', 'platform', 'learning platform', 'المنصة', 'سمارت ايدج'],
+    keywords: ['studyvex', 'platform', 'learning platform', 'المنصة', 'ستاديفكس'],
     updatedAt
   },
   {

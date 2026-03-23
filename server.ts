@@ -9,6 +9,15 @@ import { fileURLToPath } from 'url';
 import { createHash, randomUUID } from 'crypto';
 import Stripe from 'stripe';
 import { transcribeOpenAIAudio } from './server/openai/openai-client.js';
+import {
+  exportTranslatedFile,
+  streamTranslateFile,
+  translateFile,
+  type FileTranslationRequest,
+  type StreamingTranslationEvent,
+  type TranslationResult
+} from './server/file-translator.js';
+import { listGlossaryEntries } from './server/file-translator-store.js';
 import { GroundingEngine } from './server/rag/grounding-engine.js';
 import {
   generateClinicalCase,
@@ -47,9 +56,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set('trust proxy', 1);
 
 const PORT = process.env.PORT || 3001;
 const APP_URL = process.env['APP_URL'] || 'http://localhost:3000';
+const CLIENT_URL = process.env['CLIENT_URL'];
+const PUBLIC_SERVER_URL = process.env['PUBLIC_SERVER_URL'] || process.env['SERVER_URL'];
+const COOKIE_DOMAIN = process.env['COOKIE_DOMAIN'];
+const COOKIE_SAME_SITE = process.env['COOKIE_SAME_SITE'];
 const JWT_SECRET = process.env['JWT_SECRET'] || 'change-me-in-env';
 const OPENAI_API_KEY = process.env['OPENAI_API_KEY'];
 const OPENAI_MODEL = process.env['OPENAI_MODEL'] || 'gpt-4o-mini';
@@ -73,9 +87,31 @@ const promoRedemptionLocks = new Set<string>();
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const groundingEngine = new GroundingEngine();
 const hybridPlatform = new HybridAIPlatform(OPENAI_API_KEY);
-const originList = APP_URL.split(',').map((origin) => origin.trim()).filter(Boolean);
+const originList = [
+  ...APP_URL.split(',').map((origin) => origin.trim()).filter(Boolean),
+  ...(CLIENT_URL ? CLIENT_URL.split(',').map((origin) => origin.trim()).filter(Boolean) : [])
+];
 const allowedOrigins = new Set(originList.length > 0 ? originList : ['http://localhost:3000']);
 const primaryAppUrl = originList[0] || 'http://localhost:3000';
+const resolvedPublicServerUrl = typeof PUBLIC_SERVER_URL === 'string' && PUBLIC_SERVER_URL.trim()
+  ? PUBLIC_SERVER_URL.trim()
+  : '';
+const inferredCrossSiteCookies = (() => {
+  if (!resolvedPublicServerUrl) {
+    return false;
+  }
+
+  try {
+    return new URL(resolvedPublicServerUrl).origin !== new URL(primaryAppUrl).origin;
+  } catch {
+    return false;
+  }
+})();
+const cookieSameSite: 'lax' | 'none' | 'strict' =
+  COOKIE_SAME_SITE === 'none' || COOKIE_SAME_SITE === 'strict' || COOKIE_SAME_SITE === 'lax'
+    ? COOKIE_SAME_SITE
+    : (isProduction && inferredCrossSiteCookies ? 'none' : 'lax');
+const cookieSecure = isProduction || cookieSameSite === 'none';
 
 type SubscriptionPlan = 'free' | 'pro';
 type SubscriptionStatus = 'active' | 'inactive';
@@ -179,6 +215,11 @@ interface ParsedAttachments {
   extractedText: string;
   imageParts: OpenAIInputImagePart[];
   notes: string[];
+}
+
+interface FileTranslatorExportRequest {
+  result?: TranslationResult;
+  format?: 'translated' | 'bilingual';
 }
 
 const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
@@ -588,38 +629,42 @@ const writeDataSafe = async (data: AppData): Promise<void> => {
 const setAuthCookie = (res: Response, token: string): void => {
   res.cookie(TOKEN_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: '/'
+    path: '/',
+    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {})
   });
 };
 
 const clearAuthCookie = (res: Response): void => {
   res.clearCookie(TOKEN_COOKIE_NAME, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
-    path: '/'
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
+    path: '/',
+    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {})
   });
 };
 
 const setOAuthStateCookie = (res: Response, value: string): void => {
   res.cookie(OAUTH_STATE_COOKIE_NAME, value, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
     maxAge: 10 * 60 * 1000,
-    path: '/'
+    path: '/',
+    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {})
   });
 };
 
 const clearOAuthStateCookie = (res: Response): void => {
   res.clearCookie(OAUTH_STATE_COOKIE_NAME, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
-    path: '/'
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
+    path: '/',
+    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {})
   });
 };
 
@@ -633,17 +678,46 @@ const getRequestOrigin = (req: Request): string => {
   return `${protocol}://${host}`;
 };
 
-const getGoogleRedirectUri = (_req?: Request): string => {
+const getPublicServerUrl = (req?: Request): string => {
+  if (resolvedPublicServerUrl) {
+    return resolvedPublicServerUrl;
+  }
+
+  return req ? getRequestOrigin(req) : `http://localhost:${PORT}`;
+};
+
+const resolveAllowedOrigin = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const normalized = new URL(value).origin;
+    return allowedOrigins.has(normalized) ? normalized : null;
+  } catch {
+    return null;
+  }
+};
+
+const getRequestedClientOrigin = (req: Request): string => {
+  const requestedOrigin =
+    (typeof req.query['origin'] === 'string' ? req.query.origin : '')
+    || req.header('origin')
+    || req.header('referer')
+    || '';
+
+  return resolveAllowedOrigin(requestedOrigin) || primaryAppUrl;
+};
+
+const getGoogleRedirectUri = (req?: Request): string => {
   if (typeof GOOGLE_REDIRECT_URI === 'string' && GOOGLE_REDIRECT_URI.trim()) {
     return GOOGLE_REDIRECT_URI.trim();
   }
-  if (!isProduction) {
-    return `http://localhost:${PORT}${GOOGLE_CALLBACK_PATH}`;
-  }
+
   try {
-    return new URL(GOOGLE_CALLBACK_PATH, primaryAppUrl).toString();
+    return new URL(GOOGLE_CALLBACK_PATH, getPublicServerUrl(req)).toString();
   } catch {
-    return `${primaryAppUrl}${GOOGLE_CALLBACK_PATH}`;
+    return `${getPublicServerUrl(req)}${GOOGLE_CALLBACK_PATH}`;
   }
 };
 
@@ -651,15 +725,16 @@ const sendOAuthPopupResult = (
   res: Response,
   status: 'success' | 'error',
   provider: 'google',
-  message: string
+  message: string,
+  targetOrigin = primaryAppUrl
 ): void => {
   const payload = JSON.stringify({
-    source: 'smartedge-oauth',
+    source: 'studyvex-oauth',
     status,
     provider,
     message
   });
-  const targetOrigin = JSON.stringify(primaryAppUrl);
+  const serializedTargetOrigin = JSON.stringify(targetOrigin);
 
   const html = `<!doctype html>
 <html lang="en">
@@ -668,7 +743,7 @@ const sendOAuthPopupResult = (
 <script>
   (function () {
     var payload = ${payload};
-    var targetOrigin = ${targetOrigin};
+    var targetOrigin = ${serializedTargetOrigin};
     try {
       if (window.opener && typeof window.opener.postMessage === 'function') {
         window.opener.postMessage(payload, targetOrigin);
@@ -992,8 +1067,9 @@ app.get('/api/auth/oauth/google/start', (req: Request, res: Response) => {
     return;
   }
 
+  const clientOrigin = getRequestedClientOrigin(req);
   const state = jwt.sign(
-    { provider: 'google', nonce: randomUUID() },
+    { provider: 'google', nonce: randomUUID(), origin: clientOrigin },
     JWT_SECRET,
     { expiresIn: '10m' }
   );
@@ -1032,8 +1108,14 @@ const googleOAuthCallbackHandler = asyncHandler(async (req: Request, res: Respon
     return;
   }
 
+  let openerOrigin = primaryAppUrl;
   try {
-    jwt.verify(state, JWT_SECRET);
+    const decoded = jwt.verify(state, JWT_SECRET) as jwt.JwtPayload & { provider?: string; origin?: string };
+    if (decoded.provider !== 'google') {
+      sendOAuthPopupResult(res, 'error', 'google', 'OAuth provider validation failed. Please try again.');
+      return;
+    }
+    openerOrigin = resolveAllowedOrigin(decoded.origin) || primaryAppUrl;
   } catch {
     sendOAuthPopupResult(res, 'error', 'google', 'OAuth session expired. Please try again.');
     return;
@@ -1059,13 +1141,13 @@ const googleOAuthCallbackHandler = asyncHandler(async (req: Request, res: Respon
         typeof tokenPayload?.['error_description'] === 'string'
           ? tokenPayload.error_description
           : 'Failed to exchange Google authorization code';
-      sendOAuthPopupResult(res, 'error', 'google', message);
+      sendOAuthPopupResult(res, 'error', 'google', message, openerOrigin);
       return;
     }
 
     const accessToken = typeof tokenPayload?.['access_token'] === 'string' ? tokenPayload.access_token : '';
     if (!accessToken) {
-      sendOAuthPopupResult(res, 'error', 'google', 'Google did not return an access token');
+      sendOAuthPopupResult(res, 'error', 'google', 'Google did not return an access token', openerOrigin);
       return;
     }
 
@@ -1075,7 +1157,7 @@ const googleOAuthCallbackHandler = asyncHandler(async (req: Request, res: Respon
     const profilePayload = (await profileResponse.json().catch(() => null)) as Record<string, unknown> | null;
 
     if (!profileResponse.ok) {
-      sendOAuthPopupResult(res, 'error', 'google', 'Failed to fetch Google user profile');
+      sendOAuthPopupResult(res, 'error', 'google', 'Failed to fetch Google user profile', openerOrigin);
       return;
     }
 
@@ -1084,12 +1166,12 @@ const googleOAuthCallbackHandler = asyncHandler(async (req: Request, res: Respon
     const emailVerified = Boolean(profilePayload?.['email_verified']);
 
     if (!email || !isValidEmail(email)) {
-      sendOAuthPopupResult(res, 'error', 'google', 'Google account email is missing or invalid');
+      sendOAuthPopupResult(res, 'error', 'google', 'Google account email is missing or invalid', openerOrigin);
       return;
     }
 
     if (!emailVerified) {
-      sendOAuthPopupResult(res, 'error', 'google', 'Google account email is not verified');
+      sendOAuthPopupResult(res, 'error', 'google', 'Google account email is not verified', openerOrigin);
       return;
     }
 
@@ -1101,11 +1183,12 @@ const googleOAuthCallbackHandler = asyncHandler(async (req: Request, res: Respon
       res,
       'success',
       'google',
-      `Signed in successfully as ${user.email}`
+      `Signed in successfully as ${user.email}`,
+      openerOrigin
     );
   } catch (error) {
     console.error('Google OAuth callback failed:', error);
-    sendOAuthPopupResult(res, 'error', 'google', 'Google login failed. Please try again.');
+    sendOAuthPopupResult(res, 'error', 'google', 'Google login failed. Please try again.', openerOrigin);
   }
 });
 
@@ -1618,6 +1701,13 @@ const writeNdjsonEvent = (res: Response, payload: unknown): void => {
   res.write(`${JSON.stringify(payload)}\n`);
 };
 
+const toClientTranslationResult = (result: TranslationResult): TranslationResult => ({
+  ...result,
+  // Avoid sending the original uploaded file back at the end of long-running
+  // translation requests. The browser already has the file locally.
+  originalBufferBase64: ''
+});
+
 const buildLegacyGroundingMetadata = (response: HybridChatResponse, request?: HybridChatRequest) => {
   const topScore = response.groundedResults[0]?.score || 0;
   const mode = request?.knowledgeMode || 'auto';
@@ -1824,6 +1914,148 @@ app.post(['/api/ai/transcribe', '/api/openai/transcribe'], asyncHandler(async (r
   }
 }));
 
+app.post('/api/file-translator/translate', asyncHandler(async (req: Request, res: Response) => {
+  if (!OPENAI_API_KEY) {
+    res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
+    return;
+  }
+
+  const body = (req.body || {}) as Partial<FileTranslationRequest>;
+  if (typeof body.fileName !== 'string' || typeof body.mimeType !== 'string' || typeof body.base64Data !== 'string') {
+    res.status(400).json({ error: 'fileName, mimeType, and base64Data are required' });
+    return;
+  }
+
+  if (typeof body.sourceLanguage !== 'string' || typeof body.targetLanguage !== 'string') {
+    res.status(400).json({ error: 'sourceLanguage and targetLanguage are required' });
+    return;
+  }
+
+  const request: FileTranslationRequest = {
+    fileName: body.fileName,
+    mimeType: body.mimeType,
+    base64Data: body.base64Data,
+    sourceLanguage: body.sourceLanguage,
+    targetLanguage: body.targetLanguage,
+    translationMode: body.translationMode === 'academic' || body.translationMode === 'medical' ? body.translationMode : 'general',
+    keepEnglishTerms: body.keepEnglishTerms !== false,
+    viewMode: body.viewMode === 'line' || body.viewMode === 'slide' ? body.viewMode : 'page',
+    glossaryEntries: Array.isArray(body.glossaryEntries) ? body.glossaryEntries : [],
+    ocrPageImages: Array.isArray(body.ocrPageImages) ? body.ocrPageImages : [],
+    previewGroupLimit: typeof body.previewGroupLimit === 'number' && body.previewGroupLimit > 0 ? Math.floor(body.previewGroupLimit) : undefined
+  };
+
+  const result = await translateFile(request, {
+    apiKey: OPENAI_API_KEY,
+    model: OPENAI_MODEL
+  });
+
+  res.json(toClientTranslationResult(result));
+}));
+
+app.post('/api/file-translator/stream', asyncHandler(async (req: Request, res: Response) => {
+  if (!OPENAI_API_KEY) {
+    res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
+    return;
+  }
+
+  const body = (req.body || {}) as Partial<FileTranslationRequest>;
+  if (typeof body.fileName !== 'string' || typeof body.mimeType !== 'string' || typeof body.base64Data !== 'string') {
+    res.status(400).json({ error: 'fileName, mimeType, and base64Data are required' });
+    return;
+  }
+
+  if (typeof body.sourceLanguage !== 'string' || typeof body.targetLanguage !== 'string') {
+    res.status(400).json({ error: 'sourceLanguage and targetLanguage are required' });
+    return;
+  }
+
+  const request: FileTranslationRequest = {
+    fileName: body.fileName,
+    mimeType: body.mimeType,
+    base64Data: body.base64Data,
+    sourceLanguage: body.sourceLanguage,
+    targetLanguage: body.targetLanguage,
+    translationMode: body.translationMode === 'academic' || body.translationMode === 'medical' ? body.translationMode : 'general',
+    keepEnglishTerms: body.keepEnglishTerms !== false,
+    viewMode: body.viewMode === 'line' || body.viewMode === 'slide' ? body.viewMode : 'page',
+    glossaryEntries: Array.isArray(body.glossaryEntries) ? body.glossaryEntries : [],
+    ocrPageImages: Array.isArray(body.ocrPageImages) ? body.ocrPageImages : [],
+    previewGroupLimit: typeof body.previewGroupLimit === 'number' && body.previewGroupLimit > 0 ? Math.floor(body.previewGroupLimit) : undefined
+  };
+
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  let cancelled = false;
+  const markCancelled = () => {
+    cancelled = true;
+  };
+  req.on('close', markCancelled);
+  res.on('close', markCancelled);
+
+  try {
+    await streamTranslateFile(request, {
+      apiKey: OPENAI_API_KEY,
+      model: OPENAI_MODEL
+    }, {
+      isCancelled: () => cancelled,
+      onEvent: (event: StreamingTranslationEvent) => {
+        if (!cancelled) {
+          if (event.type === 'complete' && event.result) {
+            writeNdjsonEvent(res, {
+              ...event,
+              result: toClientTranslationResult(event.result)
+            });
+            return;
+          }
+          writeNdjsonEvent(res, event);
+        }
+      }
+    });
+  } catch (error) {
+    if (!cancelled) {
+      writeNdjsonEvent(res, {
+        type: 'error',
+        error: error instanceof Error ? error.message : 'Streaming translation failed'
+      });
+    }
+  } finally {
+    if (!cancelled) {
+      res.end();
+    }
+  }
+}));
+
+app.get('/api/file-translator/glossary', asyncHandler(async (req: Request, res: Response) => {
+  const sourceLanguage = typeof req.query['sourceLanguage'] === 'string' ? req.query.sourceLanguage : undefined;
+  const targetLanguage = typeof req.query['targetLanguage'] === 'string' ? req.query.targetLanguage : undefined;
+  const domain = req.query['domain'] === 'general' || req.query['domain'] === 'academic' || req.query['domain'] === 'medical'
+    ? req.query['domain']
+    : undefined;
+
+  const glossary = await listGlossaryEntries(sourceLanguage, targetLanguage, domain);
+  res.json(glossary);
+}));
+
+app.post('/api/file-translator/export', asyncHandler(async (req: Request, res: Response) => {
+  const body = (req.body || {}) as FileTranslatorExportRequest;
+  if (!body.result) {
+    res.status(400).json({ error: 'result is required' });
+    return;
+  }
+
+  const format = body.format === 'bilingual' ? 'bilingual' : 'translated';
+  const exported = await exportTranslatedFile(body.result, format);
+  res.json({
+    fileName: exported.fileName,
+    mimeType: exported.mimeType,
+    base64Data: exported.buffer.toString('base64')
+  });
+}));
+
 app.post(['/api/ai/video', '/api/openai/video'], (_req: Request, res: Response) => {
   res.status(410).json({
     error: 'Video generation is disabled'
@@ -1880,8 +2112,8 @@ app.post('/api/create-checkout-session', asyncHandler(async (req: Request, res: 
         }
       }
     ],
-    success_url: `${APP_URL}/subscription?success=true`,
-    cancel_url: `${APP_URL}/subscription?canceled=true`
+    success_url: `${primaryAppUrl}/subscription?success=true`,
+    cancel_url: `${primaryAppUrl}/subscription?canceled=true`
   });
 
   res.json({ id: session.id });
@@ -2627,6 +2859,8 @@ const startServer = async (): Promise<void> => {
     console.log(`Allowed CORS origins: ${Array.from(allowedOrigins).join(', ')}`);
     if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       console.log(`Google OAuth redirect URI: ${getGoogleRedirectUri()}`);
+      console.log(`Google OAuth popup target origin: ${primaryAppUrl}`);
+      console.log(`Cookie sameSite=${cookieSameSite}; secure=${cookieSecure}; domain=${COOKIE_DOMAIN || '(host-only)'}`);
     }
   });
 };
@@ -2640,7 +2874,7 @@ const canUseCluster =
 if (requestedClusterWorkers > 1 && isClusterPrimary()) {
   if (canUseCluster) {
     const workerCount = resolveClusterWorkerCount(requestedClusterWorkers);
-    console.log(`Starting SmartEdge backend in clustered mode with ${workerCount} workers.`);
+    console.log(`Starting StudyVex backend in clustered mode with ${workerCount} workers.`);
     forkClusterWorkers(workerCount);
   } else {
     console.warn('Cluster mode was requested but file-backed state is enabled. Set HYBRID_ALLOW_FILE_STORE_CLUSTERING=true only if you accept the consistency tradeoff.');
@@ -2657,3 +2891,4 @@ if (requestedClusterWorkers > 1 && isClusterPrimary()) {
 }
 
 export { app };
+

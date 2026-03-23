@@ -29,7 +29,7 @@ import { LocalizationService } from '../services/localization.service';
         <div class="max-w-[100rem] mx-auto flex items-center justify-between">
           <div class="flex items-center gap-2 md:gap-6">
              <div class="w-8 h-8 md:w-14 md:h-14 bg-indigo-600 rounded-lg md:rounded-2xl flex items-center justify-center text-white font-black text-lg md:text-3xl shadow-[0_0_40px_rgba(79,70,229,0.5)] transform hover:rotate-12 transition">S</div>
-             <span class="text-xl md:text-4xl font-black tracking-tighter text-white">SmartEdge <span class="text-indigo-400">AI</span></span>
+             <span class="text-xl md:text-4xl font-black tracking-tighter text-white">StudyVex <span class="text-indigo-400">AI</span></span>
           </div>
           <div class="hidden lg:flex items-center gap-16 font-black text-xs uppercase tracking-[0.4em] text-slate-500">
              <button (click)="scrollTo('features')" class="hover:text-indigo-400 transition">{{ t('Sovereign Features') }}</button>
@@ -48,13 +48,13 @@ import { LocalizationService } from '../services/localization.service';
         <div class="max-w-[90rem] mx-auto text-center">
           <div class="inline-flex items-center gap-2 md:gap-4 bg-white/5 border border-white/10 px-4 md:px-10 py-2 md:py-4 rounded-full font-black text-[7px] md:text-[10px] uppercase tracking-[0.2em] md:tracking-[0.5em] text-indigo-400 mb-6 md:mb-12 animate-in slide-in-from-top duration-700">
              <span class="w-1.5 h-1.5 md:w-2.5 md:h-2.5 bg-indigo-500 rounded-full animate-ping"></span>
-             {{ t('The first platform globally for knowledge sovereignty') }}
+             {{ t('StudyVex AI') }}
           </div>
           <h1 class="text-3xl md:text-7xl lg:text-[7rem] font-black leading-[1.2] md:leading-[0.9] mb-6 md:mb-12 tracking-tighter text-white animate-in zoom-in duration-1000">
-             <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-emerald-400">{{ t('Future of mental power') }}</span>
+             <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-emerald-400">{{ t('Your AI Study Platform for Smarter Learning') }}</span>
           </h1>
           <p class="text-base md:text-2xl text-slate-400 max-w-4xl mx-auto mb-8 md:mb-16 leading-relaxed font-bold animate-in fade-in slide-in-from-bottom-10 duration-1000">
-             {{ t('We do not offer mere tools, but an integrated sovereign artificial mind designed to empower Arab researchers and students in the digital age.') }}
+             {{ t('StudyVex AI helps students worldwide learn faster with AI tutoring, quizzes, flashcards, summaries, study plans, academic tools, and virtual lab experiences.') }}
           </p>
           <div class="flex flex-col sm:flex-row justify-center gap-4 md:gap-8 animate-in fade-in duration-1000 delay-500">
              <button (click)="started.emit()" class="bg-indigo-600 text-white px-6 md:px-12 py-4 md:py-6 rounded-xl md:rounded-[2.5rem] font-black text-base md:text-xl hover:scale-105 transition shadow-[0_45px_90px_rgba(79,70,229,0.5)] flex items-center gap-3 md:gap-4 justify-center">
@@ -73,8 +73,8 @@ import { LocalizationService } from '../services/localization.service';
       <section id="features" class="py-20 md:py-40 px-4 md:px-8 relative z-10 scroll-mt-32">
          <div class="max-w-[90rem] mx-auto space-y-12 md:space-y-24">
             <div class="text-center space-y-4 mb-12 md:mb-24">
-               <h2 class="text-3xl md:text-6xl font-black text-white tracking-tighter">{{ t('Totally unique features') }}</h2>
-               <p class="text-base md:text-xl text-slate-500 font-bold max-w-3xl mx-auto italic">{{ t('Every tool was built as an extension of your mental abilities, with continuous tracking of neural performance.') }}</p>
+               <h2 class="text-3xl md:text-6xl font-black text-white tracking-tighter">{{ t('Built for focused learners everywhere') }}</h2>
+               <p class="text-base md:text-xl text-slate-500 font-bold max-w-3xl mx-auto italic">{{ t('Premium AI study workflows designed for students worldwide across tutoring, planning, revision, and applied practice.') }}</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
@@ -96,7 +96,7 @@ import { LocalizationService } from '../services/localization.service';
       <section id="legal" class="py-40 px-8 border-t border-white/5 relative z-10">
          <div class="max-w-[90rem] mx-auto text-right">
             <h2 class="text-4xl font-black text-white tracking-tighter mb-8">{{ t('Copyright and publishing rights') }}</h2>
-            <p class="text-xl text-slate-400 font-bold leading-relaxed max-w-4xl ml-auto">{{ t('SmartEdge AI is a globally protected trademark. All algorithms, user interfaces, and educational content are exclusive intellectual property of the platform and protected under international IP laws.') }}</p>
+            <p class="text-xl text-slate-400 font-bold leading-relaxed max-w-4xl ml-auto">{{ t('StudyVex AI is a globally protected trademark. All algorithms, user interfaces, and educational content are exclusive intellectual property of the platform and protected under international IP laws.') }}</p>
          </div>
       </section>
 
@@ -105,10 +105,10 @@ import { LocalizationService } from '../services/localization.service';
         <div class="max-w-[100rem] mx-auto grid grid-cols-1 md:grid-cols-3 gap-32">
           <div class="col-span-1">
              <div class="flex items-center gap-6 justify-end mb-12">
-                <span class="text-5xl font-black text-white tracking-tighter">SmartEdge <span class="text-indigo-400">AI</span></span>
+                <span class="text-5xl font-black text-white tracking-tighter">StudyVex <span class="text-indigo-400">AI</span></span>
                 <div class="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-3xl">S</div>
              </div>
-             <p class="text-slate-400 text-2xl font-bold leading-relaxed max-w-lg ml-auto italic">{{ t('We lead the learning revolution in the Arab world by combining deep technology with human creativity.') }}</p>
+             <p class="text-slate-400 text-2xl font-bold leading-relaxed max-w-lg ml-auto italic">{{ t('StudyVex AI delivers premium AI learning experiences for students worldwide, combining advanced technology with clear academic guidance.') }}</p>
           </div>
           <div>
              <h4 class="font-black text-white text-2xl mb-12">{{ t('Access') }}</h4>
@@ -120,13 +120,13 @@ import { LocalizationService } from '../services/localization.service';
           <div>
              <h4 class="font-black text-white text-2xl mb-12">{{ t('Support') }}</h4>
              <ul class="space-y-8 text-slate-600 font-black text-sm uppercase tracking-[0.3em]">
-                <li><a href="mailto:support@smartedge.ai" class="hover:text-indigo-400 transition">support@smartedge.ai</a></li>
-                <li><span class="text-slate-500">{{ t('Riyadh - KAFD') }}</span></li>
+                <li><a href="mailto:support@studyvex.ai" class="hover:text-indigo-400 transition">support@studyvex.ai</a></li>
+                <li><span class="text-slate-500">{{ t('Available worldwide') }}</span></li>
              </ul>
           </div>
         </div>
         <div class="max-w-[100rem] mx-auto mt-40 pt-16 border-t border-white/5 text-center text-slate-700 font-black text-xs uppercase tracking-[0.8em]">
-           &copy; 2025 SmartEdge AI Technologies. {{ t('All rights reserved.') }}
+           &copy; 2025 StudyVex AI Technologies. {{ t('All rights reserved.') }}
         </div>
       </footer>
     </div>
@@ -157,19 +157,19 @@ export class LandingComponent {
 
   private readonly featureBlueprints = [
     {
-      title: 'Continuous AI Teacher',
+      title: 'AI Tutoring That Adapts',
       icon: 'fa-solid fa-brain',
-      desc: 'Deep academic dialogue that remembers your study context and evolves with you.'
+      desc: 'Personalized tutoring that remembers your study context and responds with clear, structured guidance.'
     },
     {
-      title: 'Neural performance analytics',
+      title: 'Smart Revision Workflows',
       icon: 'fa-solid fa-bolt',
-      desc: 'Real-time tracking of your comprehension signals with daily AI-generated reports.'
+      desc: 'Generate quizzes, flashcards, summaries, and study plans that keep every session organized and efficient.'
     },
     {
-      title: 'Universal source archiving',
+      title: 'Virtual Labs and Research Tools',
       icon: 'fa-solid fa-book-atlas',
-      desc: 'Instant access to more than 50 million books and academic resources.'
+      desc: 'Move from theory to practice with academic research support and immersive virtual lab experiences.'
     }
   ] as const;
 

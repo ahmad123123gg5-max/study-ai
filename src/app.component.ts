@@ -22,6 +22,8 @@ import { SettingsPage } from './components/pages/settings.page';
 import { NotificationsPage } from './components/pages/notifications.page';
 import { MarketplacePage } from './components/pages/marketplace.page';
 import { ContentTransformPage } from './components/pages/content-transform.page';
+import { FileTranslatorPage } from './components/pages/file-translator.page';
+import { FileStudyPage } from './components/pages/file-study.page';
 import { PlannerPage } from './components/pages/planner.page';
 import { LevelsPage } from './components/pages/levels.page';
 import { TimerPage } from './components/pages/timer.page';
@@ -38,7 +40,7 @@ export type DashboardPage =
   'levels' |
   'subscription' | 'profile' | 'admin' | 'teacher' | 'settings' | 
   'notifications' | 'marketplace' | 
-  'transform' | 'lab' | 'planner' | 'timer' | 'flashcards' | 'mindmap' | 'quiz';
+  'transform' | 'file-translator' | 'file-study' | 'lab' | 'planner' | 'timer' | 'flashcards' | 'mindmap' | 'quiz';
 
 @Component({
   selector: 'app-root',
@@ -49,7 +51,7 @@ export type DashboardPage =
     SubscriptionPage, ProfilePage, LevelsPage,
     AdminPage, TeacherPage, SettingsPage, NotificationsPage, 
     MarketplacePage,
-    ContentTransformPage, VirtualLabPage,
+    ContentTransformPage, FileTranslatorPage, FileStudyPage, VirtualLabPage,
     PlannerPage, TimerPage, FlashcardsPage, MindMapPage, QuizPage, AuroraBgComponent, AchievementNotificationComponent
   ],
   template: `
@@ -124,7 +126,7 @@ export type DashboardPage =
                        (logout)="handleLogout()"></app-sidebar>
           
           <main class="flex-1 overflow-y-auto no-scrollbar relative">
-            @if (activePage() !== 'tutor' && activePage() !== 'flashcards' && activePage() !== 'mindmap' && activePage() !== 'lab') {
+            @if (activePage() !== 'tutor' && activePage() !== 'flashcards' && activePage() !== 'mindmap' && activePage() !== 'lab' && activePage() !== 'file-study' && activePage() !== 'file-translator') {
               <header class="sticky top-0 z-40 h-20 md:h-24 glass border-b border-white/5 flex items-center justify-between px-6 md:px-12 backdrop-blur-3xl transition-all shadow-2xl">
                 <div class="flex items-center gap-3 md:gap-6">
                    <!-- Sidebar Toggle -->
@@ -183,7 +185,7 @@ export type DashboardPage =
               </header>
             }
 
-            <div [class]="activePage() === 'tutor' || activePage() === 'flashcards' || activePage() === 'mindmap' || activePage() === 'lab' ? 'h-screen' : 'h-[calc(100vh-5rem)] md:h-[calc(100vh-6rem)]'"
+            <div [class]="activePage() === 'tutor' || activePage() === 'flashcards' || activePage() === 'mindmap' || activePage() === 'lab' || activePage() === 'file-study' || activePage() === 'file-translator' ? 'h-screen' : 'h-[calc(100vh-5rem)] md:h-[calc(100vh-6rem)]'"
                  class="relative overflow-x-hidden">
               <div class="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full">
                 @switch (activePage()) {
@@ -192,8 +194,8 @@ export type DashboardPage =
                       <!-- Hero Section -->
                       <div class="bg-gradient-to-br from-indigo-600 via-indigo-900 to-slate-950 p-8 md:p-16 rounded-[2.5rem] md:rounded-[4.5rem] text-white shadow-3xl relative overflow-hidden group border border-white/10">
                          <div class="relative z-10 space-y-6 md:space-y-8">
-                            <h2 class="text-4xl md:text-7xl font-black tracking-tighter leading-tight md:leading-none">{{ t('Welcome to') }} <br> <span class="text-indigo-400">{{ t('Smart Command Center') }}</span></h2>
-                            <p class="text-indigo-100 text-lg md:text-2xl opacity-90 leading-relaxed font-bold max-w-2xl">{{ t('Explore advanced learning tools and start your knowledge journey today.') }}</p>
+                            <h2 class="text-4xl md:text-7xl font-black tracking-tighter leading-tight md:leading-none">{{ t('Welcome to') }} <br> <span class="text-indigo-400">{{ t('StudyVex AI') }}</span></h2>
+                            <p class="text-indigo-100 text-lg md:text-2xl opacity-90 leading-relaxed font-bold max-w-2xl">{{ t('Explore premium AI study tools and start learning smarter today.') }}</p>
                             <div class="flex flex-col sm:flex-row gap-4 md:gap-6">
                                <button (click)="activePage.set('tutor')" class="bg-white text-slate-950 px-8 md:px-12 py-4 md:py-5 rounded-2xl md:rounded-[2rem] font-black text-lg md:text-xl hover:scale-105 transition shadow-2xl">{{ t('Start a learning session') }}</button>
                             </div>
@@ -229,7 +231,7 @@ export type DashboardPage =
                       </div>
                     </div>
                   }
-                  @case ('tutor') { <app-tutor-page (back)="goBackFromPage()" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" /> }
+                  @case ('tutor') { <app-tutor-page (back)="goBackFromPage()" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" (openVirtualLab)="activePage.set('lab')" (openFileStudy)="activePage.set('file-study')" /> }
                   @case ('research') { <div class="p-6 md:p-12"><app-research-page (back)="goBackFromPage()" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" /></div> }
                   @case ('levels') { <div class="p-6 md:p-12"><app-levels-page /></div> }
                   @case ('subscription') { <div class="p-6 md:p-12"><app-subscription-page /></div> }
@@ -240,6 +242,8 @@ export type DashboardPage =
                   @case ('notifications') { <div class="p-6 md:p-12"><app-notifications-page /></div> }
                   @case ('marketplace') { <div class="p-6 md:p-12"><app-marketplace-page /></div> }
                   @case ('transform') { <div class="p-6 md:p-12"><app-content-transform-page (back)="goBackFromPage()" (openFlashcards)="activePage.set('flashcards')" (openMindMap)="activePage.set('mindmap')" (openTutor)="activePage.set('tutor')" /></div> }
+                  @case ('file-translator') { <app-file-translator-page (back)="goBackFromPage()" (openTutor)="activePage.set('tutor')" (openFlashcards)="activePage.set('flashcards')" /> }
+                  @case ('file-study') { <app-file-study-page (back)="goBackFromPage('tutor')" (openTutor)="activePage.set('tutor')" /> }
                   @case ('lab') { <app-virtual-lab-page (back)="goBackFromPage()" /> }
                   @case ('planner') { <app-planner-page (pageChange)="setActivePage($event)" /> }
                   @case ('timer') { <div class="p-6 md:p-12"><app-timer-page /></div> }
@@ -287,7 +291,9 @@ export class AppComponent {
     { id: 'timer', label: 'Smart Timer', icon: 'fa-stopwatch', color: 'bg-rose-500', desc: 'Command Center: Advanced focus tools to improve the efficiency of your study sessions.' },
     { id: 'quiz', label: 'AI Exam', icon: 'fa-clipboard-question', color: 'bg-fuchsia-500', desc: 'Command Center: Build smart exams from your topic or uploaded files with review and error analysis.' },
     { id: 'research', label: 'Academic Research', icon: 'fa-microscope', color: 'bg-purple-500', desc: 'Command Center: Your gateway to global knowledge and trusted sources.' },
+    { id: 'file-study', label: 'Explain File', icon: 'fa-book-open-reader', color: 'bg-cyan-400', desc: 'Command Center: Study a PDF with a calm reader on one side and a live page explanation on the other.' },
     { id: 'transform', label: 'Content Transform', icon: 'fa-wand-magic-sparkles', color: 'bg-orange-500', desc: 'Command Center: Transform your raw material into summaries and mind maps.' },
+    { id: 'file-translator', label: 'Smart File Translator', icon: 'fa-language', color: 'bg-cyan-500', desc: 'Command Center: Translate medical and academic files with bilingual preview and export support.' },
     { id: 'lab', label: 'Virtual Lab', icon: 'fa-flask', color: 'bg-teal-500', desc: 'Command Center: A realistic professional simulation with sequential decisions inside authentic work environments.' },
     { id: 'teacher', label: 'Teacher Panel', icon: 'fa-chalkboard-user', color: 'bg-sky-500', desc: 'Command Center: Integrated supervision tools for managing the learning process.' },
     { id: 'settings', label: 'Settings', icon: 'fa-gear', color: 'bg-zinc-500', desc: 'Command Center: Customize your workspace to fit your needs.' },
@@ -302,7 +308,9 @@ export class AppComponent {
       return true;
     }).map((item) => ({
       ...item,
-      label: this.t(item.label),
+      label: item.id === 'file-study'
+        ? (this.localization.currentLanguage() === 'ar' ? 'اشرح ملف' : 'Explain File')
+        : this.t(item.label),
       desc: this.t(item.desc)
     }));
   }
@@ -425,6 +433,8 @@ export class AppComponent {
       notifications: 'Notifications',
       marketplace: 'Marketplace',
       transform: 'Content Transform',
+      'file-translator': 'Smart File Translator',
+      'file-study': this.localization.currentLanguage() === 'ar' ? 'اشرح ملف' : 'Explain File',
       lab: 'Virtual Lab',
       planner: 'Study Planner',
       timer: 'Smart Timer',
@@ -440,6 +450,8 @@ export class AppComponent {
       tutor: 'aiTeacherQuestions',
       research: 'academicResearch',
       transform: 'contentLabConversions',
+      'file-translator': 'contentLabConversions',
+      'file-study': 'aiTeacherQuestions',
       lab: 'virtualLabSimulations',
       quiz: 'smartTests',
       'flashcards': 'aiTeacherQuestions',
@@ -468,6 +480,8 @@ export class AppComponent {
       value === 'notifications' ||
       value === 'marketplace' ||
       value === 'transform' ||
+      value === 'file-translator' ||
+      value === 'file-study' ||
       value === 'lab' ||
       value === 'planner' ||
       value === 'timer' ||
@@ -489,6 +503,8 @@ export class AppComponent {
         return 'overview';
       case 'mindmap':
         return 'overview';
+      case 'file-study':
+        return 'tutor';
       default:
         return 'overview';
     }

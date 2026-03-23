@@ -16,7 +16,7 @@ type DashboardModule = 'overview' | 'tutor' | 'research' | 'scheduler' | 'focus'
       <aside class="w-20 lg:w-72 glass border-e dark:border-slate-800 flex flex-col p-4 lg:p-6 h-full z-50">
         <div class="flex items-center gap-3 mb-10 px-2">
           <div class="w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-indigo-500/20 shrink-0">S</div>
-          <span class="text-xl font-bold tracking-tight hidden lg:block">SmartEdge <span class="text-indigo-600">AI</span></span>
+          <span class="text-xl font-bold tracking-tight hidden lg:block">StudyVex <span class="text-indigo-600">AI</span></span>
         </div>
 
         <nav class="flex-1 space-y-1 overflow-y-auto no-scrollbar">

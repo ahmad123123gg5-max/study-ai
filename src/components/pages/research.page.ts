@@ -336,7 +336,7 @@ interface SearchHistory {
                 </div>
 
                 <div class="absolute top-10 left-10 opacity-5 pointer-events-none">
-                  <div class="text-6xl font-black text-white rotate-12">SmartEdge AI</div>
+                  <div class="text-6xl font-black text-white rotate-12">StudyVex AI</div>
                 </div>
               </div>
             </div>

@@ -1,0 +1,12 @@
+{
+  "name": "StudyVex AI",
+  "short_name": "StudyVex",
+  "description": "StudyVex AI helps students worldwide learn faster with AI tutoring, quizzes, flashcards, summaries, study plans, academic research tools, and a virtual lab.",
+  "lang": "en",
+  "dir": "ltr",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/",
+  "background_color": "#020617",
+  "theme_color": "#020617"
+}

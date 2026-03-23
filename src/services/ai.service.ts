@@ -7,11 +7,13 @@ import {
   AIChatResponsePayload
 } from './grounding.models';
 import {
+  APP_LANGUAGE_STORAGE_KEY,
+  LEGACY_LANGUAGE_STORAGE_KEY,
   getLanguageName,
   getSpeechRecognitionLocale,
   normalizeLanguageCode,
   LanguageCode,
-  DEFAULT_LANGUAGE
+  resolveInitialLanguage
 } from '../i18n/language-config';
 
 import { NotificationService } from '../services/notification.service';
@@ -268,7 +270,7 @@ export class AIService {
   totalStudyHours = signal<number>(0);
   performanceHistory = signal<PerformanceRecord[]>([]);
 
-  currentLanguage = signal<LanguageCode>(normalizeLanguageCode(localStorage.getItem('smartedge_user_lang') || DEFAULT_LANGUAGE));
+  currentLanguage = signal<LanguageCode>(resolveInitialLanguage());
   lastGrounding = signal<GroundingMetadata | null>(null);
 
   saveProfile() {
@@ -281,7 +283,9 @@ export class AIService {
     localStorage.setItem('smartedge_cover_image', this.coverImage());
     localStorage.setItem('smartedge_is_public', String(this.isPublicProfile()));
     localStorage.setItem('smartedge_share_stats', String(this.shareStats()));
-    localStorage.setItem('smartedge_user_lang', normalizeLanguageCode(this.currentLanguage()));
+    const language = normalizeLanguageCode(this.currentLanguage());
+    localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, language);
+    localStorage.setItem(LEGACY_LANGUAGE_STORAGE_KEY, language);
     
     this.ns.show(
       this.currentLanguage() === 'ar' ? 'تم الحفظ' : 'Saved',
@@ -384,7 +388,7 @@ export class AIService {
     this.coverImage.set(localStorage.getItem('smartedge_cover_image') || '');
     this.isPublicProfile.set(localStorage.getItem('smartedge_is_public') !== 'false');
     this.shareStats.set(localStorage.getItem('smartedge_share_stats') === 'true');
-    this.currentLanguage.set(normalizeLanguageCode(localStorage.getItem('smartedge_user_lang') || DEFAULT_LANGUAGE));
+    this.currentLanguage.set(resolveInitialLanguage());
     
     const localSubjects = localStorage.getItem('smartedge_subjects');
     if (localSubjects) this.currentSubjects.set(JSON.parse(localSubjects));
@@ -456,7 +460,9 @@ export class AIService {
       localStorage.setItem('smartedge_cover_image', this.coverImage());
       localStorage.setItem('smartedge_is_public', this.isPublicProfile().toString());
       localStorage.setItem('smartedge_share_stats', this.shareStats().toString());
-      localStorage.setItem('smartedge_user_lang', normalizeLanguageCode(this.currentLanguage()));
+      const language = normalizeLanguageCode(this.currentLanguage());
+      localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, language);
+      localStorage.setItem(LEGACY_LANGUAGE_STORAGE_KEY, language);
       
       localStorage.setItem('smartedge_subjects', JSON.stringify(this.currentSubjects()));
       localStorage.setItem('smartedge_quiz_count', this.quizzesCompleted().toString());
@@ -924,6 +930,54 @@ export class AIService {
       );
 
       return text;
+    });
+  }
+
+  async chatSilently(
+    message: string,
+    systemInstruction: string,
+    history: ChatHistoryEntry[] = [],
+    model: string = 'gpt-4o-mini',
+    files: AIFileAttachment[] = [],
+    requestOptions: AIChatRequestOptions = {}
+  ): Promise<string> {
+    return this.retry(async () => {
+      const enforcedInstruction = `${systemInstruction}. CRITICAL: You MUST respond strictly in ${this.languageName}.`;
+      const filesNotice = files.length > 0
+        ? `\n[Attachment count: ${files.length}. Summarize based on user message context.]`
+        : '';
+
+      return this.chatViaSiteAIEndpoint(
+        `${message}${filesNotice}`,
+        enforcedInstruction,
+        history,
+        false,
+        this.resolveModel(model),
+        files,
+        requestOptions.maxTokens,
+        requestOptions
+      );
+    });
+  }
+
+  async jsonSilently<T>(
+    message: string,
+    systemInstruction: string,
+    model: string = 'gpt-4o-mini',
+    files: AIFileAttachment[] = [],
+    requestOptions: AIChatRequestOptions = {},
+    language: LanguageCode | string | null | undefined = this.currentLanguage()
+  ): Promise<T> {
+    return this.retry(async () => {
+      return this.jsonViaSiteAIEndpoint<T>(
+        message,
+        systemInstruction,
+        this.resolveModel(model),
+        files,
+        requestOptions.maxTokens,
+        this.getLanguageName(language),
+        requestOptions
+      );
     });
   }
 

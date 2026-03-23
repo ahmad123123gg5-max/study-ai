@@ -1,4 +1,4 @@
-# SmartEdge Knowledge Base
+﻿# StudyVex Knowledge Base
 
 Drop local `.md`, `.txt`, or `.json` knowledge files into this directory to extend the Hybrid AI knowledge layer.
 
@@ -24,3 +24,4 @@ Supported JSON shape:
 ```
 
 When the server boots or `/api/knowledge/reindex` is called, these documents are chunked, embedded, and indexed into the vector layer.
+

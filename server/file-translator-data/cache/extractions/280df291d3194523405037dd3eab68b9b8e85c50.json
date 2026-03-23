@@ -1,0 +1,2830 @@
+{
+  "schemaVersion": 3,
+  "createdAt": "2026-03-22T12:22:56.979Z",
+  "value": {
+    "fileHash": "280df291d3194523405037dd3eab68b9b8e85c50",
+    "fileType": "pdf",
+    "groups": [
+      {
+        "index": 1,
+        "label": "Page 1",
+        "kind": "page",
+        "sourceText": "2026",
+        "translatedText": "",
+        "unitIds": [
+          "page-1-line-1"
+        ]
+      },
+      {
+        "index": 2,
+        "label": "Page 2",
+        "kind": "page",
+        "sourceText": "Concepts and Roles of the Psychiatric\nNurse\n\n Subtitle: Understanding Goals and\nTeamwork in Mental Health\n Focus: Clinical, Educational, and Advocacy\nRoles.",
+        "translatedText": "",
+        "unitIds": [
+          "page-2-line-1",
+          "page-2-line-2",
+          "page-2-line-3",
+          "page-2-line-4",
+          "page-2-line-5",
+          "page-2-line-6",
+          "page-2-line-7"
+        ]
+      },
+      {
+        "index": 3,
+        "label": "Page 3",
+        "kind": "page",
+        "sourceText": "Learning Outcomes\n\n Define the concept of psychiatric nursing.\n Describe the primary goals of psychiatric\nnursing.\n Differentiate between clinical, educational,\nand advocacy roles.\n Explain the nurse’s role within the\nmultidisciplinary health care team.",
+        "translatedText": "",
+        "unitIds": [
+          "page-3-line-1",
+          "page-3-line-2",
+          "page-3-line-3",
+          "page-3-line-4",
+          "page-3-line-5",
+          "page-3-line-6",
+          "page-3-line-7",
+          "page-3-line-8",
+          "page-3-line-9"
+        ]
+      },
+      {
+        "index": 4,
+        "label": "Page 4",
+        "kind": "page",
+        "sourceText": "Concept and Goals of Psychiatric Nursing\n\n Concept: A specialized area of nursing\nfocusing on the mental health of individuals,\nfamilies, and communities.\n Primary Goals:\n To promote mental health through\nassessment and intervention.",
+        "translatedText": "",
+        "unitIds": [
+          "page-4-line-1",
+          "page-4-line-2",
+          "page-4-line-3",
+          "page-4-line-4",
+          "page-4-line-5",
+          "page-4-line-6",
+          "page-4-line-7",
+          "page-4-line-8"
+        ]
+      },
+      {
+        "index": 5,
+        "label": "Page 5",
+        "kind": "page",
+        "sourceText": "\n To help patients develop coping skills for\ndaily living.\n To support recovery and improve the quality\nof life.\n To prevent mental illness and its\ncomplications.",
+        "translatedText": "",
+        "unitIds": [
+          "page-5-line-1",
+          "page-5-line-2",
+          "page-5-line-3",
+          "page-5-line-4",
+          "page-5-line-5",
+          "page-5-line-6",
+          "page-5-line-7"
+        ]
+      },
+      {
+        "index": 6,
+        "label": "Page 6",
+        "kind": "page",
+        "sourceText": "Discussion Question\n",
+        "translatedText": "",
+        "unitIds": [
+          "page-6-line-1",
+          "page-6-line-2"
+        ]
+      },
+      {
+        "index": 7,
+        "label": "Page 7",
+        "kind": "page",
+        "sourceText": "Suggested Answer\n\n Nurses can support patients in developing coping skills by:\n Providing emotional support and building a trusting\ntherapeutic relationship\n Teaching stress-management techniques such as deep\nbreathing and relaxation\n Encouraging expression of feelings in a safe, non-judgmental\nenvironment\n Helping patients identify positive coping strategies instead of\nharmful ones\n Educating patients and families about illness and ways to\nmanage daily challenges",
+        "translatedText": "",
+        "unitIds": [
+          "page-7-line-1",
+          "page-7-line-2",
+          "page-7-line-3",
+          "page-7-line-4",
+          "page-7-line-5",
+          "page-7-line-6",
+          "page-7-line-7",
+          "page-7-line-8",
+          "page-7-line-9",
+          "page-7-line-10",
+          "page-7-line-11",
+          "page-7-line-12",
+          "page-7-line-13"
+        ]
+      },
+      {
+        "index": 8,
+        "label": "Page 8",
+        "kind": "page",
+        "sourceText": "Roles of the Psychiatric Nurse -Clinical\nRole\n\n Direct Care: Providing physical and mental\nhealth care in various settings (hospitals,\nclinics).\n Assessment: Using the nursing process to\nidentify patient needs and symptoms..",
+        "translatedText": "",
+        "unitIds": [
+          "page-8-line-1",
+          "page-8-line-2",
+          "page-8-line-3",
+          "page-8-line-4",
+          "page-8-line-5",
+          "page-8-line-6",
+          "page-8-line-7",
+          "page-8-line-8"
+        ]
+      },
+      {
+        "index": 9,
+        "label": "Page 9",
+        "kind": "page",
+        "sourceText": "\n Therapeutic Milieu: Creating a safe and\nhealing environment for the patient.\n Medication Management: Administering\nmedications and monitoring for side effects.",
+        "translatedText": "",
+        "unitIds": [
+          "page-9-line-1",
+          "page-9-line-2",
+          "page-9-line-3",
+          "page-9-line-4",
+          "page-9-line-5"
+        ]
+      },
+      {
+        "index": 10,
+        "label": "Page 10",
+        "kind": "page",
+        "sourceText": "Nursing Assessment in Psychiatric Care\n\n Psychiatric assessment is the first step in the\nnursing process.\n Key Components:\n• Nursing Interview: history, medications,\nstressors, support.\n• Mental Status Examination (MSE):\nappearance, mood, thought, cognition.\n• Physical & Behavioral Observation: sleep,\nappetite, energy, medication effects.",
+        "translatedText": "",
+        "unitIds": [
+          "page-10-line-1",
+          "page-10-line-2",
+          "page-10-line-3",
+          "page-10-line-4",
+          "page-10-line-5",
+          "page-10-line-6",
+          "page-10-line-7",
+          "page-10-line-8",
+          "page-10-line-9",
+          "page-10-line-10",
+          "page-10-line-11"
+        ]
+      },
+      {
+        "index": 11,
+        "label": "Page 11",
+        "kind": "page",
+        "sourceText": "\n Assessment Tools Used by Nurses:\n• PHQ-9 → Depression screening\n• GAD-7 → Anxiety screening\n• MoCA → Cognitive screening (not\ndiagnostic, requires training)\n• Suicide and safety risk assessment\n Key Message: Nurses do not diagnose, but\nplay a critical role in early detection,\nmonitoring, and documentation.",
+        "translatedText": "",
+        "unitIds": [
+          "page-11-line-1",
+          "page-11-line-2",
+          "page-11-line-3",
+          "page-11-line-4",
+          "page-11-line-5",
+          "page-11-line-6",
+          "page-11-line-7",
+          "page-11-line-8",
+          "page-11-line-9",
+          "page-11-line-10"
+        ]
+      },
+      {
+        "index": 12,
+        "label": "Page 12",
+        "kind": "page",
+        "sourceText": "Roles of the Psychiatric Nurse -\nEducational Role\n\n Patient Education: Teaching patients about\ntheir diagnosis and treatment plans.\n Symptom Management: Helping patients\nrecognize early warning signs of relapse.",
+        "translatedText": "",
+        "unitIds": [
+          "page-12-line-1",
+          "page-12-line-2",
+          "page-12-line-3",
+          "page-12-line-4",
+          "page-12-line-5",
+          "page-12-line-6",
+          "page-12-line-7"
+        ]
+      },
+      {
+        "index": 13,
+        "label": "Page 13",
+        "kind": "page",
+        "sourceText": "\n Family Support: Educating families on how\nto support their loved ones and manage\nstress.\n Health Promotion: Providing information on\nhealthy lifestyles to prevent illness.",
+        "translatedText": "",
+        "unitIds": [
+          "page-13-line-1",
+          "page-13-line-2",
+          "page-13-line-3",
+          "page-13-line-4",
+          "page-13-line-5",
+          "page-13-line-6"
+        ]
+      },
+      {
+        "index": 14,
+        "label": "Page 14",
+        "kind": "page",
+        "sourceText": "Roles of the Psychiatric Nurse -Advocacy\nRole\n\n Patient Rights: Protecting the legal and\nethical rights of patients (e.g., informed\nconsent).\n Reducing Stigma: Fighting against the shame\nand discrimination associated with mental\nillness.",
+        "translatedText": "",
+        "unitIds": [
+          "page-14-line-1",
+          "page-14-line-2",
+          "page-14-line-3",
+          "page-14-line-4",
+          "page-14-line-5",
+          "page-14-line-6",
+          "page-14-line-7",
+          "page-14-line-8",
+          "page-14-line-9"
+        ]
+      },
+      {
+        "index": 15,
+        "label": "Page 15",
+        "kind": "page",
+        "sourceText": "\n Resource Access: Helping patients get the\nservices and social support they need.\n Voice for the Patient: Speaking up for those\nwho cannot advocate for themselves.",
+        "translatedText": "",
+        "unitIds": [
+          "page-15-line-1",
+          "page-15-line-2",
+          "page-15-line-3",
+          "page-15-line-4",
+          "page-15-line-5"
+        ]
+      },
+      {
+        "index": 16,
+        "label": "Page 16",
+        "kind": "page",
+        "sourceText": "Working Within the Multidisciplinary\nHealth Care Team\n\n Team Members: Includes Psychiatrists,\nPsychologists, Social Workers, Occupational\nTherapists, and Pharmacists.\n The Nurse’s Position: The nurse is often the\n'link' between the patient and the rest of the\nteam.",
+        "translatedText": "",
+        "unitIds": [
+          "page-16-line-1",
+          "page-16-line-2",
+          "page-16-line-3",
+          "page-16-line-4",
+          "page-16-line-5",
+          "page-16-line-6",
+          "page-16-line-7",
+          "page-16-line-8",
+          "page-16-line-9"
+        ]
+      },
+      {
+        "index": 17,
+        "label": "Page 17",
+        "kind": "page",
+        "sourceText": "\n Key Components of Teamwork:\n Communication: Sharing updates on the\npatient’s condition.\n Collaboration: Working together on a single\ntreatment plan.\n Holistic Care: Ensuring all aspects of the\npatient (physical, social, and mental) are\ntreated.",
+        "translatedText": "",
+        "unitIds": [
+          "page-17-line-1",
+          "page-17-line-2",
+          "page-17-line-3",
+          "page-17-line-4",
+          "page-17-line-5",
+          "page-17-line-6",
+          "page-17-line-7",
+          "page-17-line-8",
+          "page-17-line-9"
+        ]
+      },
+      {
+        "index": 18,
+        "label": "Page 18",
+        "kind": "page",
+        "sourceText": "Summary & Conclusion\n\n Psychiatric nursing is a 'Human-to-Human'\nrelationship.\n Nurses function as clinicians, teachers, and\nadvocates.\n Success depends on strong teamwork with\nother health professionals.",
+        "translatedText": "",
+        "unitIds": [
+          "page-18-line-1",
+          "page-18-line-2",
+          "page-18-line-3",
+          "page-18-line-4",
+          "page-18-line-5",
+          "page-18-line-6",
+          "page-18-line-7",
+          "page-18-line-8"
+        ]
+      },
+      {
+        "index": 19,
+        "label": "Page 19",
+        "kind": "page",
+        "sourceText": "References\n\n American Psychiatric Association. (2022). Diagnostic and\nstatistical manual of mental disorders (5th ed., text rev.;\nDSM-5-TR). American Psychiatric Association Publishing.\n Videbeck, S. L. (2020). Psychiatric–mental health nursing\n(8th ed.). Wolters Kluwer.\n World Health Organization. (2024). Psychological\ninterventions implementation manual: Integrating evidence-\nbased psychological interventions into existing services. World\nHealth Organization.\n Halter, M. J. (2022). Varcarolis’ foundations of psychiatric-\nmental health nursing: A clinical approach (9th ed.). Elsevier.",
+        "translatedText": "",
+        "unitIds": [
+          "page-19-line-1",
+          "page-19-line-2",
+          "page-19-line-3",
+          "page-19-line-4",
+          "page-19-line-5",
+          "page-19-line-6",
+          "page-19-line-7",
+          "page-19-line-8",
+          "page-19-line-9",
+          "page-19-line-10",
+          "page-19-line-11",
+          "page-19-line-12",
+          "page-19-line-13"
+        ]
+      }
+    ],
+    "units": [
+      {
+        "id": "page-1-line-1",
+        "order": 1001,
+        "groupIndex": 1,
+        "kind": "paragraph",
+        "label": "Page 1 - Line 1",
+        "sourceText": "2026",
+        "translatedText": "",
+        "layout": {
+          "x": 335.98,
+          "y": 293.976,
+          "width": 48.012,
+          "height": 28.024,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-2-line-1",
+        "order": 2001,
+        "groupIndex": 2,
+        "kind": "paragraph",
+        "label": "Page 2 - Line 1",
+        "sourceText": "Concepts and Roles of the Psychiatric",
+        "translatedText": "",
+        "layout": {
+          "x": 102.5,
+          "y": 44,
+          "width": 514.05,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-2-line-2",
+        "order": 2002,
+        "groupIndex": 2,
+        "kind": "paragraph",
+        "label": "Page 2 - Line 2",
+        "sourceText": "Nurse",
+        "translatedText": "",
+        "layout": {
+          "x": 317.95,
+          "y": 80,
+          "width": 83.31,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-2-line-3",
+        "order": 2003,
+        "groupIndex": 2,
+        "kind": "paragraph",
+        "label": "Page 2 - Line 3",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-2-line-4",
+        "order": 2004,
+        "groupIndex": 2,
+        "kind": "paragraph",
+        "label": "Page 2 - Line 4",
+        "sourceText": " Subtitle: Understanding Goals and",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 214.04,
+          "width": 457.59456,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-2-line-5",
+        "order": 2005,
+        "groupIndex": 2,
+        "kind": "paragraph",
+        "label": "Page 2 - Line 5",
+        "sourceText": "Teamwork in Mental Health",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 248.04,
+          "width": 351.42924,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-2-line-6",
+        "order": 2006,
+        "groupIndex": 2,
+        "kind": "paragraph",
+        "label": "Page 2 - Line 6",
+        "sourceText": " Focus: Clinical, Educational, and Advocacy",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 288.04,
+          "width": 564.56952,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-2-line-7",
+        "order": 2007,
+        "groupIndex": 2,
+        "kind": "paragraph",
+        "label": "Page 2 - Line 7",
+        "sourceText": "Roles.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 322.016,
+          "width": 74.38147200000002,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-1",
+        "order": 3001,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 1",
+        "sourceText": "Learning Outcomes",
+        "translatedText": "",
+        "layout": {
+          "x": 225.05,
+          "y": 62,
+          "width": 269.13,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-2",
+        "order": 3002,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 2",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-3",
+        "order": 3003,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 3",
+        "sourceText": " Define the concept of psychiatric nursing.",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 214.04,
+          "width": 543.6554400000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-4",
+        "order": 3004,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 4",
+        "sourceText": " Describe the primary goals of psychiatric",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 256.04,
+          "width": 536.4417600000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-5",
+        "order": 3005,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 5",
+        "sourceText": "nursing.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 288.04,
+          "width": 103.11647999999998,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-6",
+        "order": 3006,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 6",
+        "sourceText": " Differentiate between clinical, educational,",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 330.016,
+          "width": 556.5502560000001,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-7",
+        "order": 3007,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 7",
+        "sourceText": "and advocacy roles.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 362.04,
+          "width": 244.59408000000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-8",
+        "order": 3008,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 8",
+        "sourceText": " Explain the nurse’s role within the",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 404.04,
+          "width": 454.32932000000005,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-3-line-9",
+        "order": 3009,
+        "groupIndex": 3,
+        "kind": "paragraph",
+        "label": "Page 3 - Line 9",
+        "sourceText": "multidisciplinary health care team.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 436.016,
+          "width": 431.6811840000002,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-4-line-1",
+        "order": 4001,
+        "groupIndex": 4,
+        "kind": "paragraph",
+        "label": "Page 4 - Line 1",
+        "sourceText": "Concept and Goals of Psychiatric Nursing",
+        "translatedText": "",
+        "layout": {
+          "x": 72.384,
+          "y": 62,
+          "width": 574.29,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-4-line-2",
+        "order": 4002,
+        "groupIndex": 4,
+        "kind": "paragraph",
+        "label": "Page 4 - Line 2",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-4-line-3",
+        "order": 4003,
+        "groupIndex": 4,
+        "kind": "paragraph",
+        "label": "Page 4 - Line 3",
+        "sourceText": " Concept: A specialized area of nursing",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 214.04,
+          "width": 506.07720000000006,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-4-line-4",
+        "order": 4004,
+        "groupIndex": 4,
+        "kind": "paragraph",
+        "label": "Page 4 - Line 4",
+        "sourceText": "focusing on the mental health of individuals,",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 248.04,
+          "width": 553.7757600000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-4-line-5",
+        "order": 4005,
+        "groupIndex": 4,
+        "kind": "paragraph",
+        "label": "Page 4 - Line 5",
+        "sourceText": "families, and communities.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 282.04,
+          "width": 333.89832000000007,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-4-line-6",
+        "order": 4006,
+        "groupIndex": 4,
+        "kind": "paragraph",
+        "label": "Page 4 - Line 6",
+        "sourceText": " Primary Goals:",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 362.04,
+          "width": 214.73400000000007,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-4-line-7",
+        "order": 4007,
+        "groupIndex": 4,
+        "kind": "paragraph",
+        "label": "Page 4 - Line 7",
+        "sourceText": " To promote mental health through",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 404.04,
+          "width": 457.9300800000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-4-line-8",
+        "order": 4008,
+        "groupIndex": 4,
+        "kind": "paragraph",
+        "label": "Page 4 - Line 8",
+        "sourceText": "assessment and intervention.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 436.016,
+          "width": 359.1466560000001,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-5-line-1",
+        "order": 5001,
+        "groupIndex": 5,
+        "kind": "paragraph",
+        "label": "Page 5 - Line 1",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-5-line-2",
+        "order": 5002,
+        "groupIndex": 5,
+        "kind": "paragraph",
+        "label": "Page 5 - Line 2",
+        "sourceText": " To help patients develop coping skills for",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 174.04,
+          "width": 540.2722800000004,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-5-line-3",
+        "order": 5003,
+        "groupIndex": 5,
+        "kind": "paragraph",
+        "label": "Page 5 - Line 3",
+        "sourceText": "daily living.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 208.016,
+          "width": 149.12673600000005,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-5-line-4",
+        "order": 5004,
+        "groupIndex": 5,
+        "kind": "paragraph",
+        "label": "Page 5 - Line 4",
+        "sourceText": " To support recovery and improve the quality",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 248.04,
+          "width": 587.6644799999999,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-5-line-5",
+        "order": 5005,
+        "groupIndex": 5,
+        "kind": "paragraph",
+        "label": "Page 5 - Line 5",
+        "sourceText": "of life.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 282.04,
+          "width": 77.67288,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-5-line-6",
+        "order": 5006,
+        "groupIndex": 5,
+        "kind": "paragraph",
+        "label": "Page 5 - Line 6",
+        "sourceText": " To prevent mental illness and its",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 322.016,
+          "width": 431.8815360000001,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-5-line-7",
+        "order": 5007,
+        "groupIndex": 5,
+        "kind": "paragraph",
+        "label": "Page 5 - Line 7",
+        "sourceText": "complications.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 356.04,
+          "width": 179.47524000000004,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-6-line-1",
+        "order": 6001,
+        "groupIndex": 6,
+        "kind": "paragraph",
+        "label": "Page 6 - Line 1",
+        "sourceText": "Discussion Question",
+        "translatedText": "",
+        "layout": {
+          "x": 114.02,
+          "y": 46,
+          "width": 490.9680000000001,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-6-line-2",
+        "order": 6002,
+        "groupIndex": 6,
+        "kind": "paragraph",
+        "label": "Page 6 - Line 2",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-1",
+        "order": 7001,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 1",
+        "sourceText": "Suggested Answer",
+        "translatedText": "",
+        "layout": {
+          "x": 135.38,
+          "y": 46,
+          "width": 448.36199999999997,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-2",
+        "order": 7002,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 2",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-3",
+        "order": 7003,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 3",
+        "sourceText": " Nurses can support patients in developing coping skills by:",
+        "translatedText": "",
+        "layout": {
+          "x": 61.416,
+          "y": 183.96,
+          "width": 553.8296,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-4",
+        "order": 7004,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 4",
+        "sourceText": " Providing emotional support and building a trusting",
+        "translatedText": "",
+        "layout": {
+          "x": 61.416,
+          "y": 211.936,
+          "width": 503.1175040000001,
+          "height": 24.064,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-5",
+        "order": 7005,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 5",
+        "sourceText": "therapeutic relationship",
+        "translatedText": "",
+        "layout": {
+          "x": 90.216,
+          "y": 235.96,
+          "width": 211.92299999999994,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-6",
+        "order": 7006,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 6",
+        "sourceText": " Teaching stress-management techniques such as deep",
+        "translatedText": "",
+        "layout": {
+          "x": 61.416,
+          "y": 263.96,
+          "width": 516.6994400000001,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-7",
+        "order": 7007,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 7",
+        "sourceText": "breathing and relaxation",
+        "translatedText": "",
+        "layout": {
+          "x": 90.216,
+          "y": 287.96,
+          "width": 218.07527999999996,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-8",
+        "order": 7008,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 8",
+        "sourceText": " Encouraging expression of feelings in a safe, non-judgmental",
+        "translatedText": "",
+        "layout": {
+          "x": 61.416,
+          "y": 317.96,
+          "width": 578.9564,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-9",
+        "order": 7009,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 9",
+        "sourceText": "environment",
+        "translatedText": "",
+        "layout": {
+          "x": 90.216,
+          "y": 341.936,
+          "width": 114.34473600000003,
+          "height": 24.064,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-10",
+        "order": 7010,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 10",
+        "sourceText": " Helping patients identify positive coping strategies instead of",
+        "translatedText": "",
+        "layout": {
+          "x": 61.416,
+          "y": 369.96,
+          "width": 589.82756,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-11",
+        "order": 7011,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 11",
+        "sourceText": "harmful ones",
+        "translatedText": "",
+        "layout": {
+          "x": 90.216,
+          "y": 393.96,
+          "width": 117.35423999999999,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-12",
+        "order": 7012,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 12",
+        "sourceText": " Educating patients and families about illness and ways to",
+        "translatedText": "",
+        "layout": {
+          "x": 61.416,
+          "y": 423.96,
+          "width": 547.031,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-7-line-13",
+        "order": 7013,
+        "groupIndex": 7,
+        "kind": "paragraph",
+        "label": "Page 7 - Line 13",
+        "sourceText": "manage daily challenges",
+        "translatedText": "",
+        "layout": {
+          "x": 90.216,
+          "y": 447.96,
+          "width": 217.91495999999995,
+          "height": 24.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-8-line-1",
+        "order": 8001,
+        "groupIndex": 8,
+        "kind": "paragraph",
+        "label": "Page 8 - Line 1",
+        "sourceText": "Roles of the Psychiatric Nurse -Clinical",
+        "translatedText": "",
+        "layout": {
+          "x": 87.024,
+          "y": 44,
+          "width": 545.146,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-8-line-2",
+        "order": 8002,
+        "groupIndex": 8,
+        "kind": "paragraph",
+        "label": "Page 8 - Line 2",
+        "sourceText": "Role",
+        "translatedText": "",
+        "layout": {
+          "x": 327.91,
+          "y": 80,
+          "width": 63.329999999999984,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-8-line-3",
+        "order": 8003,
+        "groupIndex": 8,
+        "kind": "paragraph",
+        "label": "Page 8 - Line 3",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-8-line-4",
+        "order": 8004,
+        "groupIndex": 8,
+        "kind": "paragraph",
+        "label": "Page 8 - Line 4",
+        "sourceText": " Direct Care: Providing physical and mental",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 216.04,
+          "width": 569.8742000000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-8-line-5",
+        "order": 8005,
+        "groupIndex": 8,
+        "kind": "paragraph",
+        "label": "Page 8 - Line 5",
+        "sourceText": "health care in various settings (hospitals,",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 248.04,
+          "width": 503.33591999999993,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-8-line-6",
+        "order": 8006,
+        "groupIndex": 8,
+        "kind": "paragraph",
+        "label": "Page 8 - Line 6",
+        "sourceText": "clinics).",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 282.04,
+          "width": 93.72192,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-8-line-7",
+        "order": 8007,
+        "groupIndex": 8,
+        "kind": "paragraph",
+        "label": "Page 8 - Line 7",
+        "sourceText": " Assessment: Using the nursing process to",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 322.016,
+          "width": 546.757904,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-8-line-8",
+        "order": 8008,
+        "groupIndex": 8,
+        "kind": "paragraph",
+        "label": "Page 8 - Line 8",
+        "sourceText": "identify patient needs and symptoms..",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 356.04,
+          "width": 475.09631999999993,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-9-line-1",
+        "order": 9001,
+        "groupIndex": 9,
+        "kind": "paragraph",
+        "label": "Page 9 - Line 1",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-9-line-2",
+        "order": 9002,
+        "groupIndex": 9,
+        "kind": "paragraph",
+        "label": "Page 9 - Line 2",
+        "sourceText": " Therapeutic Milieu: Creating a safe and",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 174.04,
+          "width": 529.37492,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-9-line-3",
+        "order": 9003,
+        "groupIndex": 9,
+        "kind": "paragraph",
+        "label": "Page 9 - Line 3",
+        "sourceText": "healing environment for the patient.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 208.016,
+          "width": 447.6320640000002,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-9-line-4",
+        "order": 9004,
+        "groupIndex": 9,
+        "kind": "paragraph",
+        "label": "Page 9 - Line 4",
+        "sourceText": " Medication Management: Administering",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 248.04,
+          "width": 545.87408,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-9-line-5",
+        "order": 9005,
+        "groupIndex": 9,
+        "kind": "paragraph",
+        "label": "Page 9 - Line 5",
+        "sourceText": "medications and monitoring for side effects.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 282.04,
+          "width": 544.43712,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-1",
+        "order": 10001,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 1",
+        "sourceText": "Nursing Assessment in Psychiatric Care",
+        "translatedText": "",
+        "layout": {
+          "x": 75.624,
+          "y": 59.96,
+          "width": 567.81288,
+          "height": 36.04,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-2",
+        "order": 10002,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 2",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-3",
+        "order": 10003,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 3",
+        "sourceText": " Psychiatric assessment is the first step in the",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 152.04,
+          "width": 574.4394000000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-4",
+        "order": 10004,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 4",
+        "sourceText": "nursing process.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 186.04,
+          "width": 202.4863200000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-5",
+        "order": 10005,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 5",
+        "sourceText": " Key Components:",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 226.04,
+          "width": 250.97016,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-6",
+        "order": 10006,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 6",
+        "sourceText": "• Nursing Interview: history, medications,",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 268.04,
+          "width": 562.9659200000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-7",
+        "order": 10007,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 7",
+        "sourceText": "stressors, support.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 300.04,
+          "width": 225.97271999999998,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-8",
+        "order": 10008,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 8",
+        "sourceText": "• Mental Status Examination (MSE):",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 342.016,
+          "width": 494.5834080000001,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-9",
+        "order": 10009,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 9",
+        "sourceText": "appearance, mood, thought, cognition.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 374.04,
+          "width": 478.3396800000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-10",
+        "order": 10010,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 10",
+        "sourceText": "• Physical & Behavioral Observation: sleep,",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 416.04,
+          "width": 586.6567600000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-10-line-11",
+        "order": 10011,
+        "groupIndex": 10,
+        "kind": "paragraph",
+        "label": "Page 10 - Line 11",
+        "sourceText": "appetite, energy, medication effects.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 448.04,
+          "width": 445.43076,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-1",
+        "order": 11001,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 1",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-2",
+        "order": 11002,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 2",
+        "sourceText": " Assessment Tools Used by Nurses:",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 158.016,
+          "width": 474.05342400000006,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-3",
+        "order": 11003,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 3",
+        "sourceText": "• PHQ-9 → Depression screening",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 198.04,
+          "width": 445.27304000000004,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-4",
+        "order": 11004,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 4",
+        "sourceText": "• GAD-7 → Anxiety screening",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 238.04,
+          "width": 407.08328000000006,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-5",
+        "order": 11005,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 5",
+        "sourceText": "• MoCA → Cognitive screening (not",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 278.04,
+          "width": 481.9494800000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-6",
+        "order": 11006,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 6",
+        "sourceText": "diagnostic, requires training)",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 312.04,
+          "width": 357.9439200000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-7",
+        "order": 11007,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 7",
+        "sourceText": "• Suicide and safety risk assessment",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 352.04,
+          "width": 487.57172,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-8",
+        "order": 11008,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 8",
+        "sourceText": " Key Message: Nurses do not diagnose, but",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 392.04,
+          "width": 555.0631200000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-9",
+        "order": 11009,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 9",
+        "sourceText": "play a critical role in early detection,",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 426.04,
+          "width": 449.20536,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-11-line-10",
+        "order": 11010,
+        "groupIndex": 11,
+        "kind": "paragraph",
+        "label": "Page 11 - Line 10",
+        "sourceText": "monitoring, and documentation.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 460.04,
+          "width": 402.9874800000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-12-line-1",
+        "order": 12001,
+        "groupIndex": 12,
+        "kind": "paragraph",
+        "label": "Page 12 - Line 1",
+        "sourceText": "Roles of the Psychiatric Nurse -",
+        "translatedText": "",
+        "layout": {
+          "x": 144.98,
+          "y": 44,
+          "width": 429.35,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-12-line-2",
+        "order": 12002,
+        "groupIndex": 12,
+        "kind": "paragraph",
+        "label": "Page 12 - Line 2",
+        "sourceText": "Educational Role",
+        "translatedText": "",
+        "layout": {
+          "x": 242.45,
+          "y": 80,
+          "width": 234.27000000000004,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-12-line-3",
+        "order": 12003,
+        "groupIndex": 12,
+        "kind": "paragraph",
+        "label": "Page 12 - Line 3",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-12-line-4",
+        "order": 12004,
+        "groupIndex": 12,
+        "kind": "paragraph",
+        "label": "Page 12 - Line 4",
+        "sourceText": " Patient Education: Teaching patients about",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 214.04,
+          "width": 559.2850800000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-12-line-5",
+        "order": 12005,
+        "groupIndex": 12,
+        "kind": "paragraph",
+        "label": "Page 12 - Line 5",
+        "sourceText": "their diagnosis and treatment plans.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 248.04,
+          "width": 445.57056000000006,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-12-line-6",
+        "order": 12006,
+        "groupIndex": 12,
+        "kind": "paragraph",
+        "label": "Page 12 - Line 6",
+        "sourceText": " Symptom Management: Helping patients",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 288.04,
+          "width": 541.4186400000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-12-line-7",
+        "order": 12007,
+        "groupIndex": 12,
+        "kind": "paragraph",
+        "label": "Page 12 - Line 7",
+        "sourceText": "recognize early warning signs of relapse.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 322.016,
+          "width": 505.1671680000001,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-13-line-1",
+        "order": 13001,
+        "groupIndex": 13,
+        "kind": "paragraph",
+        "label": "Page 13 - Line 1",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-13-line-2",
+        "order": 13002,
+        "groupIndex": 13,
+        "kind": "paragraph",
+        "label": "Page 13 - Line 2",
+        "sourceText": " Family Support: Educating families on how",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 174.04,
+          "width": 568.3441200000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-13-line-3",
+        "order": 13003,
+        "groupIndex": 13,
+        "kind": "paragraph",
+        "label": "Page 13 - Line 3",
+        "sourceText": "to support their loved ones and manage",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 208.016,
+          "width": 494.0295360000002,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-13-line-4",
+        "order": 13004,
+        "groupIndex": 13,
+        "kind": "paragraph",
+        "label": "Page 13 - Line 4",
+        "sourceText": "stress.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 242.04,
+          "width": 76.19099999999999,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-13-line-5",
+        "order": 13005,
+        "groupIndex": 13,
+        "kind": "paragraph",
+        "label": "Page 13 - Line 5",
+        "sourceText": " Health Promotion: Providing information on",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 282.04,
+          "width": 582.9112800000003,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-13-line-6",
+        "order": 13006,
+        "groupIndex": 13,
+        "kind": "paragraph",
+        "label": "Page 13 - Line 6",
+        "sourceText": "healthy lifestyles to prevent illness.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 316.016,
+          "width": 434.8433760000001,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-1",
+        "order": 14001,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 1",
+        "sourceText": "Roles of the Psychiatric Nurse -Advocacy",
+        "translatedText": "",
+        "layout": {
+          "x": 74.544,
+          "y": 44,
+          "width": 570.226,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-2",
+        "order": 14002,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 2",
+        "sourceText": "Role",
+        "translatedText": "",
+        "layout": {
+          "x": 327.91,
+          "y": 80,
+          "width": 63.329999999999984,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-3",
+        "order": 14003,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 3",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-4",
+        "order": 14004,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 4",
+        "sourceText": " Patient Rights: Protecting the legal and",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 214.04,
+          "width": 509.79588,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-5",
+        "order": 14005,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 5",
+        "sourceText": "ethical rights of patients (e.g., informed",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 248.04,
+          "width": 486.28032,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-6",
+        "order": 14006,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 6",
+        "sourceText": "consent).",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 282.04,
+          "width": 110.94528000000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-7",
+        "order": 14007,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 7",
+        "sourceText": " Reducing Stigma: Fighting against the shame",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 322.016,
+          "width": 588.3960480000004,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-8",
+        "order": 14008,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 8",
+        "sourceText": "and discrimination associated with mental",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 356.04,
+          "width": 525.45228,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-14-line-9",
+        "order": 14009,
+        "groupIndex": 14,
+        "kind": "paragraph",
+        "label": "Page 14 - Line 9",
+        "sourceText": "illness.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 390.04,
+          "width": 84.91451999999997,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-15-line-1",
+        "order": 15001,
+        "groupIndex": 15,
+        "kind": "paragraph",
+        "label": "Page 15 - Line 1",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-15-line-2",
+        "order": 15002,
+        "groupIndex": 15,
+        "kind": "paragraph",
+        "label": "Page 15 - Line 2",
+        "sourceText": " Resource Access: Helping patients get the",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 174.04,
+          "width": 544.4103600000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-15-line-3",
+        "order": 15003,
+        "groupIndex": 15,
+        "kind": "paragraph",
+        "label": "Page 15 - Line 3",
+        "sourceText": "services and social support they need.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 208.016,
+          "width": 469.459584,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-15-line-4",
+        "order": 15004,
+        "groupIndex": 15,
+        "kind": "paragraph",
+        "label": "Page 15 - Line 4",
+        "sourceText": " Voice for the Patient: Speaking up for those",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 248.04,
+          "width": 565.1566800000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-15-line-5",
+        "order": 15005,
+        "groupIndex": 15,
+        "kind": "paragraph",
+        "label": "Page 15 - Line 5",
+        "sourceText": "who cannot advocate for themselves.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 282.04,
+          "width": 457.87296,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-1",
+        "order": 16001,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 1",
+        "sourceText": "Working Within the Multidisciplinary",
+        "translatedText": "",
+        "layout": {
+          "x": 95.904,
+          "y": 44,
+          "width": 527.4,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-2",
+        "order": 16002,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 2",
+        "sourceText": "Health Care Team",
+        "translatedText": "",
+        "layout": {
+          "x": 235.49,
+          "y": 80,
+          "width": 248.24999999999994,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-3",
+        "order": 16003,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 3",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-4",
+        "order": 16004,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 4",
+        "sourceText": " Team Members: Includes Psychiatrists,",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 214.04,
+          "width": 511.02612,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-5",
+        "order": 16005,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 5",
+        "sourceText": "Psychologists, Social Workers, Occupational",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 248.04,
+          "width": 547.1772000000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-6",
+        "order": 16006,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 6",
+        "sourceText": "Therapists, and Pharmacists.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 282.04,
+          "width": 355.34364,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-7",
+        "order": 16007,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 7",
+        "sourceText": " The Nurse’s Position: The nurse is often the",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 322.016,
+          "width": 566.6914400000002,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-8",
+        "order": 16008,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 8",
+        "sourceText": "'link' between the patient and the rest of the",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 356.04,
+          "width": 540.66252,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-16-line-9",
+        "order": 16009,
+        "groupIndex": 16,
+        "kind": "paragraph",
+        "label": "Page 16 - Line 9",
+        "sourceText": "team.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 390.04,
+          "width": 68.25035999999999,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-1",
+        "order": 17001,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 1",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-2",
+        "order": 17002,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 2",
+        "sourceText": " Key Components of Teamwork:",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 174.04,
+          "width": 424.0984799999999,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-3",
+        "order": 17003,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 3",
+        "sourceText": " Communication: Sharing updates on the",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 214.04,
+          "width": 530.17872,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-4",
+        "order": 17004,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 4",
+        "sourceText": "patient’s condition.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 248.04,
+          "width": 238.41492,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-5",
+        "order": 17005,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 5",
+        "sourceText": " Collaboration: Working together on a single",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 288.04,
+          "width": 572.4822000000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-6",
+        "order": 17006,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 6",
+        "sourceText": "treatment plan.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 322.016,
+          "width": 189.28377600000005,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-7",
+        "order": 17007,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 7",
+        "sourceText": " Holistic Care: Ensuring all aspects of the",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 362.04,
+          "width": 528.4452000000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-8",
+        "order": 17008,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 8",
+        "sourceText": "patient (physical, social, and mental) are",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 396.04,
+          "width": 498.91824000000014,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-17-line-9",
+        "order": 17009,
+        "groupIndex": 17,
+        "kind": "paragraph",
+        "label": "Page 17 - Line 9",
+        "sourceText": "treated.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 430.04,
+          "width": 94.19724000000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-18-line-1",
+        "order": 18001,
+        "groupIndex": 18,
+        "kind": "paragraph",
+        "label": "Page 18 - Line 1",
+        "sourceText": "Summary & Conclusion",
+        "translatedText": "",
+        "layout": {
+          "x": 194.57,
+          "y": 62,
+          "width": 329.94,
+          "height": 34,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-18-line-2",
+        "order": 18002,
+        "groupIndex": 18,
+        "kind": "paragraph",
+        "label": "Page 18 - Line 2",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-18-line-3",
+        "order": 18003,
+        "groupIndex": 18,
+        "kind": "paragraph",
+        "label": "Page 18 - Line 3",
+        "sourceText": " Psychiatric nursing is a 'Human-to-Human'",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 214.04,
+          "width": 567.7774400000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-18-line-4",
+        "order": 18004,
+        "groupIndex": 18,
+        "kind": "paragraph",
+        "label": "Page 18 - Line 4",
+        "sourceText": "relationship.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 248.04,
+          "width": 155.5974,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-18-line-5",
+        "order": 18005,
+        "groupIndex": 18,
+        "kind": "paragraph",
+        "label": "Page 18 - Line 5",
+        "sourceText": " Nurses function as clinicians, teachers, and",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 288.04,
+          "width": 559.7324400000002,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-18-line-6",
+        "order": 18006,
+        "groupIndex": 18,
+        "kind": "paragraph",
+        "label": "Page 18 - Line 6",
+        "sourceText": "advocates.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 322.016,
+          "width": 129.957696,
+          "height": 31.984,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-18-line-7",
+        "order": 18007,
+        "groupIndex": 18,
+        "kind": "paragraph",
+        "label": "Page 18 - Line 7",
+        "sourceText": " Success depends on strong teamwork with",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 362.04,
+          "width": 557.1601200000001,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-18-line-8",
+        "order": 18008,
+        "groupIndex": 18,
+        "kind": "paragraph",
+        "label": "Page 18 - Line 8",
+        "sourceText": "other health professionals.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 396.04,
+          "width": 326.40504,
+          "height": 31.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-1",
+        "order": 19001,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 1",
+        "sourceText": "References",
+        "translatedText": "",
+        "layout": {
+          "x": 224.57,
+          "y": 14,
+          "width": 269.946,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-2",
+        "order": 19002,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 2",
+        "sourceText": "",
+        "translatedText": "",
+        "layout": {
+          "x": 333.79,
+          "y": 108,
+          "width": 54,
+          "height": 58,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-3",
+        "order": 19003,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 3",
+        "sourceText": " American Psychiatric Association. (2022). Diagnostic and",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 172.04,
+          "width": 571.65536,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-4",
+        "order": 19004,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 4",
+        "sourceText": "statistical manual of mental disorders (5th ed., text rev.;",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 196.04,
+          "width": 506.55536,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-5",
+        "order": 19005,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 5",
+        "sourceText": "DSM-5-TR). American Psychiatric Association Publishing.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 220.04,
+          "width": 564.0052799999999,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-6",
+        "order": 19006,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 6",
+        "sourceText": " Videbeck, S. L. (2020). Psychiatric–mental health nursing",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 250.04,
+          "width": 555.04376,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-7",
+        "order": 19007,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 7",
+        "sourceText": "(8th ed.). Wolters Kluwer.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 272.04,
+          "width": 251.87288,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-8",
+        "order": 19008,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 8",
+        "sourceText": " World Health Organization. (2024). Psychological",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 302.04,
+          "width": 498.3704,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-9",
+        "order": 19009,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 9",
+        "sourceText": "interventions implementation manual: Integrating evidence-",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 326.04,
+          "width": 536.46268,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-10",
+        "order": 19010,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 10",
+        "sourceText": "based psychological interventions into existing services. World",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 350.04,
+          "width": 560.47444,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-11",
+        "order": 19011,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 11",
+        "sourceText": "Health Organization.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 374.04,
+          "width": 205.72128000000004,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-12",
+        "order": 19012,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 12",
+        "sourceText": " Halter, M. J. (2022). Varcarolis’ foundations of psychiatric-",
+        "translatedText": "",
+        "layout": {
+          "x": 62.28,
+          "y": 402.04,
+          "width": 562.02268,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      },
+      {
+        "id": "page-19-line-13",
+        "order": 19013,
+        "groupIndex": 19,
+        "kind": "paragraph",
+        "label": "Page 19 - Line 13",
+        "sourceText": "mental health nursing: A clinical approach (9th ed.). Elsevier.",
+        "translatedText": "",
+        "layout": {
+          "x": 91.08,
+          "y": 426.04,
+          "width": 559.1017999999999,
+          "height": 25.96,
+          "pageWidth": 720,
+          "pageHeight": 540
+        }
+      }
+    ],
+    "warnings": []
+  }
+}

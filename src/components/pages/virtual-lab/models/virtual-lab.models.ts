@@ -33,6 +33,16 @@ export interface SimulationScenarioConfig extends ScenarioConfig {
   language: 'ar' | 'en';
   generatedCase?: GeneratedClinicalCase | null;
   clinicalCase?: ClinicalAiCase | null;
+  tutorContext?: {
+    topic: string;
+    recentTopic?: string;
+    explanationContext?: string;
+    userIntent?: string;
+    attachedFileContext?: string;
+    selectedSpecialty?: string;
+    sourceConversationId?: string;
+    sourceMessageId?: string;
+  } | null;
 }
 
 export interface SimulationReferenceImage {

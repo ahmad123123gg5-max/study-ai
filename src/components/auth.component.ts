@@ -32,8 +32,8 @@ interface PromoFeedback {
         <div class="hidden lg:flex flex-col justify-center p-24 bg-gradient-to-br from-indigo-600/20 to-slate-900 border-e border-white/5 relative overflow-hidden">
           <div class="relative z-10 space-y-12 text-right">
             <div class="w-24 h-24 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-white text-5xl font-black shadow-2xl mb-12">S</div>
-            <h2 class="text-6xl font-black text-white leading-tight tracking-tighter">{{ t('Technology Sovereignty Gateway') }}</h2>
-            <p class="text-slate-400 text-2xl leading-relaxed font-bold">{{ t("Join a community of more than 800,000 researchers using the world's most powerful AI technologies.") }}</p>
+            <h2 class="text-6xl font-black text-white leading-tight tracking-tighter">{{ t('Global Study Command Center') }}</h2>
+            <p class="text-slate-400 text-2xl leading-relaxed font-bold">{{ t('Join students worldwide using StudyVex AI for tutoring, quizzes, flashcards, summaries, study plans, research tools, and virtual labs.') }}</p>
             
             <div class="space-y-10 pt-16">
               @for (point of infoPoints; track point.label) {
@@ -222,9 +222,9 @@ export class AuthComponent {
   readonly t = (text: string) => this.localization.phrase(text);
 
   private readonly infoPointBlueprints = [
-    { label: 'Persistent and archived smart conversations', icon: 'fa-solid fa-brain', color: 'indigo' },
+    { label: 'Persistent and organized study conversations', icon: 'fa-solid fa-brain', color: 'indigo' },
     { label: 'Automatic saving for learning sessions', icon: 'fa-solid fa-cloud-arrow-up', color: 'emerald' },
-    { label: 'Precise and documented academic research tools', icon: 'fa-solid fa-microscope', color: 'amber' }
+    { label: 'Documented academic research and virtual lab tools', icon: 'fa-solid fa-microscope', color: 'amber' }
   ] as const;
 
   get infoPoints() {
@@ -282,7 +282,7 @@ export class AuthComponent {
     try {
       if (this.isLogin()) {
         await this.auth.signIn(normalizedEmail, normalizedPassword);
-        this.ns.show(this.t('Signed in'), this.t('Welcome back to your smart workspace'), 'success', 'fa-check-circle');
+        this.ns.show(this.t('Signed in'), this.t('Welcome back to your StudyVex workspace'), 'success', 'fa-check-circle');
         this.authSuccess.emit();
       } else {
         await this.auth.signUp(normalizedEmail, normalizedPassword, normalizedName);

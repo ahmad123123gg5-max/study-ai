@@ -1,5 +1,10 @@
 import { Injectable, signal } from '@angular/core';
-import { LanguageCode, normalizeLanguageCode } from '../i18n/language-config';
+import {
+  APP_LANGUAGE_STORAGE_KEY,
+  LEGACY_LANGUAGE_STORAGE_KEY,
+  LanguageCode,
+  normalizeLanguageCode
+} from '../i18n/language-config';
 
 type UserPlan = 'free' | 'pro';
 type PremiumSource = 'promo_code' | 'paid' | 'permanent' | null;
@@ -88,7 +93,9 @@ export class AuthService {
     const role = this.getStoredRole();
     const plan: UserPlan = user.plan === 'pro' ? 'pro' : 'free';
     localStorage.setItem('smartedge_user_plan', plan);
-    localStorage.setItem('smartedge_user_lang', normalizeLanguageCode(user.preferredLanguage));
+    const language = normalizeLanguageCode(user.preferredLanguage);
+    localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, language);
+    localStorage.setItem(LEGACY_LANGUAGE_STORAGE_KEY, language);
     this.currentUser.set({
       id: user.id,
       email: user.email,
@@ -200,8 +207,8 @@ export class AuthService {
       const left = Math.max(0, Math.floor((window.screen.width - width) / 2));
       const top = Math.max(0, Math.floor((window.screen.height - height) / 2));
       const popup = window.open(
-        `${this.AUTH_API_BASE}/oauth/google/start`,
-        'smartedge-google-auth',
+        `${this.AUTH_API_BASE}/oauth/google/start?origin=${encodeURIComponent(window.location.origin)}`,
+        'studyvex-google-auth',
         `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
       );
 
@@ -242,7 +249,7 @@ export class AuthService {
 
       const onMessage = async (event: MessageEvent<OAuthPopupMessage>) => {
         const data = event.data;
-        if (!data || data.source !== 'smartedge-oauth' || data.provider !== 'google') {
+        if (!data || data.source !== 'studyvex-oauth' || data.provider !== 'google') {
           return;
         }
 

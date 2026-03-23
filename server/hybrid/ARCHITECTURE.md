@@ -1,6 +1,6 @@
 # Hybrid AI Architecture
 
-The SmartEdge AI runtime now routes requests through:
+The StudyVex AI runtime now routes requests through:
 
 1. `logic-engine`
 2. `cache-system`

@@ -18,7 +18,7 @@ import { LocalizationService } from '../../services/localization.service';
           <div class="w-full flex items-center justify-between mb-6">
             <div class="flex items-center gap-4 overflow-hidden transition-all duration-500">
               <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-2xl shadow-indigo-500/20 shrink-0 transform hover:rotate-6 transition">S</div>
-              <span class="text-xl font-black tracking-tighter text-white whitespace-nowrap">SmartEdge <span class="text-indigo-400">AI</span></span>
+              <span class="text-xl font-black tracking-tighter text-white whitespace-nowrap">StudyVex <span class="text-indigo-400">AI</span></span>
             </div>
             <button (click)="toggleSidebar.emit()" class="w-12 h-12 rounded-xl glass hover:bg-white/10 transition flex items-center justify-center text-white text-xl shrink-0">
               <i class="fa-solid fa-xmark"></i>
@@ -89,7 +89,9 @@ export class SidebarComponent {
         return true;
       }).map((item) => ({
         ...item,
-        label: this.t(item.label)
+        label: item.id === 'file-study'
+          ? (this.localization.currentLanguage() === 'ar' ? 'اشرح ملف' : 'Explain File')
+          : this.t(item.label)
       }))
     })).filter(section => section.items.length > 0);
   }
@@ -103,12 +105,13 @@ export class SidebarComponent {
 
   private readonly navSectionBlueprints = [
     { label: 'Core & Analytics', items: [
-      { id: 'overview', label: 'Smart Command Center', icon: 'fa-solid fa-chart-line' },
+      { id: 'overview', label: 'StudyVex AI', icon: 'fa-solid fa-chart-line' },
       { id: 'levels', label: 'Student Level', icon: 'fa-solid fa-chart-simple' },
       { id: 'profile', label: 'Profile', icon: 'fa-solid fa-user' },
     ]},
     { label: 'Learning Tools', items: [
       { id: 'tutor', label: 'AI Tutor', icon: 'fa-solid fa-brain' },
+      { id: 'file-study', label: 'Explain File', icon: 'fa-solid fa-book-open-reader' },
       { id: 'quiz', label: 'AI Exam', icon: 'fa-solid fa-clipboard-question' },
       { id: 'timer', label: 'Smart Timer', icon: 'fa-solid fa-stopwatch' },
       { id: 'planner', label: 'Study Planner', icon: 'fa-solid fa-calendar-check' },
@@ -117,6 +120,7 @@ export class SidebarComponent {
     { label: 'Advanced Labs', items: [
       { id: 'lab', label: 'Virtual Lab', icon: 'fa-solid fa-flask-vial' },
       { id: 'transform', label: 'Content Lab', icon: 'fa-solid fa-wand-magic-sparkles' },
+      { id: 'file-translator', label: 'Smart File Translator', icon: 'fa-solid fa-language' },
     ]},
     { label: 'Settings & Administration', items: [
       { id: 'subscription', label: 'Subscriptions', icon: 'fa-solid fa-credit-card' },

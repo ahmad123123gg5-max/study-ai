@@ -1,5 +1,5 @@
-
-# SmartEdge AI - Global Architecture Specification
+﻿
+# StudyVex AI - Global Architecture Specification
 
 ## 🏗 System Overview
 The platform is built as a **Single Page Application (SPA)** using **Angular v20** with **Zoneless Change Detection**. It follows a **Domain-Driven Modular Design** for high scalability.
@@ -48,3 +48,4 @@ achievements (id, user_id, badge_type, unlocked_at)
 2. **State**: Transition local signals to a global state manager (SignalStore/NgRx) for complex data flows.
 3. **PWA**: Add `manifest.json` and service worker for offline study capabilities.
 ```
+

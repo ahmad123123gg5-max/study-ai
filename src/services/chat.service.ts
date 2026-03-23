@@ -20,12 +20,52 @@ export interface ConversationContext {
   helpType: string;
 }
 
+export interface TutorTeachingUnit {
+  id: string;
+  label: string;
+  kind: 'slide' | 'page' | 'section' | 'chunk' | 'visual';
+  sourceName: string;
+  order: number;
+  text: string;
+  title?: string;
+  category?: 'content' | 'title' | 'reference' | 'ending' | 'low-value' | 'image-heavy';
+  isMeaningful?: boolean;
+  actualSlideNumber?: number;
+}
+
+export interface TutorFileTeachingState {
+  active: boolean;
+  documentId?: string;
+  documentName?: string;
+  chapterId?: string;
+  sourceNames: string[];
+  units: TutorTeachingUnit[];
+  meaningfulUnitIds?: string[];
+  coveredUnitIds?: string[];
+  currentUnitIndex: number;
+  currentUnitLabel: string;
+  mode: 'slide' | 'page' | 'section' | 'chunk' | 'visual';
+  totalSlides?: number;
+  currentSlideNumber?: number;
+  totalUnitCount?: number;
+  extractionState?: 'queued' | 'reading' | 'ready' | 'limited';
+  nextActionHint?: string;
+  chapterCompleted?: boolean;
+}
+
 export interface TutorSessionState {
   topic: string;
   explainedSubtopics: string[];
   currentDepth: number; // 0:overview, 1:core, 2:deep, 3:application, 4:summary
   lastIntent: string;
   mcqHistory: Array<{question: string, correct: string, explanation: string}>;
+  currentSubtopic?: string;
+  studentStage?: 'foundation' | 'guided' | 'applied' | 'advanced' | 'review';
+  studentProfileEstimate?: 'beginner' | 'intermediate' | 'advanced';
+  nextSuggestedStep?: string;
+  recentFocus?: string[];
+  lastTutorResponseSummary?: string;
+  fileTeaching?: TutorFileTeachingState | null;
 }
 
 export interface Conversation {
@@ -43,6 +83,18 @@ export interface PendingTutorLaunch {
   context: ConversationContext;
   userVisibleText: string;
   requestText: string;
+  files?: Array<{
+    id: string;
+    data: string;
+    mimeType: string;
+    name: string;
+    status?: 'reading' | 'starting' | 'ready' | 'limited' | 'error';
+    totalUnits?: number;
+    currentPreparedUnits?: number;
+    extractedText?: string;
+    teachingUnits?: TutorTeachingUnit[];
+    teachingMode?: TutorTeachingUnit['kind'];
+  }>;
 }
 
 type StoredConversation = Omit<Conversation, 'mode'> & {
